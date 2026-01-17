@@ -12,6 +12,7 @@ interface DataTableProps<T> {
   columns: Column<T>[];
   onRowClick?: (row: T) => void;
   emptyMessage?: string;
+  pageSize?: number;
 }
 
 type SortDirection = 'asc' | 'desc' | null;
@@ -21,9 +22,11 @@ export function DataTable<T extends Record<string, any>>({
   columns,
   onRowClick,
   emptyMessage = 'Ingen data funnet',
+  pageSize = 50,
 }: DataTableProps<T>) {
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const handleSort = (key: string) => {
     if (sortKey === key) {
@@ -64,6 +67,17 @@ export function DataTable<T extends Record<string, any>>({
     });
   }, [data, sortKey, sortDirection]);
 
+  // Reset to page 1 when data changes
+  const totalPages = Math.ceil(sortedData.length / pageSize);
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+  const paginatedData = sortedData.slice(startIndex, endIndex);
+
+  // Reset page when data changes significantly
+  if (currentPage > totalPages && totalPages > 0) {
+    setCurrentPage(1);
+  }
+
   const getSortIcon = (key: string) => {
     if (sortKey !== key) return '↕️';
     if (sortDirection === 'asc') return '↑';
@@ -103,7 +117,7 @@ export function DataTable<T extends Record<string, any>>({
           </tr>
         </thead>
         <tbody>
-          {sortedData.map((row, index) => (
+          {paginatedData.map((row, index) => (
             <tr
               key={index}
               className={`hover:bg-dark-800/30 transition-colors ${
@@ -122,6 +136,48 @@ export function DataTable<T extends Record<string, any>>({
           ))}
         </tbody>
       </table>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between px-4 py-3 bg-dark-800/50 border-t border-dark-700">
+          <div className="text-sm text-dark-400">
+            Viser {startIndex + 1}-{Math.min(endIndex, sortedData.length)} av {sortedData.length}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCurrentPage(1)}
+              disabled={currentPage === 1}
+              className="px-2 py-1 rounded bg-dark-700 text-dark-300 hover:bg-dark-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              ««
+            </button>
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="px-2 py-1 rounded bg-dark-700 text-dark-300 hover:bg-dark-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              «
+            </button>
+            <span className="px-3 py-1 text-sm">
+              Side {currentPage} av {totalPages}
+            </span>
+            <button
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="px-2 py-1 rounded bg-dark-700 text-dark-300 hover:bg-dark-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              »
+            </button>
+            <button
+              onClick={() => setCurrentPage(totalPages)}
+              disabled={currentPage === totalPages}
+              className="px-2 py-1 rounded bg-dark-700 text-dark-300 hover:bg-dark-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              »»
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

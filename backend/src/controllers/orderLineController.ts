@@ -6,8 +6,11 @@ export const orderLineController = {
   getByOrder: async (req: AuthRequest, res: Response) => {
     try {
       const { ordrenr } = req.params;
-      const lines = await orderLineModel.findByOrderNr(Number(ordrenr));
-      res.json(lines);
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 50;
+
+      const result = await orderLineModel.findByOrderNr(Number(ordrenr), { page, limit });
+      res.json(result);
     } catch (error) {
       console.error('Get order lines error:', error);
       res.status(500).json({ error: 'Internal server error' });

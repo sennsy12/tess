@@ -12,6 +12,7 @@ import { AdminDashboard } from './pages/admin/Dashboard'
 import { AdminOrderLines } from './pages/admin/OrderLines'
 import { AdminStatus } from './pages/admin/Status'
 import { AdminETL } from './pages/admin/ETL'
+import { AdminPricing } from './pages/admin/pricing'
 
 function App() {
   return (
@@ -73,6 +74,11 @@ function App() {
           <Route path="/admin/etl" element={
             <ProtectedRoute allowedRoles={['admin']}>
               <AdminETL />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/pricing" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <AdminPricing />
             </ProtectedRoute>
           } />
           

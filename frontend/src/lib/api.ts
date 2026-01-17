@@ -49,7 +49,8 @@ export const ordersApi = {
 
 // Order Lines API
 export const orderlinesApi = {
-  getByOrder: (ordrenr: number) => api.get(`/orderlines/order/${ordrenr}`),
+  getByOrder: (ordrenr: number, params?: { page?: number; limit?: number }) => 
+    api.get(`/orderlines/order/${ordrenr}`, { params }),
   create: (data: any) => api.post('/orderlines', data),
   update: (ordrenr: number, linjenr: number, data: any) =>
     api.put(`/orderlines/${ordrenr}/${linjenr}`, data),
@@ -77,6 +78,7 @@ export const statusApi = {
   getImportStatus: () => api.get('/status/import'),
   getExtractionStatus: () => api.get('/status/extraction'),
   getHealth: () => api.get('/status/health'),
+  getApiMetrics: () => api.get('/status/api-metrics'),
 };
 
 // Customers API
@@ -141,6 +143,70 @@ export const schedulerApi = {
 // Suggestions API (autocomplete)
 export const suggestionsApi = {
   search: (q: string) => api.get('/suggestions/search', { params: { q } }),
+};
+
+// Pricing API
+export const pricingApi = {
+  // Customer Groups
+  getGroups: () => api.get('/pricing/groups'),
+  createGroup: (data: { name: string; description?: string }) =>
+    api.post('/pricing/groups', data),
+  updateGroup: (id: number, data: { name?: string; description?: string }) =>
+    api.put(`/pricing/groups/${id}`, data),
+  deleteGroup: (id: number) => api.delete(`/pricing/groups/${id}`),
+  assignCustomer: (groupId: number, kundenr: string) =>
+    api.put(`/pricing/groups/${groupId}/customers/${kundenr}`),
+  removeCustomerFromGroup: (kundenr: string) =>
+    api.delete(`/pricing/groups/customers/${kundenr}`),
+  getCustomersWithGroups: () => api.get('/pricing/customers'),
+
+  // Price Lists
+  getLists: (activeOnly?: boolean) =>
+    api.get('/pricing/lists', { params: activeOnly ? { active: 'true' } : {} }),
+  getList: (id: number) => api.get(`/pricing/lists/${id}`),
+  createList: (data: {
+    name: string;
+    description?: string;
+    valid_from?: string;
+    valid_to?: string;
+    priority?: number;
+    is_active?: boolean;
+  }) => api.post('/pricing/lists', data),
+  updateList: (id: number, data: Record<string, any>) =>
+    api.put(`/pricing/lists/${id}`, data),
+  deleteList: (id: number) => api.delete(`/pricing/lists/${id}`),
+
+  // Price Rules
+  getRules: (listId: number) => api.get(`/pricing/lists/${listId}/rules`),
+  getRule: (id: number) => api.get(`/pricing/rules/${id}`),
+  createRule: (data: {
+    price_list_id: number;
+    varekode?: string;
+    varegruppe?: string;
+    kundenr?: string;
+    customer_group_id?: number;
+    min_quantity?: number;
+    discount_percent?: number;
+    fixed_price?: number;
+  }) => api.post('/pricing/rules', data),
+  updateRule: (id: number, data: Record<string, any>) =>
+    api.put(`/pricing/rules/${id}`, data),
+  deleteRule: (id: number) => api.delete(`/pricing/rules/${id}`),
+
+  // Price Calculation
+  calculatePrice: (data: {
+    varekode: string;
+    varegruppe?: string;
+    kundenr: string;
+    quantity: number;
+    base_price: number;
+  }) => api.post('/pricing/calculate', data),
+  calculatePricesBulk: (
+    items: Array<{ varekode: string; varegruppe?: string; quantity: number; base_price: number }>,
+    kundenr: string
+  ) => api.post('/pricing/calculate/bulk', { items, kundenr }),
+  getCustomerRules: (kundenr: string) =>
+    api.get(`/pricing/customer/${kundenr}/rules`),
 };
 
 export default api;

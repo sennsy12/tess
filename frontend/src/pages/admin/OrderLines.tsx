@@ -15,6 +15,13 @@ interface OrderLine {
   linjestatus: number;
 }
 
+interface Pagination {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
 export function AdminOrderLines() {
   const [selectedOrder, setSelectedOrder] = useState<number | null>(null);
   const [orders, setOrders] = useState<any[]>([]);
@@ -23,6 +30,9 @@ export function AdminOrderLines() {
   const [isLoading, setIsLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingLine, setEditingLine] = useState<OrderLine | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pagination, setPagination] = useState<Pagination | null>(null);
+  const pageSize = 50;
   const [formData, setFormData] = useState({
     varekode: '',
     antall: 1,
@@ -37,7 +47,8 @@ export function AdminOrderLines() {
 
   useEffect(() => {
     if (selectedOrder) {
-      loadOrderLines(selectedOrder);
+      loadOrderLines(selectedOrder, 1);
+      setCurrentPage(1);
     }
   }, [selectedOrder]);
 
@@ -61,12 +72,20 @@ export function AdminOrderLines() {
     }
   };
 
-  const loadOrderLines = async (ordrenr: number) => {
+  const loadOrderLines = async (ordrenr: number, page: number) => {
     try {
-      const response = await orderlinesApi.getByOrder(ordrenr);
-      setOrderLines(response.data);
+      const response = await orderlinesApi.getByOrder(ordrenr, { page, limit: pageSize });
+      setOrderLines(response.data.data);
+      setPagination(response.data.pagination);
     } catch (error) {
       console.error('Failed to load order lines:', error);
+    }
+  };
+
+  const handlePageChange = (newPage: number) => {
+    setCurrentPage(newPage);
+    if (selectedOrder) {
+      loadOrderLines(selectedOrder, newPage);
     }
   };
 
@@ -93,7 +112,7 @@ export function AdminOrderLines() {
     
     try {
       await orderlinesApi.delete(line.ordrenr, line.linjenr);
-      loadOrderLines(selectedOrder!);
+      loadOrderLines(selectedOrder!, currentPage);
     } catch (error) {
       console.error('Failed to delete order line:', error);
       alert('Kunne ikke slette ordrelinje');
@@ -110,7 +129,7 @@ export function AdminOrderLines() {
         await orderlinesApi.create({ ordrenr: selectedOrder, ...formData });
       }
       setShowModal(false);
-      loadOrderLines(selectedOrder!);
+      loadOrderLines(selectedOrder!, currentPage);
     } catch (error) {
       console.error('Failed to save order line:', error);
       alert('Kunne ikke lagre ordrelinje');
@@ -207,7 +226,50 @@ export function AdminOrderLines() {
           data={orderLines}
           columns={columns}
           emptyMessage="Ingen ordrelinjer funnet"
+          pageSize={9999}
         />
+
+        {/* Server-side Pagination */}
+        {pagination && pagination.totalPages > 1 && (
+          <div className="flex items-center justify-between px-4 py-3 bg-dark-800/50 rounded-lg border border-dark-700">
+            <div className="text-sm text-dark-400">
+              Viser {((currentPage - 1) * pageSize) + 1}-{Math.min(currentPage * pageSize, pagination.total)} av {pagination.total}
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => handlePageChange(1)}
+                disabled={currentPage === 1}
+                className="px-2 py-1 rounded bg-dark-700 text-dark-300 hover:bg-dark-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                ««
+              </button>
+              <button
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+                className="px-2 py-1 rounded bg-dark-700 text-dark-300 hover:bg-dark-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                «
+              </button>
+              <span className="px-3 py-1 text-sm">
+                Side {currentPage} av {pagination.totalPages}
+              </span>
+              <button
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage === pagination.totalPages}
+                className="px-2 py-1 rounded bg-dark-700 text-dark-300 hover:bg-dark-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                »
+              </button>
+              <button
+                onClick={() => handlePageChange(pagination.totalPages)}
+                disabled={currentPage === pagination.totalPages}
+                className="px-2 py-1 rounded bg-dark-700 text-dark-300 hover:bg-dark-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                »»
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Modal */}
         {showModal && (

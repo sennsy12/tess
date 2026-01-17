@@ -1,7 +1,19 @@
 import { query } from '../db/index.js';
 
 export const orderLineModel = {
-  findByOrderNr: async (ordrenr: number) => {
+  findByOrderNr: async (ordrenr: number, options?: { page?: number; limit?: number }) => {
+    const page = options?.page || 1;
+    const limit = options?.limit || 50;
+    const offset = (page - 1) * limit;
+
+    // Get total count
+    const countResult = await query(
+      'SELECT COUNT(*) as total FROM ordrelinje WHERE ordrenr = $1',
+      [ordrenr]
+    );
+    const total = parseInt(countResult.rows[0].total, 10);
+
+    // Get paginated data
     const result = await query(
       `SELECT ol.*, v.varenavn, v.varegruppe,
               oh.henvisning1, oh.henvisning2, oh.henvisning3, oh.henvisning4, oh.henvisning5
@@ -9,10 +21,20 @@ export const orderLineModel = {
        LEFT JOIN vare v ON ol.varekode = v.varekode
        LEFT JOIN ordre_henvisning oh ON ol.ordrenr = oh.ordrenr AND ol.linjenr = oh.linjenr
        WHERE ol.ordrenr = $1
-       ORDER BY ol.linjenr`,
-      [ordrenr]
+       ORDER BY ol.linjenr
+       LIMIT $2 OFFSET $3`,
+      [ordrenr, limit, offset]
     );
-    return result.rows;
+
+    return {
+      data: result.rows,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit)
+      }
+    };
   },
 
   create: async (data: { ordrenr: number; varekode: string; antall: number; enhet: string; nettpris: number; linjestatus?: number }) => {

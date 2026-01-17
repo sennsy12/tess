@@ -2,11 +2,35 @@ import { useEffect, useState } from 'react';
 import { Layout } from '../../components/Layout';
 import { statusApi } from '../../lib/api';
 
+interface ApiEndpointMetric {
+  path: string;
+  method: string;
+  avgMs: number;
+  minMs: number;
+  maxMs: number;
+  count: number;
+  slowCount: number;
+  lastCalled: string;
+}
+
+interface ApiMetricsData {
+  summary: {
+    totalEndpoints: number;
+    totalRequests: number;
+    totalSlowRequests: number;
+    slowestEndpoint: { path: string; method: string; avgMs: number } | null;
+    mostCalled: { path: string; method: string; count: number } | null;
+    status: string;
+  };
+  endpoints: ApiEndpointMetric[];
+}
+
 export function AdminStatus() {
   const [systemStatus, setSystemStatus] = useState<any>(null);
   const [importStatus, setImportStatus] = useState<any>(null);
   const [extractionStatus, setExtractionStatus] = useState<any>(null);
   const [healthStatus, setHealthStatus] = useState<any>(null);
+  const [apiMetrics, setApiMetrics] = useState<ApiMetricsData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -15,17 +39,19 @@ export function AdminStatus() {
 
   const loadAllStatus = async () => {
     try {
-      const [systemRes, importRes, extractionRes, healthRes] = await Promise.all([
+      const [systemRes, importRes, extractionRes, healthRes, metricsRes] = await Promise.all([
         statusApi.getStatus(),
         statusApi.getImportStatus(),
         statusApi.getExtractionStatus(),
         statusApi.getHealth(),
+        statusApi.getApiMetrics(),
       ]);
 
       setSystemStatus(systemRes.data);
       setImportStatus(importRes.data);
       setExtractionStatus(extractionRes.data);
       setHealthStatus(healthRes.data);
+      setApiMetrics(metricsRes.data);
     } catch (error) {
       console.error('Failed to load status:', error);
     } finally {
@@ -174,6 +200,106 @@ export function AdminStatus() {
             </div>
           </StatusCard>
         </div>
+
+        {/* API Performance Metrics - Full Width */}
+        {apiMetrics && (
+          <div className="card">
+            <div className="flex items-center gap-3 mb-4">
+              <div className={`w-3 h-3 rounded-full ${apiMetrics.summary.status === 'ok' ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
+              <h3 className="text-lg font-semibold">⚡ API Ytelse</h3>
+              <span className={`ml-auto px-2 py-1 rounded text-xs font-medium ${
+                apiMetrics.summary.status === 'ok' 
+                  ? 'bg-green-600/20 text-green-400' 
+                  : 'bg-yellow-600/20 text-yellow-400'
+              }`}>
+                {apiMetrics.summary.totalSlowRequests > 0 
+                  ? `${apiMetrics.summary.totalSlowRequests} TREGE` 
+                  : 'OK'}
+              </span>
+            </div>
+
+            {/* Summary Stats */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+              <div className="bg-dark-800/50 p-3 rounded-lg text-center">
+                <p className="text-2xl font-bold">{apiMetrics.summary.totalEndpoints}</p>
+                <p className="text-xs text-dark-400">Endepunkter</p>
+              </div>
+              <div className="bg-dark-800/50 p-3 rounded-lg text-center">
+                <p className="text-2xl font-bold">{apiMetrics.summary.totalRequests}</p>
+                <p className="text-xs text-dark-400">Totale kall</p>
+              </div>
+              <div className={`p-3 rounded-lg text-center ${apiMetrics.summary.totalSlowRequests > 0 ? 'bg-yellow-500/20' : 'bg-dark-800/50'}`}>
+                <p className={`text-2xl font-bold ${apiMetrics.summary.totalSlowRequests > 0 ? 'text-yellow-400' : ''}`}>
+                  {apiMetrics.summary.totalSlowRequests}
+                </p>
+                <p className="text-xs text-dark-400">{"Trege (>1s)"}</p>
+              </div>
+              <div className="bg-dark-800/50 p-3 rounded-lg text-center">
+                <p className="text-2xl font-bold text-primary-400">
+                  {apiMetrics.summary.slowestEndpoint?.avgMs || 0}ms
+                </p>
+                <p className="text-xs text-dark-400">Tregeste snitt</p>
+              </div>
+            </div>
+
+            {/* Endpoint List */}
+            {apiMetrics.endpoints.length > 0 && (
+              <>
+                <h4 className="text-sm font-medium text-dark-300 mb-3">Endepunkter (sortert etter responstid)</h4>
+                <div className="overflow-x-auto rounded-lg border border-dark-700">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-dark-800/50">
+                        <th className="text-left py-2 px-3 text-dark-400">Metode</th>
+                        <th className="text-left py-2 px-3 text-dark-400">Endepunkt</th>
+                        <th className="text-right py-2 px-3 text-dark-400">Snitt</th>
+                        <th className="text-right py-2 px-3 text-dark-400">Min</th>
+                        <th className="text-right py-2 px-3 text-dark-400">Maks</th>
+                        <th className="text-right py-2 px-3 text-dark-400">Kall</th>
+                        <th className="text-right py-2 px-3 text-dark-400">Trege</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {apiMetrics.endpoints.slice(0, 15).map((ep, i) => (
+                        <tr key={i} className="border-t border-dark-800 hover:bg-dark-800/30">
+                          <td className="py-2 px-3">
+                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                              ep.method === 'GET' ? 'bg-blue-500/20 text-blue-400' :
+                              ep.method === 'POST' ? 'bg-green-500/20 text-green-400' :
+                              ep.method === 'PUT' ? 'bg-yellow-500/20 text-yellow-400' :
+                              'bg-red-500/20 text-red-400'
+                            }`}>
+                              {ep.method}
+                            </span>
+                          </td>
+                          <td className="py-2 px-3 font-mono text-dark-300">{ep.path}</td>
+                          <td className={`py-2 px-3 text-right font-mono ${ep.avgMs > 500 ? 'text-yellow-400' : ep.avgMs > 1000 ? 'text-red-400' : ''}`}>
+                            {ep.avgMs}ms
+                          </td>
+                          <td className="py-2 px-3 text-right font-mono text-dark-400">{ep.minMs}ms</td>
+                          <td className={`py-2 px-3 text-right font-mono ${ep.maxMs > 1000 ? 'text-red-400' : ''}`}>
+                            {ep.maxMs}ms
+                          </td>
+                          <td className="py-2 px-3 text-right">{ep.count}</td>
+                          <td className={`py-2 px-3 text-right ${ep.slowCount > 0 ? 'text-yellow-400' : 'text-dark-500'}`}>
+                            {ep.slowCount}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {apiMetrics.endpoints.length > 15 && (
+                  <p className="text-xs text-dark-500 mt-2">Viser første 15 av {apiMetrics.endpoints.length} endepunkter</p>
+                )}
+              </>
+            )}
+
+            {apiMetrics.endpoints.length === 0 && (
+              <p className="text-dark-400 text-center py-4">Ingen API-kall registrert ennå. Bruk applikasjonen for å generere data.</p>
+            )}
+          </div>
+        )}
       </div>
     </Layout>
   );

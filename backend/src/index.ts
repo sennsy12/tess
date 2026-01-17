@@ -12,7 +12,9 @@ import { etlRouter } from './routes/etl.js';
 import { schedulerRouter } from './routes/scheduler.js';
 import { suggestionsRouter } from './routes/suggestions.js';
 import { reportsRouter } from './routes/reports.js';
+import { pricingRouter } from './routes/pricing.js';
 import { initializeDefaultJobs } from './scheduler/index.js';
+import { apiMetricsMiddleware } from './middleware/apiMetrics.js';
 
 dotenv.config();
 
@@ -26,6 +28,9 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '50mb' })); // Increase limit for bulk data
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+// API metrics middleware - track response times
+app.use('/api', apiMetricsMiddleware);
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -44,6 +49,7 @@ app.use('/api/etl', etlRouter);
 app.use('/api/scheduler', schedulerRouter);
 app.use('/api/suggestions', suggestionsRouter);
 app.use('/api/reports', reportsRouter);
+app.use('/api/pricing', pricingRouter);
 
 // Initialize scheduler
 initializeDefaultJobs();
