@@ -1,5 +1,6 @@
 import { Pool, PoolConfig } from 'pg';
 import dotenv from 'dotenv';
+import { dbLogger } from '../lib/logger.js';
 
 dotenv.config();
 
@@ -21,11 +22,11 @@ const poolConfig: PoolConfig = {
 const pool = new Pool(poolConfig);
 
 pool.on('connect', () => {
-  console.log('📦 Connected to PostgreSQL database');
+  dbLogger.info('Connected to PostgreSQL database');
 });
 
 pool.on('error', (err) => {
-  console.error('Unexpected error on idle client', err);
+  dbLogger.error({ error: err.message }, 'Unexpected error on idle client');
 });
 
 /**
@@ -36,7 +37,7 @@ export const query = async (text: string, params?: any[]) => {
   const res = await pool.query(text, params);
   const duration = Date.now() - start;
   if (duration > 100) { // Only log slow queries
-    console.log('Slow query', { text: text.substring(0, 50), duration, rows: res.rowCount });
+    dbLogger.warn({ query: text.substring(0, 100), duration, rows: res.rowCount }, 'Slow query detected');
   }
   return res;
 };
@@ -101,24 +102,89 @@ export const batchInsert = async (
 };
 
 /**
- * Bulk insert using COPY for maximum performance (10x faster than batch insert)
+ * Bulk insert using COPY for maximum performance (5-10x faster than batch insert)
+ * Accepts array of arrays (rows) and converts to tab-separated format
  */
 export const bulkCopy = async (
   tableName: string,
   columns: string[],
-  data: string // Tab-separated values
-): Promise<void> => {
+  rows: any[][],
+  onConflict: 'nothing' | 'error' = 'nothing'
+): Promise<number> => {
+  if (rows.length === 0) return 0;
+
   const client = await pool.connect();
   try {
-    const copyStream = require('pg-copy-streams');
-    const stream = client.query(copyStream.from(`COPY ${tableName} (${columns.join(', ')}) FROM STDIN`));
+    const copyStreams = await import('pg-copy-streams');
     
-    return new Promise((resolve, reject) => {
-      stream.on('error', reject);
-      stream.on('finish', resolve);
-      stream.write(data);
+    // Use a temp table for ON CONFLICT DO NOTHING support
+    const tempTable = `temp_${tableName}_${Date.now()}`;
+    
+    // Start transaction to keep temp table alive
+    await client.query('BEGIN');
+    
+    if (onConflict === 'nothing') {
+      // Create temp table with same structure (no constraints to speed up COPY)
+      await client.query(`CREATE TEMP TABLE ${tempTable} (LIKE ${tableName}) ON COMMIT DROP`);
+    }
+    
+    const targetTable = onConflict === 'nothing' ? tempTable : tableName;
+    
+    const stream = client.query(
+      copyStreams.from(`COPY ${targetTable} (${columns.join(', ')}) FROM STDIN WITH (FORMAT text, NULL '\\N')`)
+    );
+
+    const copyResult = await new Promise<number>((resolve, reject) => {
+      stream.on('error', (err: Error) => {
+        reject(err);
+      });
+
+      stream.on('finish', async () => {
+        try {
+          if (onConflict === 'nothing') {
+            // Insert from temp to real table with ON CONFLICT DO NOTHING
+            const result = await client.query(`
+              INSERT INTO ${tableName} (${columns.join(', ')})
+              SELECT ${columns.join(', ')} FROM ${tempTable}
+              ON CONFLICT DO NOTHING
+            `);
+            resolve(result.rowCount || 0);
+          } else {
+            resolve(rows.length);
+          }
+        } catch (err) {
+          reject(err);
+        }
+      });
+
+      // Convert rows to tab-separated text and write to stream
+      // Process in chunks to avoid memory issues
+      const CHUNK_SIZE = 50000;
+      for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
+        const chunk = rows.slice(i, i + CHUNK_SIZE);
+        const text = chunk.map(row => 
+          row.map((val: any) => {
+            if (val === null || val === undefined) return '\\N';
+            // Escape special characters for COPY format
+            return String(val)
+              .replace(/\\/g, '\\\\')
+              .replace(/\t/g, '\\t')
+              .replace(/\n/g, '\\n')
+              .replace(/\r/g, '\\r');
+          }).join('\t')
+        ).join('\n') + '\n';
+        
+        stream.write(text);
+      }
+      
       stream.end();
     });
+
+    await client.query('COMMIT');
+    return copyResult;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
   } finally {
     client.release();
   }

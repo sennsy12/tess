@@ -10,6 +10,21 @@ export interface AuthRequest extends Request {
   };
 }
 
+/**
+ * Get JWT secret - fails fast in production if not configured
+ */
+function getJwtSecret(): string {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('CRITICAL: JWT_SECRET is not defined in production environment!');
+    }
+    console.warn('⚠️ WARNING: JWT_SECRET not set. Using dev-only fallback. Set JWT_SECRET in .env for security.');
+    return 'dev-only-fallback-secret-do-not-use-in-production';
+  }
+  return secret;
+}
+
 export const authMiddleware = (req: AuthRequest, res: Response, next: NextFunction) => {
   const authHeader = req.headers.authorization;
   
@@ -20,7 +35,7 @@ export const authMiddleware = (req: AuthRequest, res: Response, next: NextFuncti
   const token = authHeader.split(' ')[1];
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret') as any;
+    const decoded = jwt.verify(token, getJwtSecret()) as any;
     req.user = decoded;
     next();
   } catch (error) {

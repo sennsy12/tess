@@ -13,6 +13,10 @@ import { AdminOrderLines } from './pages/admin/OrderLines'
 import { AdminStatus } from './pages/admin/Status'
 import { AdminETL } from './pages/admin/ETL'
 import { AdminPricing } from './pages/admin/pricing'
+import { AdminStatistics } from './pages/admin/Statistics'
+import { AdminOrders } from './pages/admin/Orders'
+import { AdminOrderDetail } from './pages/admin/OrderDetail'
+import { AdminAdvancedAnalytics } from './pages/admin/AdvancedAnalytics'
 
 function App() {
   return (
@@ -79,6 +83,26 @@ function App() {
           <Route path="/admin/pricing" element={
             <ProtectedRoute allowedRoles={['admin']}>
               <AdminPricing />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/statistics" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <AdminStatistics />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/orders" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <AdminOrders />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/orders/:ordrenr" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <AdminOrderDetail />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/analytics" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <AdminAdvancedAnalytics />
             </ProtectedRoute>
           } />
           

@@ -2,14 +2,30 @@ import { useEffect, useState, useRef } from 'react';
 import { Layout } from '../../components/Layout';
 import { BarChart, LineChart, PieChart } from '../../components/Charts';
 import { ExportButton } from '../../components/ExportButton';
-import { statisticsApi, statusApi } from '../../lib/api';
+import {
+  statusApi,
+  dashboardApi,
+  StatisticsSummary,
+  TimeSeriesPoint,
+  FirmaStats,
+  LagerStats,
+} from '../../lib/api';
+import { formatCurrencyNok, formatNumberNb } from '../../lib/formatters';
+import {
+  TopProductsWidget,
+  TopCustomersWidget,
+  PriceDeviationsWidget,
+  DataStatusWidget,
+  QuickActionsWidget,
+} from './dashboard/widgets';
 
 export function AdminDashboard() {
-  const [summary, setSummary] = useState<any>(null);
+  const [summary, setSummary] = useState<StatisticsSummary | null>(null);
   const [status, setStatus] = useState<any>(null);
-  const [timeSeries, setTimeSeries] = useState<any[]>([]);
-  const [firmaStats, setFirmaStats] = useState<any[]>([]);
-  const [lagerStats, setLagerStats] = useState<any[]>([]);
+  const [timeSeries, setTimeSeries] = useState<TimeSeriesPoint[]>([]);
+  const [firmaStats, setFirmaStats] = useState<FirmaStats[]>([]);
+  const [lagerStats, setLagerStats] = useState<LagerStats[]>([]);
+  const [widgets, setWidgets] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const chartRef = useRef<HTMLDivElement>(null);
 
@@ -19,28 +35,23 @@ export function AdminDashboard() {
 
   const loadData = async () => {
     try {
-      // Load status first and independently
-      try {
-        const statusRes = await statusApi.getStatus();
-        setStatus(statusRes.data);
-      } catch (error) {
-        console.error('Failed to load system status:', error);
-      }
-
-      // Load statistics
-      const [summaryRes, timeSeriesRes, firmaRes, lagerRes] = await Promise.all([
-        statisticsApi.summary(),
-        statisticsApi.timeSeries({ groupBy: 'month' }),
-        statisticsApi.byFirma(),
-        statisticsApi.byLager(),
+      // Load all data in parallel
+      const [statusRes, widgetsRes, analyticsRes] = await Promise.all([
+        statusApi.getStatus().catch(() => ({ data: null })),
+        dashboardApi.getWidgets().catch(() => ({ data: null })),
+        dashboardApi.getAnalyticsBatch(),
       ]);
 
-      setSummary(summaryRes.data);
-      setTimeSeries(timeSeriesRes.data);
-      setFirmaStats(firmaRes.data.filter((f: any) => f.total_sum > 0));
-      setLagerStats(lagerRes.data.filter((l: any) => l.total_sum > 0));
+      setStatus(statusRes.data);
+      setWidgets(widgetsRes.data);
+      setSummary(analyticsRes.data.summary);
+      setTimeSeries(analyticsRes.data.timeSeries || []);
+      const firmaData = analyticsRes.data.firma?.data || [];
+      const lagerData = analyticsRes.data.lager?.data || [];
+      setFirmaStats(firmaData.filter((f) => f.total_sum > 0));
+      setLagerStats(lagerData.filter((l) => l.total_sum > 0));
     } catch (error) {
-      console.error('Failed to load statistics:', error);
+      console.error('Failed to load dashboard data:', error);
     } finally {
       setIsLoading(false);
     }
@@ -55,9 +66,6 @@ export function AdminDashboard() {
       </Layout>
     );
   }
-
-  const currencyFormatter = (value: number) =>
-    new Intl.NumberFormat('nb-NO', { style: 'currency', currency: 'NOK', maximumFractionDigits: 0 }).format(value);
 
   return (
     <Layout title="Admin Dashboard">
@@ -79,45 +87,59 @@ export function AdminDashboard() {
           </div>
         </div>
 
-        {/* Stats cards */}
+        {/* Stats cards row 1 - Database counts */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="stat-card">
             <span className="stat-label">Ordrer i DB</span>
-            <span className="stat-value">{status?.tables?.orders || 0}</span>
+            <span className="stat-value">{formatNumberNb(status?.tables?.orders || 0)}</span>
           </div>
           <div className="stat-card">
             <span className="stat-label">Kunder i DB</span>
-            <span className="stat-value">{status?.tables?.customers || 0}</span>
+            <span className="stat-value">{formatNumberNb(status?.tables?.customers || 0)}</span>
           </div>
           <div className="stat-card">
             <span className="stat-label">Produkter i DB</span>
-            <span className="stat-value">{status?.tables?.products || 0}</span>
+            <span className="stat-value">{formatNumberNb(status?.tables?.products || 0)}</span>
           </div>
           <div className="stat-card">
             <span className="stat-label">Brukere i DB</span>
-            <span className="stat-value">{status?.tables?.users || 0}</span>
+            <span className="stat-value">{formatNumberNb(status?.tables?.users || 0)}</span>
           </div>
         </div>
 
+        {/* Stats cards row 2 - Business metrics */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="stat-card gradient-primary text-white">
             <span className="stat-label text-white/80">Total Omsetning</span>
             <span className="stat-value text-2xl">
-              {currencyFormatter(summary?.totalRevenue || 0)}
+              {formatCurrencyNok(summary?.totalRevenue || 0)}
             </span>
           </div>
           <div className="stat-card gradient-success text-white">
             <span className="stat-label text-white/80">Totale Ordrer</span>
-            <span className="stat-value">{summary?.totalOrders || 0}</span>
+            <span className="stat-value">{formatNumberNb(summary?.totalOrders || 0)}</span>
           </div>
           <div className="stat-card gradient-warning text-white">
             <span className="stat-label text-white/80">Aktive Kunder</span>
-            <span className="stat-value">{summary?.activeCustomers || 0}</span>
+            <span className="stat-value">{formatNumberNb(summary?.activeCustomers || 0)}</span>
           </div>
           <div className="stat-card gradient-danger text-white">
             <span className="stat-label text-white/80">Produkter Solgt</span>
-            <span className="stat-value">{summary?.productsOrdered || 0}</span>
+            <span className="stat-value">{formatNumberNb(summary?.productsOrdered || 0)}</span>
           </div>
+        </div>
+
+        {/* NEW: Widget row - Top Products, Top Customers, Quick Actions */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <TopProductsWidget data={widgets?.topProducts || []} isLoading={!widgets} />
+          <TopCustomersWidget data={widgets?.topCustomers || []} isLoading={!widgets} />
+          <QuickActionsWidget />
+        </div>
+
+        {/* NEW: Widget row - Price Deviations and Data Status */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <PriceDeviationsWidget data={widgets?.priceDeviations || []} isLoading={!widgets} />
+          <DataStatusWidget data={widgets?.recentActivity || null} isLoading={!widgets} />
         </div>
 
         {/* Export button */}
@@ -136,7 +158,7 @@ export function AdminDashboard() {
                 title="📈 Omsetning over tid"
                 color="#10b981"
                 seriesName="Omsetning"
-                valueFormatter={currencyFormatter}
+                valueFormatter={formatCurrencyNok}
               />
             </div>
             <div className="card">
@@ -159,7 +181,7 @@ export function AdminDashboard() {
                 valueKey="total_sum"
                 title="🏢 Omsetning per Firma"
                 seriesName="Omsetning"
-                valueFormatter={currencyFormatter}
+                valueFormatter={formatCurrencyNok}
               />
             </div>
             <div className="card">
@@ -170,7 +192,7 @@ export function AdminDashboard() {
                 title="📦 Omsetning per Lager"
                 color="#f59e0b"
                 seriesName="Omsetning"
-                valueFormatter={currencyFormatter}
+                valueFormatter={formatCurrencyNok}
               />
             </div>
           </div>
@@ -179,3 +201,4 @@ export function AdminDashboard() {
     </Layout>
   );
 }
+

@@ -1,16 +1,23 @@
 import { useEffect, useState, useRef } from 'react';
 import { Layout } from '../../components/Layout';
 import { ExportButton } from '../../components/ExportButton';
-import { statisticsApi } from '../../lib/api';
+import {
+  statisticsApi,
+  StatisticsSummary,
+  KundeStats,
+  VaregruppeStats,
+  TimeSeriesPoint,
+} from '../../lib/api';
+import { formatCurrencyNok } from '../../lib/formatters';
 import { DashboardStats } from './components/DashboardStats';
 import { TopCustomerCard } from './components/TopCustomerCard';
 import { DashboardCharts } from './components/DashboardCharts';
 
 export function AnalyseDashboard() {
-  const [summary, setSummary] = useState<any>(null);
-  const [kundeStats, setKundeStats] = useState<any[]>([]);
-  const [varegruppeStats, setVaregruppeStats] = useState<any[]>([]);
-  const [timeSeries, setTimeSeries] = useState<any[]>([]);
+  const [summary, setSummary] = useState<StatisticsSummary | null>(null);
+  const [kundeStats, setKundeStats] = useState<KundeStats[]>([]);
+  const [varegruppeStats, setVaregruppeStats] = useState<VaregruppeStats[]>([]);
+  const [timeSeries, setTimeSeries] = useState<TimeSeriesPoint[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const chartRef = useRef<HTMLDivElement>(null);
 
@@ -20,17 +27,15 @@ export function AnalyseDashboard() {
 
   const loadData = async () => {
     try {
-      const [summaryRes, kundeRes, varegruppeRes, timeSeriesRes] = await Promise.all([
-        statisticsApi.summary(),
-        statisticsApi.byKunde(),
-        statisticsApi.byVaregruppe(),
-        statisticsApi.timeSeries({ groupBy: 'month' }),
-      ]);
+      const batchRes = await statisticsApi.batch({ groupBy: 'month' });
+      const { summary, kunde, varegruppe, timeSeries } = batchRes.data;
 
-      setSummary(summaryRes.data);
-      setKundeStats(kundeRes.data.filter((k: any) => k.total_sum > 0).slice(0, 10));
-      setVaregruppeStats(varegruppeRes.data.filter((v: any) => v.total_sum > 0));
-      setTimeSeries(timeSeriesRes.data);
+      setSummary(summary);
+      const kundeData = kunde?.data || [];
+      const varegruppeData = varegruppe?.data || [];
+      setKundeStats(kundeData.filter((k) => k.total_sum > 0).slice(0, 10));
+      setVaregruppeStats(varegruppeData.filter((v) => v.total_sum > 0));
+      setTimeSeries(timeSeries || []);
     } catch (error) {
       console.error('Failed to load analytics data:', error);
     } finally {
@@ -48,15 +53,12 @@ export function AnalyseDashboard() {
     );
   }
 
-  const currencyFormatter = (value: number) =>
-    new Intl.NumberFormat('nb-NO', { style: 'currency', currency: 'NOK', maximumFractionDigits: 0 }).format(value);
-
   return (
     <Layout title="Analyse Dashboard">
       <div className="space-y-6">
-        <DashboardStats summary={summary} currencyFormatter={currencyFormatter} />
+        <DashboardStats summary={summary} currencyFormatter={formatCurrencyNok} />
 
-        <TopCustomerCard topCustomer={summary?.topCustomer} currencyFormatter={currencyFormatter} />
+        <TopCustomerCard topCustomer={summary?.topCustomer} currencyFormatter={formatCurrencyNok} />
 
         <div className="flex justify-end">
           <ExportButton targetRef={chartRef} filename="analyse-dashboard" />
@@ -67,7 +69,7 @@ export function AnalyseDashboard() {
             timeSeries={timeSeries}
             kundeStats={kundeStats}
             varegruppeStats={varegruppeStats}
-            currencyFormatter={currencyFormatter}
+            currencyFormatter={formatCurrencyNok}
           />
         </div>
       </div>

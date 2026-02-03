@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 
 interface Column<T> {
   key: keyof T | string;
@@ -13,6 +13,7 @@ interface DataTableProps<T> {
   onRowClick?: (row: T) => void;
   emptyMessage?: string;
   pageSize?: number;
+  rowKey?: (row: T) => string | number;
 }
 
 type SortDirection = 'asc' | 'desc' | null;
@@ -23,6 +24,7 @@ export function DataTable<T extends Record<string, any>>({
   onRowClick,
   emptyMessage = 'Ingen data funnet',
   pageSize = 50,
+  rowKey,
 }: DataTableProps<T>) {
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
@@ -74,9 +76,22 @@ export function DataTable<T extends Record<string, any>>({
   const paginatedData = sortedData.slice(startIndex, endIndex);
 
   // Reset page when data changes significantly
-  if (currentPage > totalPages && totalPages > 0) {
-    setCurrentPage(1);
-  }
+  useEffect(() => {
+    if (currentPage > totalPages && totalPages > 0) {
+      setCurrentPage(1);
+    }
+  }, [currentPage, totalPages]);
+
+  const getRowKey = (row: T, index: number) => {
+    if (rowKey) return rowKey(row);
+    if (row.id !== undefined && row.id !== null) return row.id;
+    if (row.key !== undefined && row.key !== null) return row.key;
+    const firstColumnKey = columns[0]?.key;
+    if (firstColumnKey && row[firstColumnKey as keyof T] !== undefined) {
+      return row[firstColumnKey as keyof T] as string | number;
+    }
+    return index;
+  };
 
   const getSortIcon = (key: string) => {
     if (sortKey !== key) return '↕️';
@@ -119,7 +134,7 @@ export function DataTable<T extends Record<string, any>>({
         <tbody>
           {paginatedData.map((row, index) => (
             <tr
-              key={index}
+              key={String(getRowKey(row, index))}
               className={`hover:bg-dark-800/30 transition-colors ${
                 onRowClick ? 'cursor-pointer' : ''
               }`}

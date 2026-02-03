@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { Layout } from '../../components/Layout';
-import { statisticsApi } from '../../lib/api';
+import { statisticsApi, suggestionsApi } from '../../lib/api';
 import { BarChart, LineChart, PieChart } from '../../components/Charts';
 import { ExportButton } from '../../components/ExportButton';
+import { AutocompleteInput } from '../../components/AutocompleteInput';
 
 type Metric = 'sum' | 'count' | 'quantity';
 type Dimension = 'day' | 'month' | 'year' | 'product' | 'category';
@@ -15,7 +16,8 @@ export function AdvancedAnalytics() {
     chartType: 'bar' as ChartType,
     startDate: '',
     endDate: '',
-    search: '', // For product filtering if needed later, currently just global filter
+    kundenr: '',
+    search: '',
   });
 
   const [data, setData] = useState<any[]>([]);
@@ -24,7 +26,7 @@ export function AdvancedAnalytics() {
 
   useEffect(() => {
     loadData();
-  }, [config.metric, config.dimension, config.startDate, config.endDate]);
+  }, [config.metric, config.dimension, config.startDate, config.endDate, config.kundenr]);
 
   const loadData = async () => {
     setIsLoading(true);
@@ -34,6 +36,7 @@ export function AdvancedAnalytics() {
         dimension: config.dimension,
         startDate: config.startDate || undefined,
         endDate: config.endDate || undefined,
+        kundenr: config.kundenr || undefined,
       });
       setData(response.data);
     } catch (error) {
@@ -74,14 +77,14 @@ export function AdvancedAnalytics() {
     <Layout title="Avansert Analyse">
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Configuration Panel */}
-        <div className="lg:col-span-1 space-y-6">
-          <div className="card">
-            <h3 className="font-semibold text-lg mb-4">⚙️ Konfigurasjon</h3>
+        <div className="lg:col-span-1 space-y-6 min-w-0">
+          <div className="card overflow-hidden">
+            <h3 className="font-semibold text-lg mb-4 break-words">⚙️ Konfigurasjon</h3>
             
             <div className="space-y-4">
               {/* Metric Selection */}
-              <div>
-                <label className="label">Hva vil du måle?</label>
+              <div className="min-w-0">
+                <label className="label break-words">Hva vil du måle?</label>
                 <select
                   value={config.metric}
                   onChange={(e) => setConfig({ ...config, metric: e.target.value as Metric })}
@@ -94,8 +97,8 @@ export function AdvancedAnalytics() {
               </div>
 
               {/* Dimension Selection */}
-              <div>
-                <label className="label">Gruppér etter</label>
+              <div className="min-w-0">
+                <label className="label break-words">Gruppér etter</label>
                 <select
                   value={config.dimension}
                   onChange={(e) => setConfig({ ...config, dimension: e.target.value as Dimension })}
@@ -114,33 +117,35 @@ export function AdvancedAnalytics() {
               </div>
 
               {/* Chart Type Selection */}
-              <div>
-                <label className="label">Graf type</label>
-                <div className="grid grid-cols-3 gap-2">
+              <div className="min-w-0">
+                <label className="label break-words">Graf type</label>
+                <div className="grid grid-cols-3 gap-1">
                   <button
                     onClick={() => setConfig({ ...config, chartType: 'bar' })}
-                    className={`p-2 rounded border ${config.chartType === 'bar' ? 'bg-primary-500/20 border-primary-500 text-primary-400' : 'border-dark-600 hover:bg-dark-700'}`}
+                    className={`p-2 rounded border text-xs sm:text-sm truncate ${config.chartType === 'bar' ? 'bg-primary-500/20 border-primary-500 text-primary-400' : 'border-dark-600 hover:bg-dark-700'}`}
                   >
-                    📊 Bar
+                    <span className="block">📊</span>
+                    <span className="hidden sm:inline">Bar</span>
                   </button>
                   <button
                     onClick={() => setConfig({ ...config, chartType: 'line' })}
-                    className={`p-2 rounded border ${config.chartType === 'line' ? 'bg-primary-500/20 border-primary-500 text-primary-400' : 'border-dark-600 hover:bg-dark-700'}`}
+                    className={`p-2 rounded border text-xs sm:text-sm truncate ${config.chartType === 'line' ? 'bg-primary-500/20 border-primary-500 text-primary-400' : 'border-dark-600 hover:bg-dark-700'}`}
                   >
-                    📈 Linje
+                    <span className="block">📈</span>
+                    <span className="hidden sm:inline">Linje</span>
                   </button>
                   <button
                     onClick={() => setConfig({ ...config, chartType: 'pie' })}
-                    className={`p-2 rounded border ${config.chartType === 'pie' ? 'bg-primary-500/20 border-primary-500 text-primary-400' : 'border-dark-600 hover:bg-dark-700'}`}
+                    className={`p-2 rounded border text-xs sm:text-sm truncate ${config.chartType === 'pie' ? 'bg-primary-500/20 border-primary-500 text-primary-400' : 'border-dark-600 hover:bg-dark-700'}`}
                   >
-                    🥧 Kake
+                    <span className="block">🥧</span>
+                    <span className="hidden sm:inline">Kake</span>
                   </button>
                 </div>
               </div>
 
-              {/* Date Range */}
-              <div className="pt-4 border-t border-dark-700">
-                <label className="label">Periode</label>
+              <div className="pt-4 border-t border-dark-700 min-w-0">
+                <label className="label break-words">Periode</label>
                 <div className="space-y-2">
                   <input
                     type="date"
@@ -157,6 +162,26 @@ export function AdvancedAnalytics() {
                     placeholder="Til dato"
                   />
                 </div>
+              </div>
+
+              {/* Customer Filter (Optional for Admin/Analyse) */}
+              <div className="pt-4 border-t border-dark-700 min-w-0">
+                <label className="label break-words text-sm">Søk på Kundenr<br /><span className="text-dark-400">(Valgfritt)</span></label>
+                <AutocompleteInput
+                  value={config.kundenr}
+                  onChange={(val) => setConfig({ ...config, kundenr: val })}
+                  fetchSuggestions={async (q) => {
+                    const response = await suggestionsApi.search(q);
+                    return response.data;
+                  }}
+                  onSelect={(suggestion) => {
+                    if (suggestion.type === 'kunde' && 'value' in suggestion) {
+                      setConfig({ ...config, kundenr: String((suggestion as any).value) });
+                    }
+                  }}
+                  placeholder="Eks: K001"
+                  minChars={1}
+                />
               </div>
 
               {/* Export */}

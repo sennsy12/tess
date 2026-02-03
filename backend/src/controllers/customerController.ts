@@ -1,31 +1,23 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth.js';
 import { customerModel } from '../models/customerModel.js';
+import { NotFoundError } from '../middleware/errorHandler.js';
 
 export const customerController = {
   getAll: async (req: AuthRequest, res: Response) => {
-    try {
-      const customers = await customerModel.findAll();
-      res.json(customers);
-    } catch (error) {
-      console.error('Get customers error:', error);
-      res.status(500).json({ error: 'Internal server error' });
-    }
+    const customers = await customerModel.findAll();
+    res.json(customers);
   },
 
   getOne: async (req: AuthRequest, res: Response) => {
-    try {
-      const { kundenr } = req.params;
-      const customer = await customerModel.findByNumber(kundenr);
-      
-      if (!customer) {
-        return res.status(404).json({ error: 'Customer not found' });
-      }
-      
-      res.json(customer);
-    } catch (error) {
-      console.error('Get customer error:', error);
-      res.status(500).json({ error: 'Internal server error' });
+    const { kundenr } = req.params;
+    const customer = await customerModel.findByNumber(kundenr);
+    
+    if (!customer) {
+      throw new NotFoundError('Customer not found');
     }
+    
+    res.json(customer);
   }
 };
+

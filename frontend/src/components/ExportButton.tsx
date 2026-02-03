@@ -1,4 +1,3 @@
-import { useRef } from 'react';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 
@@ -42,12 +41,14 @@ export function ExportButton({ targetRef, filename }: ExportButtonProps) {
   };
 
   return (
-    <div className="flex gap-2">
-      <button onClick={exportToPDF} className="btn-secondary text-sm">
-        📄 Eksporter PDF
+    <div className="flex flex-wrap gap-2">
+      <button onClick={exportToPDF} className="btn-secondary text-xs sm:text-sm flex-1 min-w-0 truncate">
+        <span className="sm:hidden">📄 PDF</span>
+        <span className="hidden sm:inline">📄 Eksporter PDF</span>
       </button>
-      <button onClick={exportToImage} className="btn-secondary text-sm">
-        🖼️ Eksporter Bilde
+      <button onClick={exportToImage} className="btn-secondary text-xs sm:text-sm flex-1 min-w-0 truncate">
+        <span className="sm:hidden">🖼️ Bilde</span>
+        <span className="hidden sm:inline">🖼️ Eksporter Bilde</span>
       </button>
     </div>
   );

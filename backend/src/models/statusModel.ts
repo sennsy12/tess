@@ -79,5 +79,37 @@ export const statusModel = {
         url: process.env.FRONTEND_URL || 'http://localhost:3000',
       },
     };
+  },
+
+  /**
+   * Get recent ETL/scheduler activity logs
+   */
+  getRecentActivity: async (days: number = 7) => {
+    // Get data freshness metrics
+    const [latestOrder, latestCustomer, latestProduct] = await Promise.all([
+      query('SELECT MAX(dato) as last_date FROM ordre'),
+      query('SELECT MAX(kundenr) as last_id, (SELECT COUNT(*) FROM kunde) as count FROM kunde'),
+      query('SELECT MAX(varekode) as last_id, (SELECT COUNT(*) FROM vare) as count FROM vare'),
+    ]);
+
+    // Calculate data freshness
+    const latestOrderDate = latestOrder.rows[0]?.last_date;
+    const daysSinceLastOrder = latestOrderDate 
+      ? Math.floor((Date.now() - new Date(latestOrderDate).getTime()) / (1000 * 60 * 60 * 24))
+      : null;
+
+    return {
+      dataFreshness: {
+        lastOrderDate: latestOrderDate,
+        daysSinceLastOrder,
+        totalCustomers: parseInt(latestCustomer.rows[0]?.count || '0'),
+        totalProducts: parseInt(latestProduct.rows[0]?.count || '0'),
+      },
+      status: daysSinceLastOrder !== null && daysSinceLastOrder < days ? 'fresh' : 'stale',
+      message: daysSinceLastOrder !== null && daysSinceLastOrder < days 
+        ? `Data is up to date (${daysSinceLastOrder} days old)`
+        : 'Data may be outdated, consider running an import',
+    };
   }
 };
+

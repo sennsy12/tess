@@ -1,20 +1,21 @@
 import { Router } from 'express';
 import { authMiddleware, roleGuard } from '../middleware/auth.js';
 import { orderLineController } from '../controllers/orderLineController.js';
+import { asyncHandler } from '../middleware/errorHandler.js';
 
 export const orderlinesRouter = Router();
 
 // Get order lines for an order
-orderlinesRouter.get('/order/:ordrenr', authMiddleware, orderLineController.getByOrder);
+orderlinesRouter.get('/order/:ordrenr', authMiddleware, asyncHandler(orderLineController.getByOrder));
 
-// Create order line (admin only)
-orderlinesRouter.post('/', authMiddleware, roleGuard('admin'), orderLineController.create);
+// Create a new order line (admin only)
+orderlinesRouter.post('/', authMiddleware, roleGuard('admin'), asyncHandler(orderLineController.create));
 
-// Update order line (admin only)
-orderlinesRouter.put('/:ordrenr/:linjenr', authMiddleware, roleGuard('admin'), orderLineController.update);
+// Update an order line (admin only)
+orderlinesRouter.put('/:ordrenr/:linjenr', authMiddleware, roleGuard('admin'), asyncHandler(orderLineController.update));
 
-// Delete order line (admin only)
-orderlinesRouter.delete('/:ordrenr/:linjenr', authMiddleware, roleGuard('admin'), orderLineController.delete);
+// Delete an order line (admin only)
+orderlinesRouter.delete('/:ordrenr/:linjenr', authMiddleware, roleGuard('admin'), asyncHandler(orderLineController.delete));
 
-// Update/Create references for order line (admin only)
-orderlinesRouter.put('/:ordrenr/:linjenr/references', authMiddleware, roleGuard('admin'), orderLineController.updateReferences);
+// Update references for an order line (admin only)
+orderlinesRouter.put('/:ordrenr/:linjenr/references', authMiddleware, roleGuard('admin'), asyncHandler(orderLineController.updateReferences));

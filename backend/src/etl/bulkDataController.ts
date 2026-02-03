@@ -1,4 +1,4 @@
-import { query, batchInsert, transaction, getClient } from '../db/index.js';
+import { query } from '../db/index.js';
 
 // In-memory storage for generated bulk data
 let generatedBulkData: any = null;
@@ -124,7 +124,7 @@ export async function generateBulkTestData(config: {
 }
 
 /**
- * Insert bulk data using optimized batch inserts
+ * Insert bulk data using COPY for maximum performance
  */
 export async function insertBulkTestData(): Promise<any> {
   if (!generatedBulkData) {
@@ -135,21 +135,13 @@ export async function insertBulkTestData(): Promise<any> {
   const results: Record<string, any> = {};
   const startTime = Date.now();
 
-  console.log('🔄 Inserting bulk data...');
+  console.log('🚀 Starting high-speed bulk insert...');
 
-  // Insert base data first (must exist before FK references)
-  console.log('  Inserting firma...');
-  await query(`
-    INSERT INTO firma (firmaid, firmanavn) VALUES 
-      (1, 'Hovedkontor Oslo'),
-      (2, 'Region Vest'),
-      (3, 'Region Sør'),
-      (4, 'Region Midt'),
-      (5, 'Region Nord')
-    ON CONFLICT DO NOTHING
-  `);
-
-  console.log('  Inserting lager...');
+  // 1. Prepare base data
+  await query('INSERT INTO firma (firmaid, firmanavn) VALUES (1, \'Hovedkontor Oslo\'), (2, \'Region Vest\'), (3, \'Region Sør\'), (4, \'Region Midt\'), (5, \'Region Nord\') ON CONFLICT DO NOTHING');
+  await query('INSERT INTO valuta (valutaid) VALUES (\'NOK\'), (\'EUR\'), (\'USD\'), (\'SEK\'), (\'DKK\'), (\'GBP\') ON CONFLICT DO NOTHING');
+  
+  // Ensure lager exists (FK constraint for ordre)
   await query(`
     INSERT INTO lager (lagernavn, firmaid) VALUES 
       ('Hovedkontor Oslo Hovedlager', 1), ('Hovedkontor Oslo Reservelager', 1),
@@ -160,43 +152,45 @@ export async function insertBulkTestData(): Promise<any> {
     ON CONFLICT DO NOTHING
   `);
 
-  console.log('  Inserting valuta...');
-  await query(`
-    INSERT INTO valuta (valutaid) VALUES ('NOK'), ('EUR'), ('USD'), ('SEK'), ('DKK'), ('GBP')
-    ON CONFLICT DO NOTHING
-  `);
+  const { bulkCopy } = await import('../db/index.js');
 
-  // Batch insert customers
-  console.log(`  Inserting ${data.kunder.length} customers...`);
-  results.kunder = await batchInsert('kunde', ['kundenr', 'kundenavn'], data.kunder);
-  
-  // Batch insert products
-  console.log(`  Inserting ${data.varer.length} products...`);
-  results.varer = await batchInsert('vare', ['varekode', 'varenavn', 'varegruppe'], data.varer);
+  // 2. Ensure customers and products exist before COPY (FK constraints)
+  console.log('  Ensuring customers and products exist...');
+  await bulkCopy('kunde', ['kundenr', 'kundenavn'], data.kunder);
+  await bulkCopy('vare', ['varekode', 'varenavn', 'varegruppe'], data.varer);
 
-  // Batch insert orders (smaller batch size due to more columns)
-  console.log(`  Inserting ${data.ordrer.length} orders...`);
-  results.ordrer = await batchInsert(
-    'ordre',
-    ['ordrenr', 'dato', 'kundenr', 'kundeordreref', 'kunderef', 'firmaid', 'lagernavn', 'valutaid', 'sum'],
-    data.ordrer,
-    5000 // Smaller batch for orders
-  );
+  // 3. Drop indexes to speed up insertion
+  console.log('  Dropping indexes for maximum speed...');
+  await query('DROP INDEX IF EXISTS idx_ordrelinje_ordrenr');
+  await query('DROP INDEX IF EXISTS idx_ordrelinje_varekode');
+  await query('DROP INDEX IF EXISTS idx_ordre_kundenr');
+  await query('DROP INDEX IF EXISTS idx_ordre_dato');
 
-  // Batch insert order lines
-  console.log(`  Inserting ${data.ordrelinjer.length} order lines...`);
-  results.ordrelinjer = await batchInsert(
-    'ordrelinje',
-    ['linjenr', 'ordrenr', 'varekode', 'antall', 'enhet', 'nettpris', 'linjesum', 'linjestatus'],
-    data.ordrelinjer,
-    5000
-  );
+  try {
+    // 3. COPY data
+    console.log(`  COPYing ${data.ordrer.length} orders...`);
+    results.ordrer = await bulkCopy('ordre', ['ordrenr', 'dato', 'kundenr', 'kundeordreref', 'kunderef', 'firmaid', 'lagernavn', 'valutaid', 'sum'], data.ordrer);
+
+    console.log(`  COPYing ${data.ordrelinjer.length} order lines...`);
+    results.ordrelinjer = await bulkCopy('ordrelinje', ['linjenr', 'ordrenr', 'varekode', 'antall', 'enhet', 'nettpris', 'linjesum', 'linjestatus'], data.ordrelinjer);
+
+  } finally {
+    // 4. Recreate indexes
+    console.log('  Recreating indexes (this might take a few seconds)...');
+    const indexStart = Date.now();
+    await query('CREATE INDEX idx_ordrelinje_ordrenr ON ordrelinje(ordrenr)');
+    await query('CREATE INDEX idx_ordrelinje_varekode ON ordrelinje(varekode)');
+    await query('CREATE INDEX idx_ordre_kundenr ON ordre(kundenr)');
+    await query('CREATE INDEX idx_ordre_dato ON ordre(dato)');
+    console.log(`    ✓ Indexes recreated in ${Date.now() - indexStart}ms`);
+  }
 
   const duration = Date.now() - startTime;
-  console.log(`✅ Bulk insert completed in ${duration}ms`);
-
   results.insertionTimeMs = duration;
-  results.rowsPerSecond = Math.round((data.ordrer.length + data.ordrelinjer.length) / (duration / 1000));
+  results.totalRows = data.ordrer.length + data.ordrelinjer.length;
+  results.rowsPerSecond = Math.round(results.totalRows / (duration / 1000));
+
+  console.log(`✅ Bulk insert completed: ${results.totalRows} rows in ${duration}ms (${results.rowsPerSecond} rows/s)`);
 
   return results;
 }

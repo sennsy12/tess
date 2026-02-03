@@ -28,8 +28,11 @@ export function KundeDashboard() {
       ]);
 
       setSummary(summaryRes.data);
-      setRecentOrders(ordersRes.data.slice(0, 5));
-      setVaregruppeStats(varegruppeRes.data);
+      // Handle paginated response - extract data array
+      const ordersData = ordersRes.data?.data || ordersRes.data || [];
+      const varegruppeData = varegruppeRes.data?.data || varegruppeRes.data || [];
+      setRecentOrders(ordersData.slice(0, 5));
+      setVaregruppeStats(varegruppeData);
       setTimeSeries(timeSeriesRes.data);
     } catch (error) {
       console.error('Failed to load dashboard data:', error);

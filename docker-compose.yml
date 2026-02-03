@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # PostgreSQL Database
   db:
@@ -13,7 +11,8 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./init.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ./seed-dev.sql:/docker-entrypoint-initdb.d/02-seed-dev.sql
     networks:
       - tess-network
     healthcheck:
@@ -31,7 +30,7 @@ services:
     environment:
       NODE_ENV: development
       DATABASE_URL: postgresql://postgres:postgres@db:5432/tess
-      JWT_SECRET: your-super-secret-jwt-key-change-in-production
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-min-32-chars-for-development-only}
       PORT: 5000
     ports:
       - "5000:5000"

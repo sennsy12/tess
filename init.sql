@@ -109,77 +109,30 @@ CREATE TABLE IF NOT EXISTS public.saved_reports
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Insert default admin user (password: admin123)
--- Password hash generated with bcrypt, rounds=10
-INSERT INTO public.users (username, password_hash, role) 
-VALUES ('admin', '$2b$10$55MITFPNmmdu9pau6zk9Iul2mIJU0g.hJccUnCfYT.9ChAfcUz20W', 'admin')
-ON CONFLICT (username) DO NOTHING;
+-- ============================================================
+-- MINIMAL PRODUCTION DATA
+-- Only essential system data - no test/sample data
+-- For development seed data, see seed-dev.sql
+-- ============================================================
 
--- Insert default analyse user (password: analyse123)
-INSERT INTO public.users (username, password_hash, role) 
-VALUES ('analyse', '$2b$10$rQZ7.HxSJvtAcMxGmsDKqO1F3tJ1X6W5H1qKjE5J9q8K7.7Wb5rXe', 'analyse')
-ON CONFLICT (username) DO NOTHING;
-
--- Sample data for testing
-INSERT INTO public.kunde (kundenr, kundenavn) VALUES 
-('kunde1', 'Nordisk Handel AS'),
-('K002', 'Bergen Industri'),
-('K003', 'Oslo Leverandør')
-ON CONFLICT DO NOTHING;
-
-INSERT INTO public.firma (firmaid, firmanavn) VALUES 
-(1, 'Hovedkontor'),
-(2, 'Avdeling Nord'),
-(3, 'Avdeling Sør')
-ON CONFLICT DO NOTHING;
-
-INSERT INTO public.lager (lagernavn, firmaid) VALUES 
-('Hovedlager', 1),
-('Nordlager', 2),
-('Sørlager', 3)
-ON CONFLICT DO NOTHING;
-
+-- Insert common currencies (required for FK constraints)
 INSERT INTO public.valuta (valutaid) VALUES 
 ('NOK'),
 ('EUR'),
-('USD')
+('USD'),
+('SEK'),
+('DKK'),
+('GBP')
 ON CONFLICT DO NOTHING;
 
-INSERT INTO public.vare (varekode, varenavn, varegruppe) VALUES 
-('V001', 'Produkt A', 'Elektronikk'),
-('V002', 'Produkt B', 'Elektronikk'),
-('V003', 'Produkt C', 'Møbler'),
-('V004', 'Produkt D', 'Møbler'),
-('V005', 'Produkt E', 'Verktøy')
-ON CONFLICT DO NOTHING;
+-- NOTE: Admin user should be created securely during deployment
+-- Do NOT use these default passwords in production!
+-- Use: node backend/src/scripts/genHash.js <your-secure-password>
 
-INSERT INTO public.ordre (ordrenr, dato, kundenr, kundeordreref, kunderef, firmaid, lagernavn, valutaid, sum) VALUES 
-(1001, '2024-01-15', 'kunde1', 'REF-001', 'Kontakt A', 1, 'Hovedlager', 'NOK', 15000.00),
-(1002, '2024-01-20', 'K002', 'REF-002', 'Kontakt B', 2, 'Nordlager', 'NOK', 25000.00),
-(1003, '2024-02-01', 'kunde1', 'REF-003', 'Kontakt A', 1, 'Hovedlager', 'EUR', 8500.00),
-(1004, '2024-02-15', 'K003', 'REF-004', 'Kontakt C', 3, 'Sørlager', 'NOK', 32000.00),
-(1005, '2024-03-01', 'K002', 'REF-005', 'Kontakt B', 2, 'Nordlager', 'USD', 12000.00)
-ON CONFLICT DO NOTHING;
-
-INSERT INTO public.ordrelinje (linjenr, ordrenr, varekode, antall, enhet, nettpris, linjesum, linjestatus) VALUES 
-(1, 1001, 'V001', 5, 'stk', 1000.00, 5000.00, 1),
-(2, 1001, 'V002', 10, 'stk', 1000.00, 10000.00, 1),
-(1, 1002, 'V003', 3, 'stk', 5000.00, 15000.00, 1),
-(2, 1002, 'V004', 2, 'stk', 5000.00, 10000.00, 1),
-(1, 1003, 'V001', 8, 'stk', 1062.50, 8500.00, 1),
-(1, 1004, 'V005', 16, 'stk', 2000.00, 32000.00, 1),
-(1, 1005, 'V002', 12, 'stk', 1000.00, 12000.00, 1)
-ON CONFLICT DO NOTHING;
-
-INSERT INTO public.ordre_henvisning (ordrenr, linjenr, henvisning1, henvisning2, henvisning3, henvisning4, henvisning5) VALUES 
-(1001, 1, 'Prosjekt Alpha', 'Avdeling A', NULL, NULL, NULL),
-(1001, 2, 'Prosjekt Alpha', 'Avdeling A', 'Fase 1', NULL, NULL),
-(1002, 1, 'Prosjekt Beta', 'Avdeling B', NULL, NULL, NULL)
-ON CONFLICT DO NOTHING;
-
--- Insert a kunde user that maps to kunde K001 (password: kunde123)
-INSERT INTO public.users (username, password_hash, role, kundenr) 
-VALUES ('kunde001', '$2b$10$1GxjN.xjpf50bD8bV9W/8OZo9K/IxCP1H9XwvCJ1pIP.1cf8H/xD.', 'kunde', 'kunde1')
+-- Default admin user for initial setup only (password: admin123)
+-- CHANGE THIS PASSWORD IMMEDIATELY AFTER FIRST LOGIN
+INSERT INTO public.users (username, password_hash, role) 
+VALUES ('admin', '$2b$10$55MITFPNmmdu9pau6zk9Iul2mIJU0g.hJccUnCfYT.9ChAfcUz20W', 'admin')
 ON CONFLICT (username) DO NOTHING;
 
 -- ============================================================
@@ -213,6 +166,73 @@ CREATE INDEX IF NOT EXISTS idx_ordre_active ON public.ordre(ordrenr) WHERE sum >
 
 -- Composite index for statistics queries
 CREATE INDEX IF NOT EXISTS idx_ordrelinje_stats ON public.ordrelinje(ordrenr, varekode, linjesum);
+
+-- ============================================
+-- PRICING SYSTEM (from 001_pricing_system.sql)
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS customer_group (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(50) NOT NULL UNIQUE,
+    description TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Default groups
+INSERT INTO customer_group (name, description) VALUES
+    ('Standard', 'Default customer tier - standard pricing'),
+    ('VIP', 'High-value customers with premium discounts'),
+    ('Wholesale', 'Bulk buyers with volume-based discounts')
+ON CONFLICT (name) DO NOTHING;
+
+-- Link customers to groups
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'kunde' AND column_name = 'customer_group_id'
+    ) THEN
+        ALTER TABLE kunde ADD COLUMN customer_group_id INTEGER REFERENCES customer_group(id);
+    END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS price_list (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    valid_from TIMESTAMPTZ,
+    valid_to TIMESTAMPTZ,
+    priority INTEGER DEFAULT 0,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS price_rule (
+    id SERIAL PRIMARY KEY,
+    price_list_id INTEGER NOT NULL REFERENCES price_list(id) ON DELETE CASCADE,
+    varekode VARCHAR(50),
+    varegruppe VARCHAR(50),
+    kundenr VARCHAR(50),
+    customer_group_id INTEGER REFERENCES customer_group(id),
+    min_quantity INTEGER DEFAULT 1,
+    discount_percent DECIMAL(5,2),
+    fixed_price DECIMAL(12,2),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT chk_discount_type CHECK (
+        (discount_percent IS NOT NULL AND fixed_price IS NULL) OR
+        (discount_percent IS NULL AND fixed_price IS NOT NULL)
+    )
+);
+
+CREATE INDEX IF NOT EXISTS idx_price_rule_varekode ON price_rule(varekode);
+CREATE INDEX IF NOT EXISTS idx_price_rule_varegruppe ON price_rule(varegruppe);
+CREATE INDEX IF NOT EXISTS idx_price_rule_kundenr ON price_rule(kundenr);
+CREATE INDEX IF NOT EXISTS idx_price_rule_customer_group ON price_rule(customer_group_id);
+CREATE INDEX IF NOT EXISTS idx_price_rule_price_list ON price_rule(price_list_id);
+CREATE INDEX IF NOT EXISTS idx_price_list_active ON price_list(is_active) WHERE is_active = TRUE;
+CREATE INDEX IF NOT EXISTS idx_price_list_validity ON price_list(valid_from, valid_to);
+CREATE INDEX IF NOT EXISTS idx_kunde_customer_group ON kunde(customer_group_id);
 
 COMMIT;
 

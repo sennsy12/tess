@@ -4,40 +4,134 @@ export interface StatsFilters {
   startDate?: string;
   endDate?: string;
   varegruppe?: string;
+  kundenr?: string;
   groupBy?: string;
+  page?: number;
+  limit?: number;
 }
 
+export interface PaginatedResult<T> {
+  data: T[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+const getPagination = (filters: StatsFilters) => {
+  const page = filters.page || 1;
+  const limit = filters.limit || 25;
+  const offset = (page - 1) * limit;
+  return { page, limit, offset };
+};
+
+const buildPagination = (page: number, limit: number, total: number) => ({
+  page,
+  limit,
+  total,
+  totalPages: Math.ceil(total / limit),
+});
+
 export const statisticsModel = {
-  getByKunde: async (filters: StatsFilters) => {
-    let sql = `
+  getByKunde: async (filters: StatsFilters): Promise<PaginatedResult<any>> => {
+    const { page, limit, offset } = getPagination(filters);
+
+    let whereClause = ' WHERE 1=1';
+    const params: any[] = [];
+    let paramIndex = 1;
+
+    if (filters.startDate) {
+      whereClause += ` AND o.dato >= $${paramIndex++}`;
+      params.push(filters.startDate);
+    }
+    if (filters.endDate) {
+      whereClause += ` AND o.dato <= $${paramIndex++}`;
+      params.push(filters.endDate);
+    }
+    if (filters.kundenr) {
+      whereClause += ` AND o.kundenr = $${paramIndex++}`;
+      params.push(filters.kundenr);
+    }
+
+    // Count query
+    const countSql = `
+      SELECT COUNT(*) as total FROM (
+        SELECT k.kundenr
+        FROM kunde k
+        LEFT JOIN ordre o ON k.kundenr = o.kundenr
+        ${whereClause}
+        GROUP BY k.kundenr
+        HAVING SUM(o.sum) > 0
+      ) subquery
+    `;
+    const countResult = await query(countSql, params);
+    const total = parseInt(countResult.rows[0]?.total || '0');
+
+    // Data query with pagination
+    const dataSql = `
       SELECT k.kundenr, k.kundenavn, 
              COUNT(DISTINCT o.ordrenr) as order_count,
              SUM(o.sum) as total_sum,
              AVG(o.sum) as avg_order_value
       FROM kunde k
       LEFT JOIN ordre o ON k.kundenr = o.kundenr
-      WHERE 1=1
+      ${whereClause}
+      GROUP BY k.kundenr, k.kundenavn
+      HAVING SUM(o.sum) > 0
+      ORDER BY total_sum DESC NULLS LAST
+      LIMIT $${paramIndex++} OFFSET $${paramIndex++}
     `;
+    const dataResult = await query(dataSql, [...params, limit, offset]);
+
+    return {
+      data: dataResult.rows,
+      pagination: buildPagination(page, limit, total),
+    };
+  },
+
+  getByVaregruppe: async (filters: StatsFilters): Promise<PaginatedResult<any>> => {
+    const { page, limit, offset } = getPagination(filters);
+
+    let whereClause = ' WHERE v.varegruppe IS NOT NULL';
     const params: any[] = [];
     let paramIndex = 1;
 
     if (filters.startDate) {
-      sql += ` AND o.dato >= $${paramIndex++}`;
+      whereClause += ` AND o.dato >= $${paramIndex++}`;
       params.push(filters.startDate);
     }
     if (filters.endDate) {
-      sql += ` AND o.dato <= $${paramIndex++}`;
+      whereClause += ` AND o.dato <= $${paramIndex++}`;
       params.push(filters.endDate);
     }
+    if (filters.kundenr) {
+      whereClause += ` AND o.kundenr = $${paramIndex++}`;
+      params.push(filters.kundenr);
+    }
+    if (filters.varegruppe) {
+      whereClause += ` AND v.varegruppe = $${paramIndex++}`;
+      params.push(filters.varegruppe);
+    }
 
-    sql += ' GROUP BY k.kundenr, k.kundenavn ORDER BY total_sum DESC NULLS LAST';
+    // Count query
+    const countSql = `
+      SELECT COUNT(*) as total FROM (
+        SELECT v.varegruppe
+        FROM vare v
+        LEFT JOIN ordrelinje ol ON v.varekode = ol.varekode
+        LEFT JOIN ordre o ON ol.ordrenr = o.ordrenr
+        ${whereClause}
+        GROUP BY v.varegruppe
+        HAVING SUM(ol.linjesum) > 0
+      ) subquery
+    `;
+    const countResult = await query(countSql, params);
+    const total = parseInt(countResult.rows[0]?.total || '0');
 
-    const result = await query(sql, params);
-    return result.rows;
-  },
-
-  getByVaregruppe: async (filters: StatsFilters) => {
-    let sql = `
+    // Data query with pagination
+    const dataSql = `
       SELECT v.varegruppe,
              COUNT(DISTINCT ol.ordrenr) as order_count,
              SUM(ol.antall) as total_quantity,
@@ -45,28 +139,61 @@ export const statisticsModel = {
       FROM vare v
       LEFT JOIN ordrelinje ol ON v.varekode = ol.varekode
       LEFT JOIN ordre o ON ol.ordrenr = o.ordrenr
-      WHERE v.varegruppe IS NOT NULL
+      ${whereClause}
+      GROUP BY v.varegruppe
+      HAVING SUM(ol.linjesum) > 0
+      ORDER BY total_sum DESC NULLS LAST
+      LIMIT $${paramIndex++} OFFSET $${paramIndex++}
     `;
+    const dataResult = await query(dataSql, [...params, limit, offset]);
+
+    return {
+      data: dataResult.rows,
+      pagination: buildPagination(page, limit, total),
+    };
+  },
+
+  getByVare: async (filters: StatsFilters): Promise<PaginatedResult<any>> => {
+    const { page, limit, offset } = getPagination(filters);
+
+    let whereClause = ' WHERE 1=1';
     const params: any[] = [];
     let paramIndex = 1;
 
     if (filters.startDate) {
-      sql += ` AND o.dato >= $${paramIndex++}`;
+      whereClause += ` AND o.dato >= $${paramIndex++}`;
       params.push(filters.startDate);
     }
     if (filters.endDate) {
-      sql += ` AND o.dato <= $${paramIndex++}`;
+      whereClause += ` AND o.dato <= $${paramIndex++}`;
       params.push(filters.endDate);
     }
+    if (filters.varegruppe) {
+      whereClause += ` AND v.varegruppe = $${paramIndex++}`;
+      params.push(filters.varegruppe);
+    }
+    if (filters.kundenr) {
+      whereClause += ` AND o.kundenr = $${paramIndex++}`;
+      params.push(filters.kundenr);
+    }
 
-    sql += ' GROUP BY v.varegruppe ORDER BY total_sum DESC NULLS LAST';
+    // Count query
+    const countSql = `
+      SELECT COUNT(*) as total FROM (
+        SELECT v.varekode
+        FROM vare v
+        LEFT JOIN ordrelinje ol ON v.varekode = ol.varekode
+        LEFT JOIN ordre o ON ol.ordrenr = o.ordrenr
+        ${whereClause}
+        GROUP BY v.varekode
+        HAVING SUM(ol.linjesum) > 0
+      ) subquery
+    `;
+    const countResult = await query(countSql, params);
+    const total = parseInt(countResult.rows[0]?.total || '0');
 
-    const result = await query(sql, params);
-    return result.rows;
-  },
-
-  getByVare: async (filters: StatsFilters) => {
-    let sql = `
+    // Data query with pagination
+    const dataSql = `
       SELECT v.varekode, v.varenavn, v.varegruppe,
              COUNT(DISTINCT ol.ordrenr) as order_count,
              SUM(ol.antall) as total_quantity,
@@ -74,83 +201,130 @@ export const statisticsModel = {
       FROM vare v
       LEFT JOIN ordrelinje ol ON v.varekode = ol.varekode
       LEFT JOIN ordre o ON ol.ordrenr = o.ordrenr
-      WHERE 1=1
+      ${whereClause}
+      GROUP BY v.varekode, v.varenavn, v.varegruppe
+      HAVING SUM(ol.linjesum) > 0
+      ORDER BY total_sum DESC NULLS LAST
+      LIMIT $${paramIndex++} OFFSET $${paramIndex++}
     `;
+    const dataResult = await query(dataSql, [...params, limit, offset]);
+
+    return {
+      data: dataResult.rows,
+      pagination: buildPagination(page, limit, total),
+    };
+  },
+
+  getByLager: async (filters: StatsFilters): Promise<PaginatedResult<any>> => {
+    const { page, limit, offset } = getPagination(filters);
+
+    let whereClause = ' WHERE 1=1';
     const params: any[] = [];
     let paramIndex = 1;
 
     if (filters.startDate) {
-      sql += ` AND o.dato >= $${paramIndex++}`;
+      whereClause += ` AND o.dato >= $${paramIndex++}`;
       params.push(filters.startDate);
     }
     if (filters.endDate) {
-      sql += ` AND o.dato <= $${paramIndex++}`;
+      whereClause += ` AND o.dato <= $${paramIndex++}`;
       params.push(filters.endDate);
     }
-    if (filters.varegruppe) {
-      sql += ` AND v.varegruppe = $${paramIndex++}`;
-      params.push(filters.varegruppe);
+    if (filters.kundenr) {
+      whereClause += ` AND o.kundenr = $${paramIndex++}`;
+      params.push(filters.kundenr);
     }
 
-    sql += ' GROUP BY v.varekode, v.varenavn, v.varegruppe ORDER BY total_sum DESC NULLS LAST';
+    // Count query
+    const countSql = `
+      SELECT COUNT(*) as total FROM (
+        SELECT l.lagernavn, l.firmaid
+        FROM lager l
+        LEFT JOIN firma f ON l.firmaid = f.firmaid
+        LEFT JOIN ordre o ON l.lagernavn = o.lagernavn AND l.firmaid = o.firmaid
+        ${whereClause}
+        GROUP BY l.lagernavn, l.firmaid
+        HAVING SUM(o.sum) > 0
+      ) subquery
+    `;
+    const countResult = await query(countSql, params);
+    const total = parseInt(countResult.rows[0]?.total || '0');
 
-    const result = await query(sql, params);
-    return result.rows;
-  },
-
-  getByLager: async (filters: StatsFilters) => {
-    let sql = `
+    // Data query with pagination
+    const dataSql = `
       SELECT l.lagernavn, f.firmanavn,
              COUNT(DISTINCT o.ordrenr) as order_count,
              SUM(o.sum) as total_sum
       FROM lager l
       LEFT JOIN firma f ON l.firmaid = f.firmaid
       LEFT JOIN ordre o ON l.lagernavn = o.lagernavn AND l.firmaid = o.firmaid
-      WHERE 1=1
+      ${whereClause}
+      GROUP BY l.lagernavn, l.firmaid, f.firmanavn
+      HAVING SUM(o.sum) > 0
+      ORDER BY total_sum DESC NULLS LAST
+      LIMIT $${paramIndex++} OFFSET $${paramIndex++}
     `;
+    const dataResult = await query(dataSql, [...params, limit, offset]);
+
+    return {
+      data: dataResult.rows,
+      pagination: buildPagination(page, limit, total),
+    };
+  },
+
+  getByFirma: async (filters: StatsFilters): Promise<PaginatedResult<any>> => {
+    const { page, limit, offset } = getPagination(filters);
+
+    let whereClause = ' WHERE 1=1';
     const params: any[] = [];
     let paramIndex = 1;
 
     if (filters.startDate) {
-      sql += ` AND o.dato >= $${paramIndex++}`;
+      whereClause += ` AND o.dato >= $${paramIndex++}`;
       params.push(filters.startDate);
     }
     if (filters.endDate) {
-      sql += ` AND o.dato <= $${paramIndex++}`;
+      whereClause += ` AND o.dato <= $${paramIndex++}`;
       params.push(filters.endDate);
     }
+    if (filters.kundenr) {
+      whereClause += ` AND o.kundenr = $${paramIndex++}`;
+      params.push(filters.kundenr);
+    }
 
-    sql += ' GROUP BY l.lagernavn, l.firmaid, f.firmanavn ORDER BY total_sum DESC NULLS LAST';
+    // Count query
+    const countSql = `
+      SELECT COUNT(*) as total FROM (
+        SELECT f.firmaid
+        FROM firma f
+        LEFT JOIN ordre o ON f.firmaid = o.firmaid
+        ${whereClause}
+        GROUP BY f.firmaid
+        HAVING SUM(o.sum) > 0
+      ) subquery
+    `;
+    const countResult = await query(countSql, params);
+    const total = parseInt(countResult.rows[0]?.total || '0');
 
-    const result = await query(sql, params);
-    return result.rows;
-  },
-
-  getByFirma: async (filters: StatsFilters) => {
-    let sql = `
+    // Data query with pagination
+    const dataSql = `
       SELECT f.firmaid, f.firmanavn,
              COUNT(DISTINCT o.ordrenr) as order_count,
              SUM(o.sum) as total_sum
       FROM firma f
       LEFT JOIN ordre o ON f.firmaid = o.firmaid
-      WHERE 1=1
+      ${whereClause}
+      GROUP BY f.firmaid, f.firmanavn
+      HAVING SUM(o.sum) > 0
+      ORDER BY total_sum DESC NULLS LAST
+      LIMIT $${paramIndex++} OFFSET $${paramIndex++}
     `;
-    const params: any[] = [];
-    let paramIndex = 1;
+    const dataResult = await query(dataSql, [...params, limit, offset]);
 
-    if (filters.startDate) {
-      sql += ` AND o.dato >= $${paramIndex++}`;
-      params.push(filters.startDate);
-    }
-    if (filters.endDate) {
-      sql += ` AND o.dato <= $${paramIndex++}`;
-      params.push(filters.endDate);
-    }
-
-    sql += ' GROUP BY f.firmaid, f.firmanavn ORDER BY total_sum DESC NULLS LAST';
-
-    const result = await query(sql, params);
-    return result.rows;
+    return {
+      data: dataResult.rows,
+      pagination: buildPagination(page, limit, total),
+    };
   },
 
   getTimeSeries: async (filters: StatsFilters) => {
@@ -312,8 +486,13 @@ export const statisticsModel = {
 
     // 3. Apply Filters
     if (user?.role === 'kunde' && user?.kundenr) {
+      // Force customer to only see their own data
       sql += ` AND o.kundenr = $${paramIndex++}`;
       params.push(user.kundenr);
+    } else if (filters.kundenr) {
+      // Allow admin/analyse to filter by specific customer if provided
+      sql += ` AND o.kundenr = $${paramIndex++}`;
+      params.push(filters.kundenr);
     }
 
     if (filters.startDate) {
@@ -329,5 +508,49 @@ export const statisticsModel = {
 
     const result = await query(sql, params);
     return result.rows;
+  },
+
+  /**
+   * Get top N products by revenue
+   */
+  getTopProducts: async (limit: number = 10) => {
+    const sql = `
+      SELECT 
+        v.varekode,
+        v.varenavn,
+        v.varegruppe,
+        COUNT(DISTINCT ol.ordrenr) as order_count,
+        SUM(ol.antall) as total_quantity,
+        SUM(ol.linjesum) as total_revenue
+      FROM vare v
+      INNER JOIN ordrelinje ol ON v.varekode = ol.varekode
+      GROUP BY v.varekode, v.varenavn, v.varegruppe
+      ORDER BY total_revenue DESC NULLS LAST
+      LIMIT $1
+    `;
+    const result = await query(sql, [limit]);
+    return result.rows;
+  },
+
+  /**
+   * Get top N customers by revenue
+   */
+  getTopCustomers: async (limit: number = 10) => {
+    const sql = `
+      SELECT 
+        k.kundenr,
+        k.kundenavn,
+        COUNT(DISTINCT o.ordrenr) as order_count,
+        SUM(o.sum) as total_revenue,
+        MAX(o.dato) as last_order_date
+      FROM kunde k
+      INNER JOIN ordre o ON k.kundenr = o.kundenr
+      GROUP BY k.kundenr, k.kundenavn
+      ORDER BY total_revenue DESC NULLS LAST
+      LIMIT $1
+    `;
+    const result = await query(sql, [limit]);
+    return result.rows;
   }
 };
+

@@ -1,11 +1,12 @@
 import { Router } from 'express';
-import { authMiddleware } from '../middleware/auth.js';
+import { authMiddleware, roleGuard } from '../middleware/auth.js';
 import { customerController } from '../controllers/customerController.js';
+import { asyncHandler } from '../middleware/errorHandler.js';
 
 export const customersRouter = Router();
 
-// Get all customers
-customersRouter.get('/', authMiddleware, customerController.getAll);
+// Get all customers (admin only)
+customersRouter.get('/', authMiddleware, roleGuard('admin'), asyncHandler(customerController.getAll));
 
-// Get single customer
-customersRouter.get('/:kundenr', authMiddleware, customerController.getOne);
+// Get a single customer (admin only)
+customersRouter.get('/:kundenr', authMiddleware, roleGuard('admin'), asyncHandler(customerController.getOne));

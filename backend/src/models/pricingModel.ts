@@ -331,5 +331,34 @@ export const priceRuleModel = {
       [params.varekode, params.varegruppe || null, params.kundenr, params.customerGroupId || null, params.quantity]
     );
     return result.rows;
+  },
+
+  /**
+   * Get customers with the largest price deviations (special discounts)
+   * Shows customers who have specific pricing rules that differ most from base prices
+   */
+  getPriceDeviations: async (limit: number = 10) => {
+    const sql = `
+      SELECT 
+        k.kundenr,
+        k.kundenavn,
+        cg.name as customer_group_name,
+        COUNT(DISTINCT pr.id) as rule_count,
+        AVG(pr.discount_percent) as avg_discount,
+        MAX(pr.discount_percent) as max_discount
+      FROM kunde k
+      LEFT JOIN customer_group cg ON k.customer_group_id = cg.id
+      INNER JOIN price_rule pr ON (pr.kundenr = k.kundenr OR pr.customer_group_id = k.customer_group_id)
+      INNER JOIN price_list pl ON pr.price_list_id = pl.id
+      WHERE pl.is_active = TRUE
+        AND pr.discount_percent IS NOT NULL
+        AND pr.discount_percent > 0
+      GROUP BY k.kundenr, k.kundenavn, cg.name
+      ORDER BY max_discount DESC NULLS LAST
+      LIMIT $1
+    `;
+    const result = await query(sql, [limit]);
+    return result.rows;
   }
 };
+

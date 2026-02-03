@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth.js';
 import { customerGroupModel, priceListModel, priceRuleModel } from '../models/pricingModel.js';
 import { pricingService } from '../services/pricingService.js';
+import { ValidationError, NotFoundError } from '../middleware/errorHandler.js';
 import {
   CreateCustomerGroupInput,
   CreatePriceListInput,
@@ -25,13 +26,8 @@ export const pricingController = {
    * Get all customer groups
    */
   getGroups: async (req: AuthRequest, res: Response) => {
-    try {
-      const groups = await customerGroupModel.findAll();
-      res.json(groups);
-    } catch (error) {
-      console.error('Get customer groups error:', error);
-      res.status(500).json({ error: 'Internal server error' });
-    }
+    const groups = await customerGroupModel.findAll();
+    res.json(groups);
   },
 
   /**
@@ -39,22 +35,14 @@ export const pricingController = {
    * Create a new customer group
    */
   createGroup: async (req: AuthRequest, res: Response) => {
-    try {
-      const data: CreateCustomerGroupInput = req.body;
+    const data: CreateCustomerGroupInput = req.body;
 
-      if (!data.name) {
-        return res.status(400).json({ error: 'Name is required' });
-      }
-
-      const group = await customerGroupModel.create(data);
-      res.status(201).json(group);
-    } catch (error: any) {
-      console.error('Create customer group error:', error);
-      if (error.code === '23505') {
-        return res.status(409).json({ error: 'Group with this name already exists' });
-      }
-      res.status(500).json({ error: 'Internal server error' });
+    if (!data.name) {
+      throw new ValidationError('Name is required');
     }
+
+    const group = await customerGroupModel.create(data);
+    res.status(201).json(group);
   },
 
   /**
@@ -62,23 +50,15 @@ export const pricingController = {
    * Update a customer group
    */
   updateGroup: async (req: AuthRequest, res: Response) => {
-    try {
-      const id = parseInt(req.params.id);
-      const data: Partial<CreateCustomerGroupInput> = req.body;
+    const id = parseInt(req.params.id);
+    const data: Partial<CreateCustomerGroupInput> = req.body;
 
-      const group = await customerGroupModel.update(id, data);
-      if (!group) {
-        return res.status(404).json({ error: 'Group not found' });
-      }
-
-      res.json(group);
-    } catch (error: any) {
-      console.error('Update customer group error:', error);
-      if (error.code === '23505') {
-        return res.status(409).json({ error: 'Group with this name already exists' });
-      }
-      res.status(500).json({ error: 'Internal server error' });
+    const group = await customerGroupModel.update(id, data);
+    if (!group) {
+      throw new NotFoundError('Group not found');
     }
+
+    res.json(group);
   },
 
   /**
@@ -86,19 +66,14 @@ export const pricingController = {
    * Delete a customer group
    */
   deleteGroup: async (req: AuthRequest, res: Response) => {
-    try {
-      const id = parseInt(req.params.id);
-      const deleted = await customerGroupModel.delete(id);
+    const id = parseInt(req.params.id);
+    const deleted = await customerGroupModel.delete(id);
 
-      if (!deleted) {
-        return res.status(404).json({ error: 'Group not found' });
-      }
-
-      res.json({ message: 'Group deleted successfully' });
-    } catch (error) {
-      console.error('Delete customer group error:', error);
-      res.status(500).json({ error: 'Internal server error' });
+    if (!deleted) {
+      throw new NotFoundError('Group not found');
     }
+
+    res.json({ message: 'Group deleted successfully' });
   },
 
   /**
@@ -106,26 +81,21 @@ export const pricingController = {
    * Assign a customer to a group
    */
   assignCustomerToGroup: async (req: AuthRequest, res: Response) => {
-    try {
-      const groupId = parseInt(req.params.id);
-      const { kundenr } = req.params;
+    const groupId = parseInt(req.params.id);
+    const { kundenr } = req.params;
 
-      // Verify group exists
-      const group = await customerGroupModel.findById(groupId);
-      if (!group) {
-        return res.status(404).json({ error: 'Group not found' });
-      }
-
-      const updated = await customerGroupModel.assignCustomer(kundenr, groupId);
-      if (!updated) {
-        return res.status(404).json({ error: 'Customer not found' });
-      }
-
-      res.json({ message: 'Customer assigned to group successfully' });
-    } catch (error) {
-      console.error('Assign customer to group error:', error);
-      res.status(500).json({ error: 'Internal server error' });
+    // Verify group exists
+    const group = await customerGroupModel.findById(groupId);
+    if (!group) {
+      throw new NotFoundError('Group not found');
     }
+
+    const updated = await customerGroupModel.assignCustomer(kundenr, groupId);
+    if (!updated) {
+      throw new NotFoundError('Customer not found');
+    }
+
+    res.json({ message: 'Customer assigned to group successfully' });
   },
 
   /**
@@ -133,19 +103,14 @@ export const pricingController = {
    * Remove a customer from their group (set to null)
    */
   removeCustomerFromGroup: async (req: AuthRequest, res: Response) => {
-    try {
-      const { kundenr } = req.params;
-      const updated = await customerGroupModel.assignCustomer(kundenr, null);
+    const { kundenr } = req.params;
+    const updated = await customerGroupModel.assignCustomer(kundenr, null);
 
-      if (!updated) {
-        return res.status(404).json({ error: 'Customer not found' });
-      }
-
-      res.json({ message: 'Customer removed from group successfully' });
-    } catch (error) {
-      console.error('Remove customer from group error:', error);
-      res.status(500).json({ error: 'Internal server error' });
+    if (!updated) {
+      throw new NotFoundError('Customer not found');
     }
+
+    res.json({ message: 'Customer removed from group successfully' });
   },
 
   /**
@@ -153,13 +118,8 @@ export const pricingController = {
    * Get all customers with their group info
    */
   getCustomersWithGroups: async (req: AuthRequest, res: Response) => {
-    try {
-      const customers = await customerGroupModel.getCustomersWithGroups();
-      res.json(customers);
-    } catch (error) {
-      console.error('Get customers with groups error:', error);
-      res.status(500).json({ error: 'Internal server error' });
-    }
+    const customers = await customerGroupModel.getCustomersWithGroups();
+    res.json(customers);
   },
 
   // ============================================
@@ -171,16 +131,11 @@ export const pricingController = {
    * Get all price lists
    */
   getLists: async (req: AuthRequest, res: Response) => {
-    try {
-      const activeOnly = req.query.active === 'true';
-      const lists = activeOnly 
-        ? await priceListModel.findActive()
-        : await priceListModel.findAll();
-      res.json(lists);
-    } catch (error) {
-      console.error('Get price lists error:', error);
-      res.status(500).json({ error: 'Internal server error' });
-    }
+    const activeOnly = req.query.active === 'true';
+    const lists = activeOnly 
+      ? await priceListModel.findActive()
+      : await priceListModel.findAll();
+    res.json(lists);
   },
 
   /**
@@ -188,19 +143,14 @@ export const pricingController = {
    * Get a single price list
    */
   getList: async (req: AuthRequest, res: Response) => {
-    try {
-      const id = parseInt(req.params.id);
-      const list = await priceListModel.findById(id);
+    const id = parseInt(req.params.id);
+    const list = await priceListModel.findById(id);
 
-      if (!list) {
-        return res.status(404).json({ error: 'Price list not found' });
-      }
-
-      res.json(list);
-    } catch (error) {
-      console.error('Get price list error:', error);
-      res.status(500).json({ error: 'Internal server error' });
+    if (!list) {
+      throw new NotFoundError('Price list not found');
     }
+
+    res.json(list);
   },
 
   /**
@@ -208,19 +158,14 @@ export const pricingController = {
    * Create a new price list
    */
   createList: async (req: AuthRequest, res: Response) => {
-    try {
-      const data: CreatePriceListInput = req.body;
+    const data: CreatePriceListInput = req.body;
 
-      if (!data.name) {
-        return res.status(400).json({ error: 'Name is required' });
-      }
-
-      const list = await priceListModel.create(data);
-      res.status(201).json(list);
-    } catch (error) {
-      console.error('Create price list error:', error);
-      res.status(500).json({ error: 'Internal server error' });
+    if (!data.name) {
+      throw new ValidationError('Name is required');
     }
+
+    const list = await priceListModel.create(data);
+    res.status(201).json(list);
   },
 
   /**
@@ -228,20 +173,15 @@ export const pricingController = {
    * Update a price list
    */
   updateList: async (req: AuthRequest, res: Response) => {
-    try {
-      const id = parseInt(req.params.id);
-      const data: UpdatePriceListInput = req.body;
+    const id = parseInt(req.params.id);
+    const data: UpdatePriceListInput = req.body;
 
-      const list = await priceListModel.update(id, data);
-      if (!list) {
-        return res.status(404).json({ error: 'Price list not found' });
-      }
-
-      res.json(list);
-    } catch (error) {
-      console.error('Update price list error:', error);
-      res.status(500).json({ error: 'Internal server error' });
+    const list = await priceListModel.update(id, data);
+    if (!list) {
+      throw new NotFoundError('Price list not found');
     }
+
+    res.json(list);
   },
 
   /**
@@ -249,19 +189,14 @@ export const pricingController = {
    * Delete a price list
    */
   deleteList: async (req: AuthRequest, res: Response) => {
-    try {
-      const id = parseInt(req.params.id);
-      const deleted = await priceListModel.delete(id);
+    const id = parseInt(req.params.id);
+    const deleted = await priceListModel.delete(id);
 
-      if (!deleted) {
-        return res.status(404).json({ error: 'Price list not found' });
-      }
-
-      res.json({ message: 'Price list deleted successfully' });
-    } catch (error) {
-      console.error('Delete price list error:', error);
-      res.status(500).json({ error: 'Internal server error' });
+    if (!deleted) {
+      throw new NotFoundError('Price list not found');
     }
+
+    res.json({ message: 'Price list deleted successfully' });
   },
 
   // ============================================
@@ -273,14 +208,9 @@ export const pricingController = {
    * Get all rules for a price list
    */
   getRules: async (req: AuthRequest, res: Response) => {
-    try {
-      const listId = parseInt(req.params.id);
-      const rules = await priceRuleModel.findByListId(listId);
-      res.json(rules);
-    } catch (error) {
-      console.error('Get price rules error:', error);
-      res.status(500).json({ error: 'Internal server error' });
-    }
+    const listId = parseInt(req.params.id);
+    const rules = await priceRuleModel.findByListId(listId);
+    res.json(rules);
   },
 
   /**
@@ -288,19 +218,14 @@ export const pricingController = {
    * Get a single rule
    */
   getRule: async (req: AuthRequest, res: Response) => {
-    try {
-      const id = parseInt(req.params.id);
-      const rule = await priceRuleModel.findById(id);
+    const id = parseInt(req.params.id);
+    const rule = await priceRuleModel.findById(id);
 
-      if (!rule) {
-        return res.status(404).json({ error: 'Price rule not found' });
-      }
-
-      res.json(rule);
-    } catch (error) {
-      console.error('Get price rule error:', error);
-      res.status(500).json({ error: 'Internal server error' });
+    if (!rule) {
+      throw new NotFoundError('Price rule not found');
     }
+
+    res.json(rule);
   },
 
   /**
@@ -308,30 +233,22 @@ export const pricingController = {
    * Create a new price rule
    */
   createRule: async (req: AuthRequest, res: Response) => {
-    try {
-      const data: CreatePriceRuleInput = req.body;
+    const data: CreatePriceRuleInput = req.body;
 
-      if (!data.price_list_id) {
-        return res.status(400).json({ error: 'price_list_id is required' });
-      }
-
-      if (data.discount_percent === undefined && data.fixed_price === undefined) {
-        return res.status(400).json({ error: 'Either discount_percent or fixed_price is required' });
-      }
-
-      if (data.discount_percent !== undefined && data.fixed_price !== undefined) {
-        return res.status(400).json({ error: 'Cannot set both discount_percent and fixed_price' });
-      }
-
-      const rule = await priceRuleModel.create(data);
-      res.status(201).json(rule);
-    } catch (error: any) {
-      console.error('Create price rule error:', error);
-      if (error.code === '23503') {
-        return res.status(400).json({ error: 'Invalid price_list_id or customer_group_id' });
-      }
-      res.status(500).json({ error: 'Internal server error' });
+    if (!data.price_list_id) {
+      throw new ValidationError('price_list_id is required');
     }
+
+    if (data.discount_percent === undefined && data.fixed_price === undefined) {
+      throw new ValidationError('Either discount_percent or fixed_price is required');
+    }
+
+    if (data.discount_percent !== undefined && data.fixed_price !== undefined) {
+      throw new ValidationError('Cannot set both discount_percent and fixed_price');
+    }
+
+    const rule = await priceRuleModel.create(data);
+    res.status(201).json(rule);
   },
 
   /**
@@ -339,20 +256,15 @@ export const pricingController = {
    * Update a price rule
    */
   updateRule: async (req: AuthRequest, res: Response) => {
-    try {
-      const id = parseInt(req.params.id);
-      const data: UpdatePriceRuleInput = req.body;
+    const id = parseInt(req.params.id);
+    const data: UpdatePriceRuleInput = req.body;
 
-      const rule = await priceRuleModel.update(id, data);
-      if (!rule) {
-        return res.status(404).json({ error: 'Price rule not found' });
-      }
-
-      res.json(rule);
-    } catch (error) {
-      console.error('Update price rule error:', error);
-      res.status(500).json({ error: 'Internal server error' });
+    const rule = await priceRuleModel.update(id, data);
+    if (!rule) {
+      throw new NotFoundError('Price rule not found');
     }
+
+    res.json(rule);
   },
 
   /**
@@ -360,19 +272,14 @@ export const pricingController = {
    * Delete a price rule
    */
   deleteRule: async (req: AuthRequest, res: Response) => {
-    try {
-      const id = parseInt(req.params.id);
-      const deleted = await priceRuleModel.delete(id);
+    const id = parseInt(req.params.id);
+    const deleted = await priceRuleModel.delete(id);
 
-      if (!deleted) {
-        return res.status(404).json({ error: 'Price rule not found' });
-      }
-
-      res.json({ message: 'Price rule deleted successfully' });
-    } catch (error) {
-      console.error('Delete price rule error:', error);
-      res.status(500).json({ error: 'Internal server error' });
+    if (!deleted) {
+      throw new NotFoundError('Price rule not found');
     }
+
+    res.json({ message: 'Price rule deleted successfully' });
   },
 
   // ============================================
@@ -384,21 +291,14 @@ export const pricingController = {
    * Calculate price for a product
    */
   calculatePrice: async (req: AuthRequest, res: Response) => {
-    try {
-      const data: PriceCalculationInput = req.body;
+    const data: PriceCalculationInput = req.body;
 
-      if (!data.varekode || !data.kundenr || data.quantity === undefined || data.base_price === undefined) {
-        return res.status(400).json({ 
-          error: 'varekode, kundenr, quantity, and base_price are required' 
-        });
-      }
-
-      const result = await pricingService.calculatePrice(data);
-      res.json(result);
-    } catch (error) {
-      console.error('Calculate price error:', error);
-      res.status(500).json({ error: 'Internal server error' });
+    if (!data.varekode || !data.kundenr || data.quantity === undefined || data.base_price === undefined) {
+      throw new ValidationError('varekode, kundenr, quantity, and base_price are required');
     }
+
+    const result = await pricingService.calculatePrice(data);
+    res.json(result);
   },
 
   /**
@@ -406,19 +306,14 @@ export const pricingController = {
    * Calculate prices for multiple products
    */
   calculatePricesBulk: async (req: AuthRequest, res: Response) => {
-    try {
-      const { items, kundenr } = req.body;
+    const { items, kundenr } = req.body;
 
-      if (!items || !Array.isArray(items) || !kundenr) {
-        return res.status(400).json({ error: 'items array and kundenr are required' });
-      }
-
-      const results = await pricingService.calculatePricesForOrder(items, kundenr);
-      res.json(results);
-    } catch (error) {
-      console.error('Calculate bulk prices error:', error);
-      res.status(500).json({ error: 'Internal server error' });
+    if (!items || !Array.isArray(items) || !kundenr) {
+      throw new ValidationError('items array and kundenr are required');
     }
+
+    const results = await pricingService.calculatePricesForOrder(items, kundenr);
+    res.json(results);
   },
 
   /**
@@ -426,13 +321,9 @@ export const pricingController = {
    * Get all applicable rules for a customer
    */
   getCustomerRules: async (req: AuthRequest, res: Response) => {
-    try {
-      const { kundenr } = req.params;
-      const rules = await pricingService.getApplicableRulesForCustomer(kundenr);
-      res.json(rules);
-    } catch (error) {
-      console.error('Get customer rules error:', error);
-      res.status(500).json({ error: 'Internal server error' });
-    }
+    const { kundenr } = req.params;
+    const rules = await pricingService.getApplicableRulesForCustomer(kundenr);
+    res.json(rules);
   }
 };
+

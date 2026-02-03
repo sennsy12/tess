@@ -142,10 +142,10 @@ export function Login() {
                 <strong>Admin:</strong> admin / admin123
               </div>
               <div className="bg-dark-800/50 p-2 rounded">
-                <strong>Analyse:</strong> analyse / analyse123
+                <strong>Analyse:</strong> analyse / admin123
               </div>
               <div className="col-span-2 bg-dark-800/50 p-2 rounded text-center">
-                <strong>Kunde:</strong> K001 / kunde123
+                <strong>Kunde:</strong> kunde1 / admin123
               </div>
             </div>
           </div>

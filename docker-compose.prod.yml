@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  # Database
+  db:
+    image: postgres:15-alpine
+    container_name: tess-db-prod
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: tess
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - tess-prod-network
+    restart: always
+
+  # Backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.prod
+    container_name: tess-backend-prod
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD}@db:5432/tess
+      JWT_SECRET: ${JWT_SECRET}
+      PORT: 5000
+    depends_on:
+      - db
+    networks:
+      - tess-prod-network
+    restart: always
+
+  # Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+      args:
+        - VITE_API_URL=${VITE_API_URL:-/api}
+    container_name: tess-frontend-prod
+    networks:
+      - tess-prod-network
+    restart: always
+
+  # Reverse Proxy (Caddy)
+  caddy:
+    image: caddy:latest
+    container_name: tess-proxy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - tess-prod-network
+    restart: always
+
+networks:
+  tess-prod-network:
+    driver: bridge
+
+volumes:
+  postgres_prod_data:
+  caddy_data:
+  caddy_config:
