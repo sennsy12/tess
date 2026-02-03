@@ -1,4 +1,5 @@
 import { query } from '../db/index.js';
+import bcrypt from 'bcrypt';
 
 // In-memory storage for generated bulk data
 let generatedBulkData: any = null;
@@ -20,12 +21,23 @@ export async function generateBulkTestData(config: {
   console.log(`🔄 Generating bulk data: ${customers} customers, ${orders} orders, ~${orders * linesPerOrder} lines`);
   const startTime = Date.now();
 
+  const defaultCustomerPassword = 'kunde123';
+  const defaultCustomerPasswordHash = await bcrypt.hash(defaultCustomerPassword, 10);
+
   // Generate customers
   const kundeData: any[][] = [];
+  const brukerData: any[][] = [];
   for (let i = 1; i <= customers; i++) {
+    const kundenr = `K${String(i).padStart(6, '0')}`;
     kundeData.push([
-      `K${String(i).padStart(6, '0')}`,
+      kundenr,
       `Kunde ${i} AS`,
+    ]);
+    brukerData.push([
+      kundenr,
+      defaultCustomerPasswordHash,
+      'kunde',
+      kundenr,
     ]);
   }
 
@@ -109,6 +121,7 @@ export async function generateBulkTestData(config: {
 
   generatedBulkData = {
     kunder: kundeData,
+    brukere: brukerData,
     varer: vareData,
     ordrer: ordreData,
     ordrelinjer: ordrelinjeData,
@@ -116,6 +129,7 @@ export async function generateBulkTestData(config: {
 
   return {
     customersGenerated: kundeData.length,
+    usersGenerated: brukerData.length,
     productsGenerated: vareData.length,
     ordersGenerated: ordreData.length,
     orderLinesGenerated: ordrelinjeData.length,
@@ -155,8 +169,9 @@ export async function insertBulkTestData(): Promise<any> {
   const { bulkCopy } = await import('../db/index.js');
 
   // 2. Ensure customers and products exist before COPY (FK constraints)
-  console.log('  Ensuring customers and products exist...');
+  console.log('  Ensuring customers, users, and products exist...');
   await bulkCopy('kunde', ['kundenr', 'kundenavn'], data.kunder);
+  results.brukere = await bulkCopy('users', ['username', 'password_hash', 'role', 'kundenr'], data.brukere);
   await bulkCopy('vare', ['varekode', 'varenavn', 'varegruppe'], data.varer);
 
   // 3. Drop indexes to speed up insertion
@@ -211,7 +226,7 @@ export async function insertBulkTestData(): Promise<any> {
 
   const duration = Date.now() - startTime;
   results.insertionTimeMs = duration;
-  results.totalRows = results.ordrer + results.ordrelinjer;
+  results.totalRows = (results.brukere || 0) + results.ordrer + results.ordrelinjer;
   results.rowsPerSecond = Math.round(results.totalRows / (duration / 1000));
 
   console.log(`✅ ULTIMATE insert completed: ${results.totalRows} rows in ${duration}ms (${results.rowsPerSecond} rows/s)`);
