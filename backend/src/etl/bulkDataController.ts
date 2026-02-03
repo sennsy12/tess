@@ -170,7 +170,11 @@ export async function insertBulkTestData(): Promise<any> {
   // 2. Ensure customers and products exist before COPY (FK constraints)
   console.log('  Ensuring customers, users, and products exist...');
   await bulkCopy('kunde', ['kundenr', 'kundenavn'], data.kunder);
-  results.brukere = await bulkCopy('users', ['username', 'password_hash', 'role', 'kundenr'], data.brukere);
+  
+  // Use a transaction-safe way to insert users if they don't exist
+  // bulkCopy with 'nothing' uses a temp table and ON CONFLICT DO NOTHING
+  results.brukere = await bulkCopy('users', ['username', 'password_hash', 'role', 'kundenr'], data.brukere, 'nothing');
+  
   await bulkCopy('vare', ['varekode', 'varenavn', 'varegruppe'], data.varer);
 
   // 3. Drop indexes to speed up insertion

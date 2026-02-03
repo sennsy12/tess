@@ -106,9 +106,12 @@ initializeDefaultJobs();
 import { errorHandler } from './middleware/errorHandler.js';
 app.use(errorHandler);
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   logger.info({ port: PORT }, 'Server started');
 });
+
+// Increase timeout to 5 minutes for large ETL jobs
+server.timeout = 300000;
 
 export default app;
 

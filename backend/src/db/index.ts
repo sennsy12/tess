@@ -125,7 +125,25 @@ export const bulkCopy = async (
     
     if (onConflict === 'nothing') {
       // Create temp table with same structure (no constraints to speed up COPY)
-      await client.query(`CREATE TEMP TABLE ${tempTable} (LIKE ${tableName}) ON COMMIT DROP`);
+      // EXCEPT for SERIAL columns which should be excluded from the COPY if not provided
+      await client.query(`CREATE TEMP TABLE ${tempTable} (LIKE ${tableName} INCLUDING DEFAULTS) ON COMMIT DROP`);
+      
+      // If the table has an 'id' column that is a serial, we might need to handle it
+      // For the users table, the 'id' column is SERIAL and NOT NULL.
+      // When we CREATE TEMP TABLE ... LIKE ..., the NOT NULL constraint is copied.
+      // If we don't provide 'id' in the COPY, it fails.
+      // Let's remove the NOT NULL constraint from the temp table for the columns we are NOT copying
+      const allColsResult = await client.query(`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = '${tableName}'
+      `);
+      const allCols = allColsResult.rows.map((r: any) => r.column_name);
+      const missingCols = allCols.filter((c: string) => !columns.includes(c));
+      
+      for (const col of missingCols) {
+        await client.query(`ALTER TABLE ${tempTable} ALTER COLUMN ${col} DROP NOT NULL`);
+      }
     }
     
     const targetTable = onConflict === 'nothing' ? tempTable : tableName;
