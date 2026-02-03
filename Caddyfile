@@ -1,7 +1,14 @@
 :80 {
     # Reverse proxy for Backend API
     handle /api/* {
-        reverse_proxy backend:5000
+        reverse_proxy backend:5000 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            transport http {
+                read_timeout 300s
+                write_timeout 300s
+            }
+        }
     }
 
     # Reverse proxy for Frontend
