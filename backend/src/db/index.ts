@@ -7,10 +7,10 @@ dotenv.config();
 // Optimized pool configuration for high-throughput
 const poolConfig: PoolConfig = {
   connectionString: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/tess',
-  // Maximum number of clients in the pool
-  max: 20,
+  // Maximum number of clients in the pool (increased for parallel COPY)
+  max: 50,
   // Minimum number of idle clients
-  min: 5,
+  min: 10,
   // Close idle clients after 30 seconds
   idleTimeoutMillis: 30000,
   // Return error after 10 seconds if connection cannot be established

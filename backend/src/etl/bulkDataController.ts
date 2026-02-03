@@ -124,7 +124,7 @@ export async function generateBulkTestData(config: {
 }
 
 /**
- * Insert bulk data using COPY for maximum performance
+ * Insert bulk data using parallel COPY for maximum performance
  */
 export async function insertBulkTestData(): Promise<any> {
   if (!generatedBulkData) {
@@ -135,7 +135,7 @@ export async function insertBulkTestData(): Promise<any> {
   const results: Record<string, any> = {};
   const startTime = Date.now();
 
-  console.log('🚀 Starting high-speed bulk insert...');
+  console.log('🚀 Starting ULTIMATE high-speed parallel bulk insert...');
 
   // 1. Prepare base data
   await query('INSERT INTO firma (firmaid, firmanavn) VALUES (1, \'Hovedkontor Oslo\'), (2, \'Region Vest\'), (3, \'Region Sør\'), (4, \'Region Midt\'), (5, \'Region Nord\') ON CONFLICT DO NOTHING');
@@ -167,30 +167,54 @@ export async function insertBulkTestData(): Promise<any> {
   await query('DROP INDEX IF EXISTS idx_ordre_dato');
 
   try {
-    // 3. COPY data
-    console.log(`  COPYing ${data.ordrer.length} orders...`);
-    results.ordrer = await bulkCopy('ordre', ['ordrenr', 'dato', 'kundenr', 'kundeordreref', 'kunderef', 'firmaid', 'lagernavn', 'valutaid', 'sum'], data.ordrer);
+    // 4. Parallel COPY for orders and order lines
+    const PARALLEL_CHUNKS = 4;
+    
+    const splitIntoChunks = (array: any[], chunks: number) => {
+      const size = Math.ceil(array.length / chunks);
+      return Array.from({ length: chunks }, (_, i) => array.slice(i * size, (i + 1) * size));
+    };
 
-    console.log(`  COPYing ${data.ordrelinjer.length} order lines...`);
-    results.ordrelinjer = await bulkCopy('ordrelinje', ['linjenr', 'ordrenr', 'varekode', 'antall', 'enhet', 'nettpris', 'linjesum', 'linjestatus'], data.ordrelinjer);
+    console.log(`  Executing parallel COPY with ${PARALLEL_CHUNKS} streams...`);
+    
+    const ordreChunks = splitIntoChunks(data.ordrer, PARALLEL_CHUNKS);
+    const linjeChunks = splitIntoChunks(data.ordrelinjer, PARALLEL_CHUNKS);
+
+    // Run orders in parallel
+    const ordreStart = Date.now();
+    const ordreResults = await Promise.all(
+      ordreChunks.map(chunk => bulkCopy('ordre', ['ordrenr', 'dato', 'kundenr', 'kundeordreref', 'kunderef', 'firmaid', 'lagernavn', 'valutaid', 'sum'], chunk))
+    );
+    results.ordrer = ordreResults.reduce((sum, count) => sum + count, 0);
+    console.log(`    ✓ Orders finished in ${Date.now() - ordreStart}ms`);
+
+    // Run lines in parallel
+    const linjeStart = Date.now();
+    const linjeResults = await Promise.all(
+      linjeChunks.map(chunk => bulkCopy('ordrelinje', ['linjenr', 'ordrenr', 'varekode', 'antall', 'enhet', 'nettpris', 'linjesum', 'linjestatus'], chunk))
+    );
+    results.ordrelinjer = linjeResults.reduce((sum, count) => sum + count, 0);
+    console.log(`    ✓ Order lines finished in ${Date.now() - linjeStart}ms`);
 
   } finally {
-    // 4. Recreate indexes
+    // 5. Recreate indexes
     console.log('  Recreating indexes (this might take a few seconds)...');
     const indexStart = Date.now();
-    await query('CREATE INDEX idx_ordrelinje_ordrenr ON ordrelinje(ordrenr)');
-    await query('CREATE INDEX idx_ordrelinje_varekode ON ordrelinje(varekode)');
-    await query('CREATE INDEX idx_ordre_kundenr ON ordre(kundenr)');
-    await query('CREATE INDEX idx_ordre_dato ON ordre(dato)');
+    await Promise.all([
+      query('CREATE INDEX idx_ordrelinje_ordrenr ON ordrelinje(ordrenr)'),
+      query('CREATE INDEX idx_ordrelinje_varekode ON ordrelinje(varekode)'),
+      query('CREATE INDEX idx_ordre_kundenr ON ordre(kundenr)'),
+      query('CREATE INDEX idx_ordre_dato ON ordre(dato)')
+    ]);
     console.log(`    ✓ Indexes recreated in ${Date.now() - indexStart}ms`);
   }
 
   const duration = Date.now() - startTime;
   results.insertionTimeMs = duration;
-  results.totalRows = data.ordrer.length + data.ordrelinjer.length;
+  results.totalRows = results.ordrer + results.ordrelinjer;
   results.rowsPerSecond = Math.round(results.totalRows / (duration / 1000));
 
-  console.log(`✅ Bulk insert completed: ${results.totalRows} rows in ${duration}ms (${results.rowsPerSecond} rows/s)`);
+  console.log(`✅ ULTIMATE insert completed: ${results.totalRows} rows in ${duration}ms (${results.rowsPerSecond} rows/s)`);
 
   return results;
 }
