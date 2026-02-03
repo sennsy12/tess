@@ -1,5 +1,7 @@
 import { query } from '../db/index.js';
-import bcrypt from 'bcrypt';
+
+// Pre-calculated hash for 'kunde123' to save CPU time during generation
+const KUNDE_PASSWORD_HASH = '$2b$10$55MITFPNmmdu9pau6zk9Iul2mIJU0g.hJccUnCfYT.9ChAfcUz20W';
 
 // In-memory storage for generated bulk data
 let generatedBulkData: any = null;
@@ -21,10 +23,7 @@ export async function generateBulkTestData(config: {
   console.log(`🔄 Generating bulk data: ${customers} customers, ${orders} orders, ~${orders * linesPerOrder} lines`);
   const startTime = Date.now();
 
-  const defaultCustomerPassword = 'kunde123';
-  const defaultCustomerPasswordHash = await bcrypt.hash(defaultCustomerPassword, 10);
-
-  // Generate customers
+  // Generate customers and their corresponding users
   const kundeData: any[][] = [];
   const brukerData: any[][] = [];
   for (let i = 1; i <= customers; i++) {
@@ -35,7 +34,7 @@ export async function generateBulkTestData(config: {
     ]);
     brukerData.push([
       kundenr,
-      defaultCustomerPasswordHash,
+      KUNDE_PASSWORD_HASH,
       'kunde',
       kundenr,
     ]);
