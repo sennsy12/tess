@@ -113,8 +113,8 @@ export const createGroupSchema = z.object({
 export const createPriceListSchema = z.object({
   name: z.string().min(1).max(100),
   description: z.string().max(500).optional(),
-  valid_from: z.string().datetime().optional(),
-  valid_to: z.string().datetime().optional(),
+  valid_from: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/).transform(v => `${v}T00:00:00Z`)).optional(),
+  valid_to: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/).transform(v => `${v}T23:59:59Z`)).optional(),
   priority: z.number().int().min(0).max(1000).default(0),
   is_active: z.boolean().default(true),
 });

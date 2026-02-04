@@ -129,8 +129,8 @@ export function usePricingData() {
     try {
       await pricingApi.createList({
         ...listForm,
-        valid_from: listForm.valid_from || undefined,
-        valid_to: listForm.valid_to || undefined,
+        valid_from: listForm.valid_from ? `${listForm.valid_from}T00:00:00Z` : undefined,
+        valid_to: listForm.valid_to ? `${listForm.valid_to}T23:59:59Z` : undefined,
       });
       showMessage('Prisliste opprettet');
       setShowListForm(false);
@@ -147,8 +147,8 @@ export function usePricingData() {
     try {
       await pricingApi.updateList(editingList.id, {
         ...listForm,
-        valid_from: listForm.valid_from || null,
-        valid_to: listForm.valid_to || null,
+        valid_from: listForm.valid_from ? `${listForm.valid_from}T00:00:00Z` : null,
+        valid_to: listForm.valid_to ? `${listForm.valid_to}T23:59:59Z` : null,
       });
       showMessage('Prisliste oppdatert');
       setEditingList(null);
