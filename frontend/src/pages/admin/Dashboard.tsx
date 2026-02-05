@@ -13,7 +13,6 @@ import {
   TopCustomersWidget,
   PriceDeviationsWidget,
   DataStatusWidget,
-  QuickActionsWidget,
 } from './dashboard/widgets';
 
 export function AdminDashboard() {
@@ -111,14 +110,13 @@ export function AdminDashboard() {
           </div>
         </div>
 
-        {/* NEW: Widget row - Top Products, Top Customers, Quick Actions */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Widget row - Top Products and Top Customers */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <TopProductsWidget data={widgets?.topProducts || []} isLoading={!widgets} />
           <TopCustomersWidget data={widgets?.topCustomers || []} isLoading={!widgets} />
-          <QuickActionsWidget />
         </div>
 
-        {/* NEW: Widget row - Price Deviations and Data Status */}
+        {/* Widget row - Price Deviations and Data Status */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <PriceDeviationsWidget data={widgets?.priceDeviations || []} isLoading={!widgets} />
           <DataStatusWidget data={widgets?.recentActivity || null} isLoading={!widgets} />
