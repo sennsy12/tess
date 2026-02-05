@@ -21,18 +21,6 @@ export function AdminPricing() {
   return (
     <Layout title="Prisstyring">
       <div className="space-y-6">
-        {/* Messages */}
-        {pricing.error && (
-          <div className="bg-red-500/20 border border-red-500/50 text-red-200 px-4 py-3 rounded-lg">
-            {pricing.error}
-          </div>
-        )}
-        {pricing.success && (
-          <div className="bg-green-500/20 border border-green-500/50 text-green-200 px-4 py-3 rounded-lg">
-            {pricing.success}
-          </div>
-        )}
-
         {/* Tabs */}
         <div className="flex flex-wrap gap-2 border-b border-dark-700 pb-2">
           {TABS.map((tab) => (

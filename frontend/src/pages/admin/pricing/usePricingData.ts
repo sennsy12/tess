@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import toast from 'react-hot-toast';
 import { pricingApi, productsApi } from '../../../lib/api';
 import {
   CustomerGroup,
@@ -15,8 +16,6 @@ import {
 
 export function usePricingData() {
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
 
   // Data states
   const [groups, setGroups] = useState<CustomerGroup[]>([]);
@@ -38,16 +37,6 @@ export function usePricingData() {
   const [listForm, setListForm] = useState<ListFormData>(INITIAL_LIST_FORM);
   const [ruleForm, setRuleForm] = useState<RuleFormData>(INITIAL_RULE_FORM);
 
-  const showMessage = useCallback((msg: string, isError = false) => {
-    if (isError) {
-      setError(msg);
-      setTimeout(() => setError(null), 3000);
-    } else {
-      setSuccess(msg);
-      setTimeout(() => setSuccess(null), 3000);
-    }
-  }, []);
-
   const loadData = useCallback(async () => {
     try {
       setIsLoading(true);
@@ -63,7 +52,7 @@ export function usePricingData() {
       setProductGroups(productGroupsRes.data);
     } catch (err) {
       console.error('Failed to load data:', err);
-      setError('Kunne ikke laste data');
+      toast.error('Kunne ikke laste data');
     } finally {
       setIsLoading(false);
     }
@@ -76,7 +65,7 @@ export function usePricingData() {
       setSelectedListId(listId);
     } catch (err) {
       console.error('Failed to load rules:', err);
-      setError('Kunne ikke laste regler');
+      toast.error('Kunne ikke laste regler');
     }
   }, []);
 
@@ -89,12 +78,12 @@ export function usePricingData() {
     e.preventDefault();
     try {
       await pricingApi.createGroup(groupForm);
-      showMessage('Gruppe opprettet');
+      toast.success('Gruppe opprettet');
       setShowGroupForm(false);
       setGroupForm(INITIAL_GROUP_FORM);
       loadData();
     } catch (err: any) {
-      showMessage(err.response?.data?.error || 'Kunne ikke opprette gruppe', true);
+      toast.error(err.response?.data?.error || 'Kunne ikke opprette gruppe');
     }
   };
 
@@ -103,12 +92,12 @@ export function usePricingData() {
     if (!editingGroup) return;
     try {
       await pricingApi.updateGroup(editingGroup.id, groupForm);
-      showMessage('Gruppe oppdatert');
+      toast.success('Gruppe oppdatert');
       setEditingGroup(null);
       setGroupForm(INITIAL_GROUP_FORM);
       loadData();
     } catch (err: any) {
-      showMessage(err.response?.data?.error || 'Kunne ikke oppdatere gruppe', true);
+      toast.error(err.response?.data?.error || 'Kunne ikke oppdatere gruppe');
     }
   };
 
@@ -116,10 +105,10 @@ export function usePricingData() {
     if (!confirm('Er du sikker på at du vil slette denne gruppen?')) return;
     try {
       await pricingApi.deleteGroup(id);
-      showMessage('Gruppe slettet');
+      toast.success('Gruppe slettet');
       loadData();
     } catch (err: any) {
-      showMessage(err.response?.data?.error || 'Kunne ikke slette gruppe', true);
+      toast.error(err.response?.data?.error || 'Kunne ikke slette gruppe');
     }
   };
 
@@ -132,12 +121,12 @@ export function usePricingData() {
         valid_from: listForm.valid_from ? `${listForm.valid_from}T00:00:00Z` : undefined,
         valid_to: listForm.valid_to ? `${listForm.valid_to}T23:59:59Z` : undefined,
       });
-      showMessage('Prisliste opprettet');
+      toast.success('Prisliste opprettet');
       setShowListForm(false);
       setListForm(INITIAL_LIST_FORM);
       loadData();
     } catch (err: any) {
-      showMessage(err.response?.data?.error || 'Kunne ikke opprette prisliste', true);
+      toast.error(err.response?.data?.error || 'Kunne ikke opprette prisliste');
     }
   };
 
@@ -150,12 +139,12 @@ export function usePricingData() {
         valid_from: listForm.valid_from ? `${listForm.valid_from}T00:00:00Z` : null,
         valid_to: listForm.valid_to ? `${listForm.valid_to}T23:59:59Z` : null,
       });
-      showMessage('Prisliste oppdatert');
+      toast.success('Prisliste oppdatert');
       setEditingList(null);
       setListForm(INITIAL_LIST_FORM);
       loadData();
     } catch (err: any) {
-      showMessage(err.response?.data?.error || 'Kunne ikke oppdatere prisliste', true);
+      toast.error(err.response?.data?.error || 'Kunne ikke oppdatere prisliste');
     }
   };
 
@@ -163,14 +152,14 @@ export function usePricingData() {
     if (!confirm('Er du sikker på at du vil slette denne prislisten? Alle regler vil også bli slettet.')) return;
     try {
       await pricingApi.deleteList(id);
-      showMessage('Prisliste slettet');
+      toast.success('Prisliste slettet');
       if (selectedListId === id) {
         setSelectedListId(null);
         setRules([]);
       }
       loadData();
     } catch (err: any) {
-      showMessage(err.response?.data?.error || 'Kunne ikke slette prisliste', true);
+      toast.error(err.response?.data?.error || 'Kunne ikke slette prisliste');
     }
   };
 
@@ -179,7 +168,7 @@ export function usePricingData() {
       await pricingApi.updateList(list.id, { is_active: !list.is_active });
       loadData();
     } catch (err: any) {
-      showMessage(err.response?.data?.error || 'Kunne ikke oppdatere status', true);
+      toast.error(err.response?.data?.error || 'Kunne ikke oppdatere status');
     }
   };
 
@@ -206,12 +195,12 @@ export function usePricingData() {
       }
 
       await pricingApi.createRule(data);
-      showMessage('Regel opprettet');
+      toast.success('Regel opprettet');
       setShowRuleForm(false);
       setRuleForm(INITIAL_RULE_FORM);
       loadRules(selectedListId);
     } catch (err: any) {
-      showMessage(err.response?.data?.error || 'Kunne ikke opprette regel', true);
+      toast.error(err.response?.data?.error || 'Kunne ikke opprette regel');
     }
   };
 
@@ -219,10 +208,10 @@ export function usePricingData() {
     if (!confirm('Er du sikker på at du vil slette denne regelen?')) return;
     try {
       await pricingApi.deleteRule(id);
-      showMessage('Regel slettet');
+      toast.success('Regel slettet');
       if (selectedListId) loadRules(selectedListId);
     } catch (err: any) {
-      showMessage(err.response?.data?.error || 'Kunne ikke slette regel', true);
+      toast.error(err.response?.data?.error || 'Kunne ikke slette regel');
     }
   };
 
@@ -236,15 +225,13 @@ export function usePricingData() {
       }
       loadData();
     } catch (err: any) {
-      showMessage(err.response?.data?.error || 'Kunne ikke oppdatere kunde', true);
+      toast.error(err.response?.data?.error || 'Kunne ikke oppdatere kunde');
     }
   };
 
   return {
     // State
     isLoading,
-    error,
-    success,
     groups,
     lists,
     rules,

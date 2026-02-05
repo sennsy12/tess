@@ -1,7 +1,7 @@
-import { ReactNode, useEffect, useRef, useState } from 'react';
+import { ReactNode, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { subscribeApiErrors } from '../lib/apiErrors';
+import { IdleTimer } from './IdleTimer';
 
 interface LayoutProps {
   children: ReactNode;
@@ -35,8 +35,6 @@ export function Layout({ children, title }: LayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [apiErrorMessage, setApiErrorMessage] = useState<string | null>(null);
-  const errorTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleLogout = () => {
     logout();
@@ -54,22 +52,6 @@ export function Layout({ children, title }: LayoutProps) {
   };
 
   const navItems = getNavItems();
-
-  useEffect(() => {
-    const unsubscribe = subscribeApiErrors(({ message }) => {
-      setApiErrorMessage(message);
-      if (errorTimeoutRef.current) {
-        clearTimeout(errorTimeoutRef.current);
-      }
-      errorTimeoutRef.current = setTimeout(() => setApiErrorMessage(null), 6000);
-    });
-    return () => {
-      unsubscribe();
-      if (errorTimeoutRef.current) {
-        clearTimeout(errorTimeoutRef.current);
-      }
-    };
-  }, []);
 
   return (
     <div className="min-h-screen flex flex-col lg:flex-row">
@@ -152,20 +134,12 @@ export function Layout({ children, title }: LayoutProps) {
         <div className="p-4 lg:p-8 animate-fade-in">
           {/* Mobile Title (only visible on mobile) */}
           <h2 className="text-xl font-semibold text-dark-50 mb-6 lg:hidden">{title}</h2>
-          {apiErrorMessage && (
-            <div className="mb-6 flex items-center justify-between rounded-lg border border-red-600/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-              <span>{apiErrorMessage}</span>
-              <button
-                onClick={() => setApiErrorMessage(null)}
-                className="text-red-200/80 hover:text-red-100"
-              >
-                ✕
-              </button>
-            </div>
-          )}
           {children}
         </div>
       </main>
+
+      {/* Idle timer for automatic logout */}
+      <IdleTimer />
     </div>
   );
 }

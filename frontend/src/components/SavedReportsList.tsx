@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import { reportsApi } from '../lib/api';
 
 interface SavedReport {
@@ -47,7 +48,7 @@ export function SavedReportsList({ onLoad, currentConfig }: SavedReportsListProp
       await loadReports();
     } catch (error) {
       console.error('Failed to save report:', error);
-      alert('Failed to save report');
+      toast.error('Kunne ikke lagre rapport');
     } finally {
       setIsSaving(false);
     }

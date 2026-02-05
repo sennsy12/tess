@@ -136,16 +136,20 @@ export function Login() {
 
           {/* Demo credentials */}
           <div className="mt-6 pt-6 border-t border-dark-800">
-            <p className="text-xs text-dark-500 text-center mb-2">Demo-brukere:</p>
-            <div className="grid grid-cols-2 gap-2 text-xs text-dark-400">
-              <div className="bg-dark-800/50 p-2 rounded">
-                <strong>Admin:</strong> admin / admin123
+            <p className="text-xs text-dark-500 text-center mb-2 font-medium">Test-innlogging:</p>
+            <div className="space-y-2 text-xs text-dark-400">
+              <div className="bg-dark-800/50 p-2 rounded flex justify-between">
+                <span><strong>Admin:</strong> admin / admin123</span>
+                <span className="text-primary-500/70">Full tilgang</span>
+              </div>
+              <div className="bg-dark-800/50 p-2 rounded flex justify-between">
+                <span><strong>Analyse:</strong> analyse / admin123</span>
+                <span className="text-blue-500/70">Kun dashboard</span>
               </div>
               <div className="bg-dark-800/50 p-2 rounded">
-                <strong>Analyse:</strong> analyse / admin123
-              </div>
-              <div className="col-span-2 bg-dark-800/50 p-2 rounded text-center">
-                <strong>Kunde:</strong> kunde1 / admin123
+                <p className="mb-1"><strong>Kunde-innlogging:</strong></p>
+                <p>Bruk kundenummer (f.eks. <strong>K000001</strong>) og passord <strong>kunde123</strong></p>
+                <p className="text-dark-500 mt-1 italic">* Krever at bulk-data er generert i ETL-panelet</p>
               </div>
             </div>
           </div>

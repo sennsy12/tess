@@ -1,4 +1,5 @@
-import { useEffect, useState, useRef } from 'react';
+import { useState, useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Layout } from '../../components/Layout';
 import {
   statisticsApi,
@@ -19,13 +20,6 @@ import { StatsTable } from './statistics/components/StatsTable';
 type StatType = 'kunde' | 'varegruppe' | 'vare' | 'lager' | 'firma';
 type StatRow = KundeStats | VaregruppeStats | VareStats | LagerStats | FirmaStats;
 
-interface Pagination {
-  page: number;
-  limit: number;
-  total: number;
-  totalPages: number;
-}
-
 interface ComparisonData {
   currentTotal: number;
   previousTotal: number;
@@ -34,13 +28,10 @@ interface ComparisonData {
 
 export function AdminStatistics() {
   const [statType, setStatType] = useState<StatType>('kunde');
-  const [data, setData] = useState<StatRow[]>([]);
-  const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 25, total: 0, totalPages: 0 });
-  const [isLoading, setIsLoading] = useState(true);
+  const [page, setPage] = useState(1);
   const [dateRange, setDateRange] = useState({ startDate: '', endDate: '' });
   const [filters, setFilters] = useState({ kundenr: '', varegruppe: '' });
   const [compareEnabled, setCompareEnabled] = useState(false);
-  const [comparison, setComparison] = useState<ComparisonData | null>(null);
   const chartRef = useRef<HTMLDivElement>(null);
 
   const formatDate = (date: Date) => date.toISOString().slice(0, 10);
@@ -54,40 +45,31 @@ export function AdminStatistics() {
     return { startDate: formatDate(prevStart), endDate: formatDate(prevEnd) };
   };
 
-  useEffect(() => {
-    loadData(1); // Reset to page 1 when filters change
-  }, [statType, dateRange, filters]);
+  const fetchStatData = async (statType: StatType, params: any) => {
+    let response;
+    switch (statType) {
+      case 'kunde':
+        response = await statisticsApi.byKunde(params);
+        break;
+      case 'varegruppe':
+        response = await statisticsApi.byVaregruppe(params);
+        break;
+      case 'vare':
+        response = await statisticsApi.byVare(params);
+        break;
+      case 'lager':
+        response = await statisticsApi.byLager(params);
+        break;
+      case 'firma':
+        response = await statisticsApi.byFirma(params);
+        break;
+    }
+    return response?.data as PaginatedResponse<StatRow>;
+  };
 
-  useEffect(() => {
-    const loadComparison = async () => {
-      if (!compareEnabled || !dateRange.startDate || !dateRange.endDate) {
-        setComparison(null);
-        return;
-      }
-      try {
-        const currentRes = await statisticsApi.summary({
-          startDate: dateRange.startDate,
-          endDate: dateRange.endDate,
-        });
-        const prevRange = getPreviousRange(dateRange.startDate, dateRange.endDate);
-        const previousRes = await statisticsApi.summary({
-          startDate: prevRange.startDate,
-          endDate: prevRange.endDate,
-        });
-        const currentTotal = (currentRes.data as StatisticsSummary).totalRevenue || 0;
-        const previousTotal = (previousRes.data as StatisticsSummary).totalRevenue || 0;
-        const deltaPercent = previousTotal === 0 ? null : ((currentTotal - previousTotal) / previousTotal) * 100;
-        setComparison({ currentTotal, previousTotal, deltaPercent });
-      } catch (error) {
-        setComparison(null);
-      }
-    };
-    loadComparison();
-  }, [compareEnabled, dateRange.startDate, dateRange.endDate]);
-
-  const loadData = async (page: number = 1) => {
-    setIsLoading(true);
-    try {
+  const { data: statsResult, isLoading } = useQuery({
+    queryKey: ['admin', 'statistics', statType, page, dateRange, filters],
+    queryFn: () => {
       const params = {
         startDate: dateRange.startDate || undefined,
         endDate: dateRange.endDate || undefined,
@@ -96,47 +78,47 @@ export function AdminStatistics() {
         page,
         limit: 25,
       };
+      return fetchStatData(statType, params);
+    },
+  });
 
-      let response;
-      switch (statType) {
-        case 'kunde':
-          response = await statisticsApi.byKunde(params);
-          break;
-        case 'varegruppe':
-          response = await statisticsApi.byVaregruppe(params);
-          break;
-        case 'vare':
-          response = await statisticsApi.byVare(params);
-          break;
-        case 'lager':
-          response = await statisticsApi.byLager(params);
-          break;
-        case 'firma':
-          response = await statisticsApi.byFirma(params);
-          break;
-      }
-      
-      const result = response?.data as PaginatedResponse<StatRow>;
-      setData(result?.data || []);
-      setPagination(result?.pagination || { page: 1, limit: 25, total: 0, totalPages: 0 });
-    } catch (error) {
-      console.error('Failed to load statistics:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const data = statsResult?.data ?? [];
+  const pagination = statsResult?.pagination ?? { page: 1, limit: 25, total: 0, totalPages: 0 };
+
+  const { data: comparison = null } = useQuery({
+    queryKey: ['admin', 'statistics', 'comparison', dateRange, compareEnabled],
+    queryFn: async (): Promise<ComparisonData | null> => {
+      if (!compareEnabled || !dateRange.startDate || !dateRange.endDate) return null;
+      const currentRes = await statisticsApi.summary({
+        startDate: dateRange.startDate,
+        endDate: dateRange.endDate,
+      });
+      const prevRange = getPreviousRange(dateRange.startDate, dateRange.endDate);
+      const previousRes = await statisticsApi.summary({
+        startDate: prevRange.startDate,
+        endDate: prevRange.endDate,
+      });
+      const currentTotal = (currentRes.data as StatisticsSummary).totalRevenue || 0;
+      const previousTotal = (previousRes.data as StatisticsSummary).totalRevenue || 0;
+      const deltaPercent = previousTotal === 0 ? null : ((currentTotal - previousTotal) / previousTotal) * 100;
+      return { currentTotal, previousTotal, deltaPercent };
+    },
+    enabled: compareEnabled && !!dateRange.startDate && !!dateRange.endDate,
+  });
 
   const handlePageChange = (newPage: number) => {
-    loadData(newPage);
+    setPage(newPage);
   };
 
   const handleRowClick = (row: any) => {
     if (statType === 'varegruppe' && row.varegruppe) {
       setFilters({ ...filters, varegruppe: row.varegruppe });
       setStatType('vare');
+      setPage(1);
     } else if (statType === 'kunde' && row.kundenr) {
       setFilters({ ...filters, kundenr: row.kundenr });
       setStatType('vare');
+      setPage(1);
     }
   };
 
@@ -166,6 +148,23 @@ export function AdminStatistics() {
     if (config.endDate !== undefined) setDateRange(prev => ({ ...prev, endDate: config.endDate }));
     if (config.kundenr !== undefined) setFilters(prev => ({ ...prev, kundenr: config.kundenr }));
     if (config.varegruppe !== undefined) setFilters(prev => ({ ...prev, varegruppe: config.varegruppe }));
+    setPage(1);
+  };
+
+  // Reset page to 1 when filters change - handled via setters above
+  const handleStatTypeChange = (newType: StatType) => {
+    setStatType(newType);
+    setPage(1);
+  };
+
+  const handleDateRangeChange = (newRange: typeof dateRange) => {
+    setDateRange(newRange);
+    setPage(1);
+  };
+
+  const handleFiltersChange = (newFilters: typeof filters) => {
+    setFilters(newFilters);
+    setPage(1);
   };
 
   const currentConfig = {
@@ -183,11 +182,11 @@ export function AdminStatistics() {
         <div className="space-y-6 lg:col-span-1">
           <StatsFilters
             statType={statType}
-            setStatType={setStatType}
+            setStatType={handleStatTypeChange}
             dateRange={dateRange}
-            setDateRange={setDateRange}
+            setDateRange={handleDateRangeChange}
             filters={filters}
-            setFilters={setFilters}
+            setFilters={handleFiltersChange}
             compareEnabled={compareEnabled}
             setCompareEnabled={setCompareEnabled}
             chartRef={chartRef}

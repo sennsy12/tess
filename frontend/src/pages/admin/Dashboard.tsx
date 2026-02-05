@@ -1,14 +1,11 @@
-import { useEffect, useState, useRef } from 'react';
+import { useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Layout } from '../../components/Layout';
 import { BarChart, LineChart, PieChart } from '../../components/Charts';
 import { ExportButton } from '../../components/ExportButton';
 import {
   statusApi,
   dashboardApi,
-  StatisticsSummary,
-  TimeSeriesPoint,
-  FirmaStats,
-  LagerStats,
 } from '../../lib/api';
 import { formatCurrencyNok, formatNumberNb } from '../../lib/formatters';
 import {
@@ -20,42 +17,27 @@ import {
 } from './dashboard/widgets';
 
 export function AdminDashboard() {
-  const [summary, setSummary] = useState<StatisticsSummary | null>(null);
-  const [status, setStatus] = useState<any>(null);
-  const [timeSeries, setTimeSeries] = useState<TimeSeriesPoint[]>([]);
-  const [firmaStats, setFirmaStats] = useState<FirmaStats[]>([]);
-  const [lagerStats, setLagerStats] = useState<LagerStats[]>([]);
-  const [widgets, setWidgets] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const chartRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  const { data: status } = useQuery({
+    queryKey: ['admin', 'status'],
+    queryFn: () => statusApi.getStatus().then(res => res.data).catch(() => null),
+  });
 
-  const loadData = async () => {
-    try {
-      // Load all data in parallel
-      const [statusRes, widgetsRes, analyticsRes] = await Promise.all([
-        statusApi.getStatus().catch(() => ({ data: null })),
-        dashboardApi.getWidgets().catch(() => ({ data: null })),
-        dashboardApi.getAnalyticsBatch(),
-      ]);
+  const { data: widgets } = useQuery({
+    queryKey: ['admin', 'widgets'],
+    queryFn: () => dashboardApi.getWidgets().then(res => res.data).catch(() => null),
+  });
 
-      setStatus(statusRes.data);
-      setWidgets(widgetsRes.data);
-      setSummary(analyticsRes.data.summary);
-      setTimeSeries(analyticsRes.data.timeSeries || []);
-      const firmaData = analyticsRes.data.firma?.data || [];
-      const lagerData = analyticsRes.data.lager?.data || [];
-      setFirmaStats(firmaData.filter((f) => f.total_sum > 0));
-      setLagerStats(lagerData.filter((l) => l.total_sum > 0));
-    } catch (error) {
-      console.error('Failed to load dashboard data:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const { data: analytics, isLoading } = useQuery({
+    queryKey: ['admin', 'analytics'],
+    queryFn: () => dashboardApi.getAnalyticsBatch().then(res => res.data),
+  });
+
+  const summary = analytics?.summary ?? null;
+  const timeSeries = analytics?.timeSeries ?? [];
+  const firmaStats = (analytics?.firma?.data ?? []).filter((f: any) => f.total_sum > 0);
+  const lagerStats = (analytics?.lager?.data ?? []).filter((l: any) => l.total_sum > 0);
 
   if (isLoading) {
     return (
@@ -201,4 +183,3 @@ export function AdminDashboard() {
     </Layout>
   );
 }
-

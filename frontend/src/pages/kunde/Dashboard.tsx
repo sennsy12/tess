@@ -1,4 +1,5 @@
-import { useEffect, useState, useRef } from 'react';
+import { useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Layout } from '../../components/Layout';
 import { LineChart, PieChart } from '../../components/Charts';
 import { ExportButton } from '../../components/ExportButton';
@@ -7,39 +8,34 @@ import { useAuth } from '../../context/AuthContext';
 
 export function KundeDashboard() {
   const { user } = useAuth();
-  const [summary, setSummary] = useState<any>(null);
-  const [recentOrders, setRecentOrders] = useState<any[]>([]);
-  const [varegruppeStats, setVaregruppeStats] = useState<any[]>([]);
-  const [timeSeries, setTimeSeries] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const chartRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  const { data: summary } = useQuery({
+    queryKey: ['kunde', 'summary'],
+    queryFn: () => statisticsApi.summary().then(res => res.data),
+  });
 
-  const loadData = async () => {
-    try {
-      const [summaryRes, ordersRes, varegruppeRes, timeSeriesRes] = await Promise.all([
-        statisticsApi.summary(),
-        ordersApi.getAll(),
-        statisticsApi.byVaregruppe(),
-        statisticsApi.timeSeries({ groupBy: 'month' }),
-      ]);
+  const { data: recentOrders = [] } = useQuery({
+    queryKey: ['kunde', 'recentOrders'],
+    queryFn: async () => {
+      const res = await ordersApi.getAll();
+      const ordersData = res.data?.data || res.data || [];
+      return ordersData.slice(0, 5);
+    },
+  });
 
-      setSummary(summaryRes.data);
-      // Handle paginated response - extract data array
-      const ordersData = ordersRes.data?.data || ordersRes.data || [];
-      const varegruppeData = varegruppeRes.data?.data || varegruppeRes.data || [];
-      setRecentOrders(ordersData.slice(0, 5));
-      setVaregruppeStats(varegruppeData);
-      setTimeSeries(timeSeriesRes.data);
-    } catch (error) {
-      console.error('Failed to load dashboard data:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const { data: varegruppeStats = [] } = useQuery({
+    queryKey: ['kunde', 'varegruppeStats'],
+    queryFn: async () => {
+      const res = await statisticsApi.byVaregruppe();
+      return res.data?.data || res.data || [];
+    },
+  });
+
+  const { data: timeSeries = [], isLoading } = useQuery({
+    queryKey: ['kunde', 'timeSeries'],
+    queryFn: () => statisticsApi.timeSeries({ groupBy: 'month' }).then(res => res.data),
+  });
 
   if (isLoading) {
     return (
@@ -110,7 +106,7 @@ export function KundeDashboard() {
           </div>
           <div className="card">
             <PieChart
-              data={varegruppeStats.filter(v => v.total_sum > 0)}
+              data={varegruppeStats.filter((v: any) => v.total_sum > 0)}
               nameKey="varegruppe"
               valueKey="total_sum"
               title="Fordeling per varegruppe"
@@ -134,7 +130,7 @@ export function KundeDashboard() {
                 </tr>
               </thead>
               <tbody>
-                {recentOrders.map((order) => (
+                {recentOrders.map((order: any) => (
                   <tr key={order.ordrenr} className="hover:bg-dark-800/30">
                     <td className="table-cell font-medium text-primary-400">
                       #{order.ordrenr}

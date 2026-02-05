@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
 import { Layout } from '../../components/Layout';
 import { DataTable } from '../../components/DataTable';
 import { ordersApi, orderlinesApi, productsApi } from '../../lib/api';
@@ -115,7 +116,7 @@ export function AdminOrderLines() {
       loadOrderLines(selectedOrder!, currentPage);
     } catch (error) {
       console.error('Failed to delete order line:', error);
-      alert('Kunne ikke slette ordrelinje');
+      toast.error('Kunne ikke slette ordrelinje');
     }
   };
 
@@ -132,7 +133,7 @@ export function AdminOrderLines() {
       loadOrderLines(selectedOrder!, currentPage);
     } catch (error) {
       console.error('Failed to save order line:', error);
-      alert('Kunne ikke lagre ordrelinje');
+      toast.error('Kunne ikke lagre ordrelinje');
     }
   };
 

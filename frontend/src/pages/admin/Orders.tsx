@@ -1,4 +1,5 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useState, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Layout } from '../../components/Layout';
 import { DataTable } from '../../components/DataTable';
@@ -22,11 +23,8 @@ interface Suggestion {
 }
 
 export function AdminOrders() {
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [limit] = useState(50);
-  const [total, setTotal] = useState(0);
   
   const [filters, setFilters] = useState({
     ordrenr: '',
@@ -36,35 +34,24 @@ export function AdminOrders() {
   });
   const navigate = useNavigate();
 
-  useEffect(() => {
-    loadOrders();
-  }, [page]);
-
-  const loadOrders = async (params?: Record<string, any>) => {
-    setIsLoading(true);
-    try {
+  const { data: ordersData, isLoading } = useQuery({
+    queryKey: ['admin', 'orders', page, filters],
+    queryFn: async () => {
       const queryParams = { 
         ...filters, 
-        ...params,
         page, 
         limit 
       };
-
       const response = await ordersApi.getAll(queryParams);
-      
       if (response.data.data) {
-        setOrders(response.data.data);
-        setTotal(response.data.total);
-      } else {
-        setOrders(response.data);
-        setTotal(response.data.length);
+        return { orders: response.data.data as Order[], total: response.data.total as number };
       }
-    } catch (error) {
-      console.error('Failed to load orders:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      return { orders: response.data as Order[], total: (response.data as Order[]).length };
+    },
+  });
+
+  const orders = ordersData?.orders ?? [];
+  const total = ordersData?.total ?? 0;
 
   const fetchSuggestions = useCallback(async (query: string): Promise<Suggestion[]> => {
     try {
@@ -79,20 +66,16 @@ export function AdminOrders() {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setPage(1);
-    loadOrders({ page: 1 });
   };
 
   const handleReset = () => {
     setFilters({ ordrenr: '', startDate: '', endDate: '', search: '' });
     setPage(1);
-    loadOrders({ ordrenr: '', startDate: '', endDate: '', search: '', page: 1 });
   };
 
   const handleSuggestionSelect = (suggestion: Suggestion) => {
-    const params: Record<string, any> = { search: suggestion.suggestion };
     setFilters(prev => ({ ...prev, search: suggestion.suggestion }));
     setPage(1);
-    loadOrders({ ...params, page: 1 });
   };
 
   const handlePageChange = (newPage: number) => {
