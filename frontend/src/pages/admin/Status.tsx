@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Layout } from '../../components/Layout';
 import { statusApi } from '../../lib/api';
 
@@ -26,38 +27,42 @@ interface ApiMetricsData {
 }
 
 export function AdminStatus() {
-  const [systemStatus, setSystemStatus] = useState<any>(null);
-  const [importStatus, setImportStatus] = useState<any>(null);
-  const [extractionStatus, setExtractionStatus] = useState<any>(null);
-  const [healthStatus, setHealthStatus] = useState<any>(null);
-  const [apiMetrics, setApiMetrics] = useState<ApiMetricsData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const { data: systemStatus, refetch: refetchSystem } = useQuery({
+    queryKey: ['admin', 'status'],
+    queryFn: () => statusApi.getStatus().then(res => res.data),
+  });
 
-  useEffect(() => {
-    loadAllStatus();
-  }, []);
+  const { data: importStatus, refetch: refetchImport } = useQuery({
+    queryKey: ['admin', 'import-status'],
+    queryFn: () => statusApi.getImportStatus().then(res => res.data),
+  });
+
+  const { data: extractionStatus, refetch: refetchExtraction } = useQuery({
+    queryKey: ['admin', 'extraction-status'],
+    queryFn: () => statusApi.getExtractionStatus().then(res => res.data),
+  });
+
+  const { data: healthStatus, refetch: refetchHealth } = useQuery({
+    queryKey: ['admin', 'health'],
+    queryFn: () => statusApi.getHealth().then(res => res.data),
+  });
+
+  const { data: apiMetrics, refetch: refetchMetrics } = useQuery({
+    queryKey: ['admin', 'api-metrics'],
+    queryFn: () => statusApi.getApiMetrics().then(res => res.data),
+  });
 
   const loadAllStatus = async () => {
-    try {
-      const [systemRes, importRes, extractionRes, healthRes, metricsRes] = await Promise.all([
-        statusApi.getStatus(),
-        statusApi.getImportStatus(),
-        statusApi.getExtractionStatus(),
-        statusApi.getHealth(),
-        statusApi.getApiMetrics(),
-      ]);
-
-      setSystemStatus(systemRes.data);
-      setImportStatus(importRes.data);
-      setExtractionStatus(extractionRes.data);
-      setHealthStatus(healthRes.data);
-      setApiMetrics(metricsRes.data);
-    } catch (error) {
-      console.error('Failed to load status:', error);
-    } finally {
-      setIsLoading(false);
-    }
+    await Promise.all([
+      refetchSystem(),
+      refetchImport(),
+      refetchExtraction(),
+      refetchHealth(),
+      refetchMetrics(),
+    ]);
   };
+
+  const isLoading = !systemStatus || !importStatus || !extractionStatus || !healthStatus || !apiMetrics;
 
   const StatusCard = ({ title, status, children }: { title: string; status: string; children: React.ReactNode }) => (
     <div className={`card ${status === 'ok' || status === 'healthy' ? 'border-green-700/50' : 'border-red-700/50'}`}>

@@ -32,6 +32,8 @@ services:
       DATABASE_URL: postgresql://postgres:postgres@db:5432/tess
       JWT_SECRET: ${JWT_SECRET:-dev-secret-min-32-chars-for-development-only}
       PORT: 5000
+      CHOKIDAR_USEPOLLING: "true"
+      WATCHPACK_POLLING: "true"
     ports:
       - "5000:5000"
     volumes:
@@ -52,6 +54,7 @@ services:
     container_name: tess-frontend
     environment:
       VITE_API_URL: http://localhost:5000/api
+      WATCHPACK_POLLING: "true"
     ports:
       - "3000:3000"
     volumes:

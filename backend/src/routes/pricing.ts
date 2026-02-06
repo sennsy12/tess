@@ -28,7 +28,10 @@ pricingRouter.put('/groups/:id/customers/:kundenr', authMiddleware, asyncHandler
 // Remove customer from group
 pricingRouter.delete('/groups/customers/:kundenr', authMiddleware, asyncHandler(pricingController.removeCustomerFromGroup));
 
-// Get all customers with their groups
+// Search customers with pagination (must be before /customers to avoid conflicts)
+pricingRouter.get('/customers/search', authMiddleware, asyncHandler(pricingController.searchCustomers));
+
+// Get all customers with their groups (lightweight, for dropdowns)
 pricingRouter.get('/customers', authMiddleware, asyncHandler(pricingController.getCustomersWithGroups));
 
 // ============================================
@@ -56,6 +59,9 @@ pricingRouter.delete('/lists/:id', authMiddleware, asyncHandler(pricingControlle
 
 // Get rules for a price list
 pricingRouter.get('/lists/:id/rules', authMiddleware, asyncHandler(pricingController.getRules));
+
+// Check for rule conflicts (must be before /:id routes)
+pricingRouter.post('/rules/check-conflicts', authMiddleware, asyncHandler(pricingController.checkRuleConflicts));
 
 // Get a single rule
 pricingRouter.get('/rules/:id', authMiddleware, asyncHandler(pricingController.getRule));

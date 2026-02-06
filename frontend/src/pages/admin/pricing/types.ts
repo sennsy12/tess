@@ -48,7 +48,28 @@ export interface PriceCalculationResult {
   applied_list_name: string | null;
 }
 
-export type Tab = 'groups' | 'lists' | 'rules' | 'customers' | 'preview';
+export interface RuleConflict {
+  conflicting_rule_id: number;
+  conflicting_rule: PriceRule;
+  overlap_reason: string;
+  severity: 'warning' | 'info';
+}
+
+export interface AuditEntry {
+  id: number;
+  timestamp: string;
+  user_id: number | null;
+  username: string;
+  action: 'CREATE' | 'UPDATE' | 'DELETE';
+  entity_type: string;
+  entity_id: string;
+  entity_name: string | null;
+  changes: Record<string, { old: any; new: any }> | null;
+  metadata: Record<string, any> | null;
+  ip_address: string | null;
+}
+
+export type Tab = 'groups' | 'lists' | 'rules' | 'customers' | 'preview' | 'audit';
 
 export interface GroupFormData {
   name: string;
@@ -105,4 +126,5 @@ export const TABS = [
   { id: 'rules' as Tab, label: 'Prisregler', icon: '💰' },
   { id: 'customers' as Tab, label: 'Tildeling', icon: '🔗' },
   { id: 'preview' as Tab, label: 'Test priser', icon: '🔍' },
+  { id: 'audit' as Tab, label: 'Endringslogg', icon: '📜' },
 ];

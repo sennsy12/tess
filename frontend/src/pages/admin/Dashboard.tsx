@@ -7,7 +7,7 @@ import {
   statusApi,
   dashboardApi,
 } from '../../lib/api';
-import { formatCurrencyNok, formatNumberNb } from '../../lib/formatters';
+import { formatCurrencyNok, formatNumberNb, abbreviateCurrencyNok } from '../../lib/formatters';
 import {
   TopProductsWidget,
   TopCustomersWidget,
@@ -69,7 +69,7 @@ export function AdminDashboard() {
         </div>
 
         {/* Stats cards row 1 - Database counts */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 stagger-fade-in">
           <div className="stat-card">
             <span className="stat-label">Ordrer i DB</span>
             <span className="stat-value">{formatNumberNb(status?.tables?.orders || 0)}</span>
@@ -89,7 +89,7 @@ export function AdminDashboard() {
         </div>
 
         {/* Stats cards row 2 - Business metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 stagger-fade-in">
           <div className="stat-card gradient-primary text-white">
             <span className="stat-label text-white/80">Total Omsetning</span>
             <span className="stat-value text-2xl">
@@ -139,6 +139,7 @@ export function AdminDashboard() {
                 color="#10b981"
                 seriesName="Omsetning"
                 valueFormatter={formatCurrencyNok}
+                tickFormatter={abbreviateCurrencyNok}
               />
             </div>
             <div className="card">
@@ -162,6 +163,7 @@ export function AdminDashboard() {
                 title="🏢 Omsetning per Firma"
                 seriesName="Omsetning"
                 valueFormatter={formatCurrencyNok}
+                height={360}
               />
             </div>
             <div className="card">
@@ -173,6 +175,7 @@ export function AdminDashboard() {
                 color="#f59e0b"
                 seriesName="Omsetning"
                 valueFormatter={formatCurrencyNok}
+                tickFormatter={abbreviateCurrencyNok}
               />
             </div>
           </div>

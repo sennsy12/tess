@@ -87,7 +87,7 @@ export const customerGroupModel = {
   },
 
   /**
-   * Get all customers with their group info
+   * Get all customers with their group info (lightweight, for dropdowns etc.)
    */
   getCustomersWithGroups: async (): Promise<CustomerWithGroup[]> => {
     const result = await query(
@@ -97,6 +97,59 @@ export const customerGroupModel = {
        ORDER BY k.kundenavn`
     );
     return result.rows;
+  },
+
+  /**
+   * Search customers with groups — server-side search, filter, and pagination
+   */
+  searchCustomersWithGroups: async (params: {
+    search?: string;
+    groupId?: string;   // 'unassigned' | number as string | undefined (= all)
+    page: number;
+    limit: number;
+  }): Promise<{ data: CustomerWithGroup[]; total: number }> => {
+    const conditions: string[] = [];
+    const values: any[] = [];
+    let paramIdx = 1;
+
+    // Search filter (kundenr or kundenavn)
+    if (params.search && params.search.trim()) {
+      conditions.push(`(k.kundenr ILIKE $${paramIdx} OR k.kundenavn ILIKE $${paramIdx})`);
+      values.push(`%${params.search.trim()}%`);
+      paramIdx++;
+    }
+
+    // Group filter
+    if (params.groupId === 'unassigned') {
+      conditions.push('k.customer_group_id IS NULL');
+    } else if (params.groupId && params.groupId !== 'all') {
+      conditions.push(`k.customer_group_id = $${paramIdx}`);
+      values.push(parseInt(params.groupId));
+      paramIdx++;
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    // Count total
+    const countResult = await query(
+      `SELECT COUNT(*) as total FROM kunde k ${whereClause}`,
+      values
+    );
+    const total = parseInt(countResult.rows[0].total);
+
+    // Fetch page
+    const offset = (params.page - 1) * params.limit;
+    const dataResult = await query(
+      `SELECT k.kundenr, k.kundenavn, k.customer_group_id, cg.name as customer_group_name
+       FROM kunde k
+       LEFT JOIN customer_group cg ON k.customer_group_id = cg.id
+       ${whereClause}
+       ORDER BY k.kundenavn
+       LIMIT $${paramIdx} OFFSET $${paramIdx + 1}`,
+      [...values, params.limit, offset]
+    );
+
+    return { data: dataResult.rows, total };
   }
 };
 
@@ -258,29 +311,38 @@ export const priceRuleModel = {
 
   /**
    * Update a price rule
+   * Builds dynamic SET clause to properly handle null values
    */
   update: async (id: number, data: UpdatePriceRuleInput): Promise<PriceRule | null> => {
+    const setClauses: string[] = [];
+    const values: any[] = [id];
+    let paramIndex = 2;
+
+    const fields: Array<{ key: keyof UpdatePriceRuleInput; column: string }> = [
+      { key: 'varekode', column: 'varekode' },
+      { key: 'varegruppe', column: 'varegruppe' },
+      { key: 'kundenr', column: 'kundenr' },
+      { key: 'customer_group_id', column: 'customer_group_id' },
+      { key: 'min_quantity', column: 'min_quantity' },
+      { key: 'discount_percent', column: 'discount_percent' },
+      { key: 'fixed_price', column: 'fixed_price' },
+    ];
+
+    for (const field of fields) {
+      if (field.key in data) {
+        setClauses.push(`${field.column} = $${paramIndex}`);
+        values.push(data[field.key] ?? null);
+        paramIndex++;
+      }
+    }
+
+    if (setClauses.length === 0) {
+      return await priceRuleModel.findById(id);
+    }
+
     const result = await query(
-      `UPDATE price_rule
-       SET varekode = COALESCE($2, varekode),
-           varegruppe = COALESCE($3, varegruppe),
-           kundenr = COALESCE($4, kundenr),
-           customer_group_id = COALESCE($5, customer_group_id),
-           min_quantity = COALESCE($6, min_quantity),
-           discount_percent = COALESCE($7, discount_percent),
-           fixed_price = COALESCE($8, fixed_price)
-       WHERE id = $1
-       RETURNING *`,
-      [
-        id,
-        data.varekode,
-        data.varegruppe,
-        data.kundenr,
-        data.customer_group_id,
-        data.min_quantity,
-        data.discount_percent,
-        data.fixed_price
-      ]
+      `UPDATE price_rule SET ${setClauses.join(', ')} WHERE id = $1 RETURNING *`,
+      values
     );
     return result.rows[0] || null;
   },

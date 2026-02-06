@@ -35,11 +35,11 @@ body {
 /* Custom components */
 @layer components {
   .btn {
-    @apply px-4 py-2 rounded-lg font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-dark-950;
+    @apply px-4 py-2 rounded-lg font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-dark-950 active:scale-[0.97];
   }
 
   .btn-primary {
-    @apply btn bg-primary-600 hover:bg-primary-700 text-white focus:ring-primary-500;
+    @apply btn bg-primary-600 hover:bg-primary-700 hover:shadow-md hover:shadow-primary-600/20 text-white focus:ring-primary-500;
   }
 
   .btn-secondary {
@@ -47,11 +47,16 @@ body {
   }
 
   .btn-danger {
-    @apply btn bg-red-600 hover:bg-red-700 text-white focus:ring-red-500;
+    @apply btn bg-red-600 hover:bg-red-700 hover:shadow-md hover:shadow-red-600/20 text-white focus:ring-red-500;
   }
 
   .card {
-    @apply bg-dark-900/50 backdrop-blur-sm border border-dark-800 rounded-xl p-4 lg:p-6 overflow-hidden;
+    @apply bg-dark-900/50 backdrop-blur-sm border border-dark-800 rounded-xl p-4 lg:p-6 overflow-hidden
+      transition-all duration-300 ease-out;
+  }
+
+  .card-interactive {
+    @apply card hover:border-primary-500/30 hover:shadow-lg hover:shadow-primary-500/5 hover:-translate-y-0.5 active:translate-y-0 active:shadow-md;
   }
 
   .input {
@@ -71,7 +76,7 @@ body {
   }
 
   .stat-card {
-    @apply card flex flex-col break-words;
+    @apply card-interactive flex flex-col break-words;
   }
 
   .stat-value {
@@ -115,13 +120,46 @@ body {
 
 /* Animation utilities */
 .animate-fade-in {
-  animation: fadeIn 0.3s ease-out;
+  animation: fadeIn 0.3s ease-out both;
 }
 
 @keyframes fadeIn {
   from {
     opacity: 0;
     transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Staggered fade-in for child elements */
+.stagger-fade-in > * {
+  opacity: 0;
+  animation: fadeIn 0.4s ease-out both;
+}
+
+.stagger-fade-in > *:nth-child(1) { animation-delay: 0ms; }
+.stagger-fade-in > *:nth-child(2) { animation-delay: 60ms; }
+.stagger-fade-in > *:nth-child(3) { animation-delay: 120ms; }
+.stagger-fade-in > *:nth-child(4) { animation-delay: 180ms; }
+.stagger-fade-in > *:nth-child(5) { animation-delay: 240ms; }
+.stagger-fade-in > *:nth-child(6) { animation-delay: 300ms; }
+.stagger-fade-in > *:nth-child(7) { animation-delay: 360ms; }
+.stagger-fade-in > *:nth-child(8) { animation-delay: 420ms; }
+.stagger-fade-in > *:nth-child(9) { animation-delay: 480ms; }
+.stagger-fade-in > *:nth-child(10) { animation-delay: 540ms; }
+
+/* Tab content transition */
+.tab-content-enter {
+  animation: tabSlideIn 0.25s ease-out both;
+}
+
+@keyframes tabSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
   }
   to {
     opacity: 1;

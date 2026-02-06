@@ -1,4 +1,6 @@
-import { PriceRule, PriceList, CustomerGroup, RuleFormData, INITIAL_RULE_FORM } from '../types';
+import { useState } from 'react';
+import { pricingApi } from '../../../../lib/api';
+import { PriceRule, PriceList, CustomerGroup, RuleFormData, RuleConflict, INITIAL_RULE_FORM } from '../types';
 
 interface Props {
   rules: PriceRule[];
@@ -8,10 +10,13 @@ interface Props {
   selectedListId: number | null;
   showRuleForm: boolean;
   ruleForm: RuleFormData;
+  editingRule: PriceRule | null;
   setShowRuleForm: (show: boolean) => void;
   setRuleForm: (form: RuleFormData) => void;
+  setEditingRule: (rule: PriceRule | null) => void;
   loadRules: (listId: number) => void;
   handleCreateRule: (e: React.FormEvent) => void;
+  handleUpdateRule: (e: React.FormEvent) => void;
   handleDeleteRule: (id: number) => void;
 }
 
@@ -23,12 +28,97 @@ export function RulesTab({
   selectedListId,
   showRuleForm,
   ruleForm,
+  editingRule,
   setShowRuleForm,
   setRuleForm,
+  setEditingRule,
   loadRules,
   handleCreateRule,
+  handleUpdateRule,
   handleDeleteRule,
 }: Props) {
+  const [conflicts, setConflicts] = useState<RuleConflict[]>([]);
+  const [showConflictWarning, setShowConflictWarning] = useState(false);
+  const [pendingSubmitEvent, setPendingSubmitEvent] = useState<React.FormEvent | null>(null);
+  const [isCheckingConflicts, setIsCheckingConflicts] = useState(false);
+
+  const handleEdit = (rule: PriceRule) => {
+    setEditingRule(rule);
+    setConflicts([]);
+    setShowConflictWarning(false);
+    setRuleForm({
+      price_list_id: rule.price_list_id,
+      varekode: rule.varekode || '',
+      varegruppe: rule.varegruppe || '',
+      kundenr: rule.kundenr || '',
+      customer_group_id: rule.customer_group_id?.toString() || '',
+      min_quantity: rule.min_quantity,
+      discount_type: rule.discount_percent !== null ? 'percent' : 'fixed',
+      discount_percent: rule.discount_percent?.toString() || '',
+      fixed_price: rule.fixed_price?.toString() || '',
+    });
+    setShowRuleForm(true);
+  };
+
+  const handleCancel = () => {
+    setShowRuleForm(false);
+    setEditingRule(null);
+    setRuleForm(INITIAL_RULE_FORM);
+    setConflicts([]);
+    setShowConflictWarning(false);
+  };
+
+  const handleFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedListId) return;
+
+    setIsCheckingConflicts(true);
+    try {
+      const checkData = {
+        price_list_id: selectedListId,
+        varekode: ruleForm.varekode || null,
+        varegruppe: ruleForm.varegruppe || null,
+        kundenr: ruleForm.kundenr || null,
+        customer_group_id: ruleForm.customer_group_id ? parseInt(ruleForm.customer_group_id) : null,
+        min_quantity: ruleForm.min_quantity,
+        exclude_rule_id: editingRule?.id,
+      };
+
+      const res = await pricingApi.checkRuleConflicts(checkData);
+      const foundConflicts: RuleConflict[] = res.data;
+
+      if (foundConflicts.length > 0) {
+        setConflicts(foundConflicts);
+        setShowConflictWarning(true);
+        setPendingSubmitEvent(e);
+        return;
+      }
+    } catch {
+      // If conflict check fails, proceed anyway
+    } finally {
+      setIsCheckingConflicts(false);
+    }
+
+    // No conflicts, proceed directly
+    if (editingRule) {
+      handleUpdateRule(e);
+    } else {
+      handleCreateRule(e);
+    }
+  };
+
+  const handleConfirmSave = () => {
+    if (!pendingSubmitEvent) return;
+    setShowConflictWarning(false);
+    setConflicts([]);
+    if (editingRule) {
+      handleUpdateRule(pendingSubmitEvent);
+    } else {
+      handleCreateRule(pendingSubmitEvent);
+    }
+    setPendingSubmitEvent(null);
+  };
+
   return (
     <div className="card">
       <div className="flex flex-wrap justify-between items-center gap-4 mb-4">
@@ -47,16 +137,26 @@ export function RulesTab({
             ))}
           </select>
         </div>
-        {selectedListId && (
-          <button onClick={() => setShowRuleForm(true)} className="btn-primary">
+        {selectedListId && !showRuleForm && (
+          <button onClick={() => { setConflicts([]); setShowConflictWarning(false); setShowRuleForm(true); }} className="btn-primary">
             + Ny Regel
           </button>
         )}
       </div>
 
-      {/* Rule Form */}
+      {/* Rule Form (create or edit) */}
       {showRuleForm && selectedListId && (
-        <form onSubmit={handleCreateRule} className="bg-dark-800 p-4 rounded-lg mb-4 space-y-4">
+        <form onSubmit={handleFormSubmit} className="bg-dark-800 p-4 rounded-lg mb-4 space-y-4">
+          <div className="flex items-center gap-2 mb-2">
+            <h4 className="font-medium text-dark-200">
+              {editingRule ? 'Rediger regel' : 'Ny regel'}
+            </h4>
+            {editingRule && (
+              <span className="text-xs bg-primary-600/30 text-primary-300 px-2 py-0.5 rounded">
+                ID: {editingRule.id}
+              </span>
+            )}
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-dark-300 mb-1">Varekode (valgfri)</label>
@@ -135,19 +235,58 @@ export function RulesTab({
               />
             </div>
           </div>
-          <div className="flex gap-2">
-            <button type="submit" className="btn-primary">Opprett</button>
-            <button
-              type="button"
-              onClick={() => {
-                setShowRuleForm(false);
-                setRuleForm(INITIAL_RULE_FORM);
-              }}
-              className="btn-secondary"
-            >
-              Avbryt
-            </button>
-          </div>
+
+          {/* Conflict warnings */}
+          {showConflictWarning && conflicts.length > 0 && (
+            <div className="space-y-2">
+              {conflicts.map((c) => (
+                <div
+                  key={c.conflicting_rule_id}
+                  className={`rounded-lg px-4 py-3 text-sm ${
+                    c.severity === 'warning'
+                      ? 'bg-yellow-500/15 border border-yellow-500/40 text-yellow-200'
+                      : 'bg-blue-500/15 border border-blue-500/40 text-blue-200'
+                  }`}
+                >
+                  <span className="font-medium">
+                    {c.severity === 'warning' ? 'Advarsel' : 'Info'}:
+                  </span>{' '}
+                  {c.overlap_reason}
+                </div>
+              ))}
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={handleConfirmSave}
+                  className="btn-primary"
+                >
+                  Lagre likevel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setShowConflictWarning(false); setConflicts([]); }}
+                  className="btn-secondary"
+                >
+                  Avbryt
+                </button>
+              </div>
+            </div>
+          )}
+
+          {!showConflictWarning && (
+            <div className="flex gap-2">
+              <button type="submit" className="btn-primary" disabled={isCheckingConflicts}>
+                {isCheckingConflicts ? 'Sjekker...' : editingRule ? 'Lagre endringer' : 'Opprett'}
+              </button>
+              <button
+                type="button"
+                onClick={handleCancel}
+                className="btn-secondary"
+              >
+                Avbryt
+              </button>
+            </div>
+          )}
         </form>
       )}
 
@@ -179,12 +318,20 @@ export function RulesTab({
                       {rule.discount_percent !== null ? `-${rule.discount_percent}%` : `${rule.fixed_price} NOK`}
                     </td>
                     <td className="py-3 px-4 text-right">
-                      <button
-                        onClick={() => handleDeleteRule(rule.id)}
-                        className="text-red-400 hover:text-red-300"
-                      >
-                        Slett
-                      </button>
+                      <div className="flex justify-end gap-3">
+                        <button
+                          onClick={() => handleEdit(rule)}
+                          className="text-primary-400 hover:text-primary-300"
+                        >
+                          Rediger
+                        </button>
+                        <button
+                          onClick={() => handleDeleteRule(rule.id)}
+                          className="text-red-400 hover:text-red-300"
+                        >
+                          Slett
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

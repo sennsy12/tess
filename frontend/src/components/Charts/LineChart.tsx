@@ -7,6 +7,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
+import { abbreviateNumber } from '../../lib/formatters';
 
 interface LineChartProps {
   data: any[];
@@ -18,6 +19,8 @@ interface LineChartProps {
   title?: string;
   seriesName?: string;
   valueFormatter?: (value: number) => string;
+  tickFormatter?: (value: number) => string;
+  height?: number;
 }
 
 export function LineChart({
@@ -30,30 +33,34 @@ export function LineChart({
   title,
   seriesName = 'Verdi',
   valueFormatter,
+  tickFormatter: tickFormatterProp,
+  height = 300,
 }: LineChartProps) {
   const defaultFormatter = (value: number) => 
     new Intl.NumberFormat('nb-NO').format(value);
 
-  const formatter = valueFormatter || defaultFormatter;
+  const tooltipFormatter = valueFormatter || defaultFormatter;
+  const axisTick = tickFormatterProp || abbreviateNumber;
 
   return (
     <div className="chart-container">
       {title && <h3 className="text-lg font-semibold mb-4 text-dark-100">{title}</h3>}
-      <ResponsiveContainer width="100%" height={300}>
-        <RechartsLineChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+      <ResponsiveContainer width="100%" height={height}>
+        <RechartsLineChart data={data} margin={{ top: 20, right: 10, left: 10, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
           <XAxis
             dataKey={xKey}
-            tick={{ fill: '#94a3b8', fontSize: 12 }}
+            tick={{ fill: '#94a3b8', fontSize: 11 }}
             axisLine={{ stroke: '#475569' }}
             tickLine={{ stroke: '#475569' }}
             label={xLabel ? { value: xLabel, position: 'bottom', fill: '#94a3b8' } : undefined}
           />
           <YAxis
-            tick={{ fill: '#94a3b8', fontSize: 12 }}
+            tick={{ fill: '#94a3b8', fontSize: 11 }}
             axisLine={{ stroke: '#475569' }}
             tickLine={{ stroke: '#475569' }}
-            tickFormatter={formatter}
+            tickFormatter={axisTick}
+            width={65}
             label={yLabel ? { value: yLabel, angle: -90, position: 'insideLeft', fill: '#94a3b8' } : undefined}
           />
           <Tooltip
@@ -75,7 +82,7 @@ export function LineChart({
               marginBottom: '4px',
               fontWeight: '500',
             }}
-            formatter={(value: number) => [formatter(value), seriesName]}
+            formatter={(value: number) => [tooltipFormatter(value), seriesName]}
           />
           <Line
             type="monotone"

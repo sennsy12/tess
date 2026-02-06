@@ -31,6 +31,7 @@ export function usePricingData() {
   const [showRuleForm, setShowRuleForm] = useState(false);
   const [editingGroup, setEditingGroup] = useState<CustomerGroup | null>(null);
   const [editingList, setEditingList] = useState<PriceList | null>(null);
+  const [editingRule, setEditingRule] = useState<PriceRule | null>(null);
 
   // Form values
   const [groupForm, setGroupForm] = useState<GroupFormData>(INITIAL_GROUP_FORM);
@@ -204,6 +205,38 @@ export function usePricingData() {
     }
   };
 
+  const handleUpdateRule = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingRule || !selectedListId) return;
+
+    try {
+      const data: any = {
+        min_quantity: ruleForm.min_quantity,
+        varekode: ruleForm.varekode || null,
+        varegruppe: ruleForm.varegruppe || null,
+        kundenr: ruleForm.kundenr || null,
+        customer_group_id: ruleForm.customer_group_id ? parseInt(ruleForm.customer_group_id) : null,
+      };
+
+      if (ruleForm.discount_type === 'percent' && ruleForm.discount_percent) {
+        data.discount_percent = parseFloat(ruleForm.discount_percent);
+        data.fixed_price = null;
+      } else if (ruleForm.discount_type === 'fixed' && ruleForm.fixed_price) {
+        data.fixed_price = parseFloat(ruleForm.fixed_price);
+        data.discount_percent = null;
+      }
+
+      await pricingApi.updateRule(editingRule.id, data);
+      toast.success('Regel oppdatert');
+      setShowRuleForm(false);
+      setEditingRule(null);
+      setRuleForm(INITIAL_RULE_FORM);
+      loadRules(selectedListId);
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || 'Kunne ikke oppdatere regel');
+    }
+  };
+
   const handleDeleteRule = async (id: number) => {
     if (!confirm('Er du sikker på at du vil slette denne regelen?')) return;
     try {
@@ -243,6 +276,7 @@ export function usePricingData() {
     showRuleForm,
     editingGroup,
     editingList,
+    editingRule,
     groupForm,
     listForm,
     ruleForm,
@@ -253,6 +287,7 @@ export function usePricingData() {
     setShowRuleForm,
     setEditingGroup,
     setEditingList,
+    setEditingRule,
     setGroupForm,
     setListForm,
     setRuleForm,
@@ -267,6 +302,7 @@ export function usePricingData() {
     handleDeleteList,
     handleToggleListActive,
     handleCreateRule,
+    handleUpdateRule,
     handleDeleteRule,
     handleAssignCustomer,
   };

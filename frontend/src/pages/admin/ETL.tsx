@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Layout } from '../../components/Layout';
+import { Tabs, TabContent } from '../../components/Tabs';
 import { etlApi, schedulerApi } from '../../lib/api';
 
 interface ActionResult {
@@ -22,6 +24,7 @@ interface Job {
 }
 
 export function AdminETL() {
+  const queryClient = useQueryClient();
   const [results, setResults] = useState<ActionResult[]>([]);
   const [isLoading, setIsLoading] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'etl' | 'bulk' | 'scheduler'>('etl');
@@ -73,6 +76,11 @@ export function AdminETL() {
       }, ...prev]);
       if (activeTab === 'bulk') loadTableCounts();
       if (activeTab === 'scheduler') loadJobs();
+      
+      // Invalidate dashboard and analytics queries after data changes
+      queryClient.invalidateQueries({ queryKey: ['admin'] });
+      queryClient.invalidateQueries({ queryKey: ['statistics'] });
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
     } catch (error: any) {
       setResults(prev => [{
         action,
@@ -97,214 +105,215 @@ export function AdminETL() {
     <Layout title="ETL / Database Management">
       <div className="space-y-6">
         {/* Tabs */}
-        <div className="flex gap-2 bg-dark-800 p-1 rounded-lg w-fit">
-          {(['etl', 'bulk', 'scheduler'] as const).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`px-4 py-2 rounded-md font-medium transition-colors ${
-                activeTab === tab
-                  ? 'bg-primary-600 text-white'
-                  : 'text-dark-400 hover:text-dark-200'
-              }`}
-            >
-              {tab === 'etl' ? '🔧 ETL' : tab === 'bulk' ? '📊 Bulk Data' : '⏰ Scheduler'}
-            </button>
-          ))}
-        </div>
+        <Tabs
+          tabs={[
+            { id: 'etl', label: 'ETL', icon: '🔧' },
+            { id: 'bulk', label: 'Bulk Data', icon: '📊' },
+            { id: 'scheduler', label: 'Scheduler', icon: '⏰' },
+          ]}
+          activeTab={activeTab}
+          onChange={(tab) => setActiveTab(tab as typeof activeTab)}
+          variant="pill"
+        />
 
         {/* ETL Tab */}
         {activeTab === 'etl' && (
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            {etlActions.map((action) => (
-              <button
-                key={action.id}
-                onClick={() => runAction(action.id, action.api)}
-                disabled={isLoading !== null}
-                className={`card hover:border-primary-500/50 transition-colors text-center py-6 ${
-                  isLoading === action.id ? 'opacity-50' : ''
-                }`}
-              >
-                <span className="text-2xl block mb-2">{action.label.split(' ')[0]}</span>
-                <span className="text-sm">{action.label.split(' ').slice(1).join(' ')}</span>
-              </button>
-            ))}
-          </div>
+          <TabContent tabKey="etl">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 stagger-fade-in">
+              {etlActions.map((action) => (
+                <button
+                  key={action.id}
+                  onClick={() => runAction(action.id, action.api)}
+                  disabled={isLoading !== null}
+                  className={`card-interactive text-center py-6 cursor-pointer ${
+                    isLoading === action.id ? 'opacity-50' : ''
+                  }`}
+                >
+                  <span className="text-2xl block mb-2">{action.label.split(' ')[0]}</span>
+                  <span className="text-sm">{action.label.split(' ').slice(1).join(' ')}</span>
+                </button>
+              ))}
+            </div>
+          </TabContent>
         )}
 
         {/* Bulk Data Tab */}
         {activeTab === 'bulk' && (
-          <div className="space-y-6">
-            {/* Table counts */}
-            <div className="card">
-              <h3 className="font-semibold mb-4">📊 Nåværende Data</h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {Object.entries(tableCounts).map(([table, count]) => (
-                  <div key={table} className="bg-dark-800/50 p-3 rounded-lg">
-                    <span className="text-dark-400 text-sm capitalize">{table}</span>
-                    <p className="text-xl font-bold">{count.toLocaleString()}</p>
+          <TabContent tabKey="bulk">
+            <div className="space-y-6 stagger-fade-in">
+              {/* Table counts */}
+              <div className="card">
+                <h3 className="font-semibold mb-4">📊 Nåværende Data</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 stagger-fade-in">
+                  {Object.entries(tableCounts).map(([table, count]) => (
+                    <div key={table} className="bg-dark-800/50 p-3 rounded-lg transition-all duration-200 hover:bg-dark-800/80">
+                      <span className="text-dark-400 text-sm capitalize">{table}</span>
+                      <p className="text-xl font-bold">{count.toLocaleString()}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Bulk configuration */}
+              <div className="card">
+                <h3 className="font-semibold mb-4">⚡ Generer Bulk Data</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                  <div>
+                    <label className="label">Antall Kunder</label>
+                    <input
+                      type="number"
+                      value={bulkConfig.customers}
+                      onChange={(e) => setBulkConfig({ ...bulkConfig, customers: Number(e.target.value) })}
+                      className="input"
+                    />
                   </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Bulk configuration */}
-            <div className="card">
-              <h3 className="font-semibold mb-4">⚡ Generer Bulk Data</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                <div>
-                  <label className="label">Antall Kunder</label>
-                  <input
-                    type="number"
-                    value={bulkConfig.customers}
-                    onChange={(e) => setBulkConfig({ ...bulkConfig, customers: Number(e.target.value) })}
-                    className="input"
-                  />
+                  <div>
+                    <label className="label">Antall Ordrer</label>
+                    <input
+                      type="number"
+                      value={bulkConfig.orders}
+                      onChange={(e) => setBulkConfig({ ...bulkConfig, orders: Number(e.target.value) })}
+                      className="input"
+                    />
+                  </div>
+                  <div>
+                    <label className="label">Linjer per Ordre</label>
+                    <input
+                      type="number"
+                      value={bulkConfig.linesPerOrder}
+                      onChange={(e) => setBulkConfig({ ...bulkConfig, linesPerOrder: Number(e.target.value) })}
+                      className="input"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="label">Antall Ordrer</label>
-                  <input
-                    type="number"
-                    value={bulkConfig.orders}
-                    onChange={(e) => setBulkConfig({ ...bulkConfig, orders: Number(e.target.value) })}
-                    className="input"
-                  />
-                </div>
-                <div>
-                  <label className="label">Linjer per Ordre</label>
-                  <input
-                    type="number"
-                    value={bulkConfig.linesPerOrder}
-                    onChange={(e) => setBulkConfig({ ...bulkConfig, linesPerOrder: Number(e.target.value) })}
-                    className="input"
-                  />
-                </div>
-              </div>
-              <p className="text-sm text-dark-400 mb-4">
-                Estimert: ~{(bulkConfig.orders * bulkConfig.linesPerOrder).toLocaleString()} ordrelinjer
-              </p>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => runAction('Generate Bulk', () => etlApi.generateBulkData(bulkConfig))}
-                  disabled={isLoading !== null}
-                  className="btn-secondary"
-                >
-                  🎲 Generer Data
-                </button>
-                <button
-                  onClick={() => runAction('Insert Bulk', etlApi.insertBulkData)}
-                  disabled={isLoading !== null}
-                  className="btn-secondary"
-                >
-                  📥 Sett Inn Data
-                </button>
-                <button
-                  onClick={() => runAction('Bulk Pipeline', () => etlApi.runBulkPipeline(bulkConfig))}
-                  disabled={isLoading !== null}
-                  className="btn-primary"
-                >
-                  🚀 Full Bulk Pipeline
-                </button>
-              </div>
-            </div>
-
-            {/* CSV Upload */}
-            <div className="card">
-              <h3 className="font-semibold mb-4">📤 Last opp CSV</h3>
-              <div className="flex gap-4 items-end">
-                <div>
-                  <label className="label">Velg Tabell</label>
-                  <select
-                    className="input"
-                    id="csv-table-select"
+                <p className="text-sm text-dark-400 mb-4">
+                  Estimert: ~{(bulkConfig.orders * bulkConfig.linesPerOrder).toLocaleString()} ordrelinjer
+                </p>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => runAction('Generate Bulk', () => etlApi.generateBulkData(bulkConfig))}
+                    disabled={isLoading !== null}
+                    className="btn-secondary"
                   >
-                    <option value="ordre">Ordre</option>
-                    <option value="ordrelinje">Ordrelinje</option>
-                    <option value="kunde">Kunde</option>
-                    <option value="vare">Vare</option>
-                    <option value="firma">Firma</option>
-                    <option value="lager">Lager</option>
-                  </select>
+                    🎲 Generer Data
+                  </button>
+                  <button
+                    onClick={() => runAction('Insert Bulk', etlApi.insertBulkData)}
+                    disabled={isLoading !== null}
+                    className="btn-secondary"
+                  >
+                    📥 Sett Inn Data
+                  </button>
+                  <button
+                    onClick={() => runAction('Bulk Pipeline', () => etlApi.runBulkPipeline(bulkConfig))}
+                    disabled={isLoading !== null}
+                    className="btn-primary"
+                  >
+                    🚀 Full Bulk Pipeline
+                  </button>
                 </div>
-                <div className="flex-1">
-                  <label className="label">Velg CSV Fil</label>
-                  <input
-                    type="file"
-                    accept=".csv"
-                    className="input"
-                    id="csv-file-input"
-                  />
-                </div>
-                <button
-                  onClick={() => {
-                    const tableSelect = document.getElementById('csv-table-select') as HTMLSelectElement;
-                    const fileInput = document.getElementById('csv-file-input') as HTMLInputElement;
-                    const file = fileInput.files?.[0];
-                    if (file) {
-                      runAction(`Upload CSV to ${tableSelect.value}`, () => etlApi.uploadCsv(tableSelect.value, file));
-                    }
-                  }}
-                  disabled={isLoading !== null}
-                  className="btn-primary"
-                >
-                  📤 Last Opp
-                </button>
               </div>
-              <p className="text-xs text-dark-400 mt-2">
-                Filen må være en CSV med header-rad som matcher kolonnenavnene i databasen.
-              </p>
+
+              {/* CSV Upload */}
+              <div className="card">
+                <h3 className="font-semibold mb-4">📤 Last opp CSV</h3>
+                <div className="flex gap-4 items-end">
+                  <div>
+                    <label className="label">Velg Tabell</label>
+                    <select
+                      className="input"
+                      id="csv-table-select"
+                    >
+                      <option value="ordre">Ordre</option>
+                      <option value="ordrelinje">Ordrelinje</option>
+                      <option value="kunde">Kunde</option>
+                      <option value="vare">Vare</option>
+                      <option value="firma">Firma</option>
+                      <option value="lager">Lager</option>
+                    </select>
+                  </div>
+                  <div className="flex-1">
+                    <label className="label">Velg CSV Fil</label>
+                    <input
+                      type="file"
+                      accept=".csv"
+                      className="input"
+                      id="csv-file-input"
+                    />
+                  </div>
+                  <button
+                    onClick={() => {
+                      const tableSelect = document.getElementById('csv-table-select') as HTMLSelectElement;
+                      const fileInput = document.getElementById('csv-file-input') as HTMLInputElement;
+                      const file = fileInput.files?.[0];
+                      if (file) {
+                        runAction(`Upload CSV to ${tableSelect.value}`, () => etlApi.uploadCsv(tableSelect.value, file));
+                      }
+                    }}
+                    disabled={isLoading !== null}
+                    className="btn-primary"
+                  >
+                    📤 Last Opp
+                  </button>
+                </div>
+                <p className="text-xs text-dark-400 mt-2">
+                  Filen må være en CSV med header-rad som matcher kolonnenavnene i databasen.
+                </p>
+              </div>
             </div>
-          </div>
+          </TabContent>
         )}
 
         {/* Scheduler Tab */}
         {activeTab === 'scheduler' && (
-          <div className="space-y-6">
-            <div className="card">
-              <h3 className="font-semibold mb-4">⏰ Planlagte Jobber</h3>
-              <div className="space-y-3">
-                {jobs.map((job) => (
-                  <div key={job.id} className="flex items-center justify-between bg-dark-800/50 p-4 rounded-lg">
-                    <div>
-                      <h4 className="font-medium">{job.name}</h4>
-                      <p className="text-sm text-dark-400">{job.cronExpression}</p>
-                      {job.lastRun && (
-                        <p className="text-xs text-dark-500">
-                          Sist kjørt: {new Date(job.lastRun).toLocaleString('nb-NO')}
-                        </p>
-                      )}
+          <TabContent tabKey="scheduler">
+            <div className="space-y-6">
+              <div className="card">
+                <h3 className="font-semibold mb-4">⏰ Planlagte Jobber</h3>
+                <div className="space-y-3 stagger-fade-in">
+                  {jobs.map((job) => (
+                    <div key={job.id} className="flex items-center justify-between bg-dark-800/50 p-4 rounded-lg transition-all duration-200 hover:bg-dark-800/80">
+                      <div>
+                        <h4 className="font-medium">{job.name}</h4>
+                        <p className="text-sm text-dark-400">{job.cronExpression}</p>
+                        {job.lastRun && (
+                          <p className="text-xs text-dark-500">
+                            Sist kjørt: {new Date(job.lastRun).toLocaleString('nb-NO')}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className={`px-2 py-1 rounded text-xs ${
+                          job.status === 'running' ? 'bg-blue-600/20 text-blue-400' :
+                          job.status === 'error' ? 'bg-red-600/20 text-red-400' :
+                          'bg-green-600/20 text-green-400'
+                        }`}>
+                          {job.status}
+                        </span>
+                        <button
+                          onClick={() => runAction(`Run ${job.id}`, () => schedulerApi.runJob(job.id))}
+                          className="btn-secondary text-sm"
+                          disabled={isLoading !== null}
+                        >
+                          ▶️ Kjør Nå
+                        </button>
+                        <button
+                          onClick={() => job.enabled 
+                            ? runAction(`Stop ${job.id}`, () => schedulerApi.stopJob(job.id))
+                            : runAction(`Start ${job.id}`, () => schedulerApi.startJob(job.id))
+                          }
+                          className={`text-sm ${job.enabled ? 'btn-danger' : 'btn-primary'}`}
+                          disabled={isLoading !== null}
+                        >
+                          {job.enabled ? '⏹️ Stopp' : '▶️ Start'}
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <span className={`px-2 py-1 rounded text-xs ${
-                        job.status === 'running' ? 'bg-blue-600/20 text-blue-400' :
-                        job.status === 'error' ? 'bg-red-600/20 text-red-400' :
-                        'bg-green-600/20 text-green-400'
-                      }`}>
-                        {job.status}
-                      </span>
-                      <button
-                        onClick={() => runAction(`Run ${job.id}`, () => schedulerApi.runJob(job.id))}
-                        className="btn-secondary text-sm"
-                        disabled={isLoading !== null}
-                      >
-                        ▶️ Kjør Nå
-                      </button>
-                      <button
-                        onClick={() => job.enabled 
-                          ? runAction(`Stop ${job.id}`, () => schedulerApi.stopJob(job.id))
-                          : runAction(`Start ${job.id}`, () => schedulerApi.startJob(job.id))
-                        }
-                        className={`text-sm ${job.enabled ? 'btn-danger' : 'btn-primary'}`}
-                        disabled={isLoading !== null}
-                      >
-                        {job.enabled ? '⏹️ Stopp' : '▶️ Start'}
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
+          </TabContent>
         )}
 
         {/* Results Log */}

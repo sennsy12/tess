@@ -1,4 +1,5 @@
 import { BarChart, PieChart } from '../../../../components/Charts';
+import { abbreviateCurrencyNok } from '../../../../lib/formatters';
 
 interface StatsChartsProps {
   data: any[];
@@ -37,26 +38,29 @@ export function StatsCharts({ data, nameKey, title, currencyFormatter, compariso
         </div>
       )}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-      <div className="card">
-        <BarChart
-          data={data.slice(0, 15)}
-          xKey={nameKey}
-          yKey="total_sum"
-          title={`${title} - Omsetning`}
-          seriesName="Omsetning"
-          valueFormatter={currencyFormatter}
-        />
-      </div>
-      <div className="card">
-        <PieChart
-          data={data.slice(0, 8)}
-          nameKey={nameKey}
-          valueKey="total_sum"
-          title={`${title} - Fordeling`}
-          seriesName="Omsetning"
-          valueFormatter={currencyFormatter}
-        />
-      </div>
+        <div className="card">
+          <BarChart
+            data={data.slice(0, 15)}
+            xKey={nameKey}
+            yKey="total_sum"
+            title={`${title} - Omsetning`}
+            seriesName="Omsetning"
+            valueFormatter={currencyFormatter}
+            tickFormatter={abbreviateCurrencyNok}
+            height={320}
+          />
+        </div>
+        <div className="card">
+          <PieChart
+            data={data.slice(0, 8)}
+            nameKey={nameKey}
+            valueKey="total_sum"
+            title={`${title} - Fordeling`}
+            seriesName="Omsetning"
+            valueFormatter={currencyFormatter}
+            height={360}
+          />
+        </div>
       </div>
     </div>
   );

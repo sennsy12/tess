@@ -6,6 +6,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from 'recharts';
+import { truncateLabel } from '../../lib/formatters';
 
 const COLORS = ['#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#ec4899', '#f43f5e', '#f97316', '#eab308'];
 
@@ -16,31 +17,82 @@ interface PieChartProps {
   title?: string;
   seriesName?: string;
   valueFormatter?: (value: number) => string;
+  height?: number;
 }
 
-export function PieChart({ data, nameKey, valueKey, title, seriesName = 'Verdi', valueFormatter }: PieChartProps) {
+export function PieChart({
+  data,
+  nameKey,
+  valueKey,
+  title,
+  seriesName = 'Verdi',
+  valueFormatter,
+  height = 340,
+}: PieChartProps) {
   const defaultFormatter = (value: number) => 
     new Intl.NumberFormat('nb-NO').format(value);
 
   const formatter = valueFormatter || defaultFormatter;
 
+  // Custom label renderer: truncates name, shows percent
+  const renderLabel = ({ name, percent, cx, x, y }: any) => {
+    const truncated = truncateLabel(name, 10);
+    // Shift labels a bit further from center so they don't overlap the donut
+    const isRight = x > cx;
+    return (
+      <text
+        x={x}
+        y={y}
+        fill="#cbd5e1"
+        fontSize={11}
+        textAnchor={isRight ? 'start' : 'end'}
+        dominantBaseline="central"
+      >
+        <title>{name}</title>
+        {`${truncated}: ${(percent * 100).toFixed(0)}%`}
+      </text>
+    );
+  };
+
+  // Custom legend renderer: truncated labels with tooltip via title attr
+  const renderLegend = (props: any) => {
+    const { payload } = props;
+    return (
+      <div className="flex flex-wrap justify-center gap-x-3 gap-y-1 pt-3">
+        {payload.map((entry: any, index: number) => (
+          <span
+            key={`legend-${index}`}
+            className="flex items-center gap-1.5 text-xs text-dark-300"
+            title={entry.value}
+          >
+            <span
+              className="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0"
+              style={{ backgroundColor: entry.color }}
+            />
+            {truncateLabel(entry.value, 14)}
+          </span>
+        ))}
+      </div>
+    );
+  };
+
   return (
     <div className="chart-container">
       {title && <h3 className="text-lg font-semibold mb-4 text-dark-100">{title}</h3>}
-      <ResponsiveContainer width="100%" height={300}>
+      <ResponsiveContainer width="100%" height={height}>
         <RechartsPieChart>
           <Pie
             data={data}
             cx="50%"
-            cy="50%"
+            cy="45%"
             labelLine={false}
-            outerRadius={100}
-            innerRadius={60}
-            paddingAngle={5}
+            outerRadius="70%"
+            innerRadius="42%"
+            paddingAngle={4}
             fill="#8884d8"
             dataKey={valueKey}
             nameKey={nameKey}
-            label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+            label={renderLabel}
           >
             {data.map((_, index) => (
               <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -59,12 +111,12 @@ export function PieChart({ data, nameKey, valueKey, title, seriesName = 'Verdi',
               fontSize: '14px',
               fontWeight: '600',
             }}
-            formatter={(value: number) => [formatter(value), seriesName]}
+            formatter={(value: number, _name: string, props: any) => {
+              const fullName = props.payload?.[nameKey] || _name;
+              return [formatter(value), fullName];
+            }}
           />
-          <Legend
-            wrapperStyle={{ color: '#94a3b8', paddingTop: '20px' }}
-            iconType="circle"
-          />
+          <Legend content={renderLegend} />
         </RechartsPieChart>
       </ResponsiveContainer>
     </div>
