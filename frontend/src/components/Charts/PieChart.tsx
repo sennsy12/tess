@@ -25,7 +25,6 @@ export function PieChart({
   nameKey,
   valueKey,
   title,
-  seriesName = 'Verdi',
   valueFormatter,
   height = 340,
 }: PieChartProps) {

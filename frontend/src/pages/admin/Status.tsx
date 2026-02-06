@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Layout } from '../../components/Layout';
 import { statusApi } from '../../lib/api';
@@ -47,10 +47,11 @@ export function AdminStatus() {
     queryFn: () => statusApi.getHealth().then(res => res.data),
   });
 
-  const { data: apiMetrics, refetch: refetchMetrics } = useQuery({
+  const { data: apiMetrics, refetch: refetchMetrics } = useQuery<ApiMetricsData>({
     queryKey: ['admin', 'api-metrics'],
     queryFn: () => statusApi.getApiMetrics().then(res => res.data),
   });
+  
 
   const loadAllStatus = async () => {
     await Promise.all([
@@ -265,7 +266,7 @@ export function AdminStatus() {
                       </tr>
                     </thead>
                     <tbody>
-                      {apiMetrics.endpoints.slice(0, 15).map((ep, i) => (
+                    {apiMetrics.endpoints.slice(0, 15).map((ep: ApiEndpointMetric, i: number) => (
                         <tr key={i} className="border-t border-dark-800 hover:bg-dark-800/30">
                           <td className="py-2 px-3">
                             <span className={`px-2 py-0.5 rounded text-xs font-medium ${
