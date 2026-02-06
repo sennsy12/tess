@@ -14,6 +14,8 @@ interface Order {
   lagernavn: string;
   valutaid: string;
   sum: number;
+  kunderef?: string;
+  kundeordreref?: string;
 }
 
 interface Suggestion {
@@ -124,6 +126,11 @@ export function KundeOrders() {
       render: (value: string) => new Date(value).toLocaleDateString('nb-NO'),
     },
     { key: 'kundenavn', header: 'Kunde' },
+    {
+      key: 'kunderef',
+      header: 'Kunderef',
+      render: (value: string) => value || '-',
+    },
     { key: 'firmanavn', header: 'Firma' },
     { key: 'lagernavn', header: 'Lager' },
     { key: 'valutaid', header: 'Valuta' },

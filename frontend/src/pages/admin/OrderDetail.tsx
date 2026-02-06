@@ -145,31 +145,54 @@ export function AdminOrderDetail() {
                   <th className="table-header">Enhet</th>
                   <th className="table-header text-right">Pris</th>
                   <th className="table-header text-right">Sum</th>
+                  <th className="table-header">Status</th>
+                  <th className="table-header">Henvisninger</th>
                 </tr>
               </thead>
               <tbody>
-                {order.lines.map((line) => (
-                  <tr key={line.linjenr} className="hover:bg-dark-800/30">
-                    <td className="table-cell text-dark-400">{line.linjenr}</td>
-                    <td className="table-cell font-mono text-sm">{line.varekode}</td>
-                    <td className="table-cell font-medium">{line.varenavn || '-'}</td>
-                    <td className="table-cell">
-                      <span className="px-2 py-1 bg-primary-600/20 text-primary-300 rounded text-xs">
-                        {line.varegruppe || '-'}
-                      </span>
-                    </td>
-                    <td className="table-cell text-right">{line.antall}</td>
-                    <td className="table-cell">{line.enhet}</td>
-                    <td className="table-cell text-right">
-                      {new Intl.NumberFormat('nb-NO', { minimumFractionDigits: 2 }).format(line.nettpris)}
-                    </td>
-                    <td className="table-cell text-right font-semibold">
-                      {new Intl.NumberFormat('nb-NO', { minimumFractionDigits: 2 }).format(line.linjesum)}
-                    </td>
-                  </tr>
-                ))}
+                {order.lines.map((line) => {
+                  const refs = [line.henvisning1, line.henvisning2, line.henvisning3, line.henvisning4, line.henvisning5].filter(Boolean);
+                  return (
+                    <tr key={line.linjenr} className="hover:bg-dark-800/30">
+                      <td className="table-cell text-dark-400">{line.linjenr}</td>
+                      <td className="table-cell font-mono text-sm">{line.varekode}</td>
+                      <td className="table-cell font-medium">{line.varenavn || '-'}</td>
+                      <td className="table-cell">
+                        <span className="px-2 py-1 bg-primary-600/20 text-primary-300 rounded text-xs">
+                          {line.varegruppe || '-'}
+                        </span>
+                      </td>
+                      <td className="table-cell text-right">{line.antall}</td>
+                      <td className="table-cell">{line.enhet}</td>
+                      <td className="table-cell text-right">
+                        {new Intl.NumberFormat('nb-NO', { minimumFractionDigits: 2 }).format(line.nettpris)}
+                      </td>
+                      <td className="table-cell text-right font-semibold">
+                        {new Intl.NumberFormat('nb-NO', { minimumFractionDigits: 2 }).format(line.linjesum)}
+                      </td>
+                      <td className="table-cell">
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${line.linjestatus === 1 ? 'bg-green-600/20 text-green-300' : 'bg-dark-600/40 text-dark-300'}`}>
+                          {line.linjestatus === 1 ? 'Aktiv' : 'Inaktiv'}
+                        </span>
+                      </td>
+                      <td className="table-cell">
+                        {refs.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {refs.map((ref, i) => (
+                              <span key={i} className="inline-block px-2 py-0.5 bg-dark-700 rounded text-xs">
+                                {ref}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-dark-500">-</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
                 <tr className="bg-dark-800/50">
-                  <td colSpan={7} className="table-cell text-right font-semibold">
+                  <td colSpan={9} className="table-cell text-right font-semibold">
                     Totalt:
                   </td>
                   <td className="table-cell text-right font-bold text-lg text-green-400">

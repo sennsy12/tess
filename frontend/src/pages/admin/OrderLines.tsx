@@ -14,6 +14,11 @@ interface OrderLine {
   nettpris: number;
   linjesum: number;
   linjestatus: number;
+  henvisning1?: string;
+  henvisning2?: string;
+  henvisning3?: string;
+  henvisning4?: string;
+  henvisning5?: string;
 }
 
 interface Pagination {
@@ -156,6 +161,32 @@ export function AdminOrderLines() {
           {new Intl.NumberFormat('nb-NO', { minimumFractionDigits: 2 }).format(value)}
         </span>
       ),
+    },
+    {
+      key: 'linjestatus',
+      header: 'Status',
+      render: (value: number) => (
+        <span className={`px-2 py-1 rounded text-xs font-medium ${value === 1 ? 'bg-green-600/20 text-green-300' : 'bg-dark-600/40 text-dark-300'}`}>
+          {value === 1 ? 'Aktiv' : 'Inaktiv'}
+        </span>
+      ),
+    },
+    {
+      key: 'henvisning1',
+      header: 'Henvisninger',
+      render: (_: any, row: OrderLine) => {
+        const refs = [row.henvisning1, row.henvisning2, row.henvisning3, row.henvisning4, row.henvisning5].filter(Boolean);
+        if (refs.length === 0) return <span className="text-dark-500">-</span>;
+        return (
+          <div className="flex flex-wrap gap-1">
+            {refs.map((ref, i) => (
+              <span key={i} className="inline-block px-2 py-0.5 bg-dark-700 rounded text-xs">
+                {ref}
+              </span>
+            ))}
+          </div>
+        );
+      },
     },
     {
       key: 'actions',
