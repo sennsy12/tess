@@ -1,4 +1,4 @@
-tess-usn.duckdns.org {
+:80 {
     # Reverse proxy for Backend API
     handle /api/* {
         reverse_proxy backend:5000 {
