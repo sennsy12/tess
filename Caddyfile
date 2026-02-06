@@ -1,4 +1,4 @@
-tessapp.duckdns.org {
+tessxapp.mooo.com {
     # Reverse proxy for Backend API
     handle /api/* {
         reverse_proxy backend:5000 {
