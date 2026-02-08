@@ -99,6 +99,7 @@ export const bulkDataSchema = z.object({
   customers: z.number().int().min(1).max(100000).default(1000),
   orders: z.number().int().min(1).max(10000000).default(100000),
   linesPerOrder: z.number().int().min(1).max(100).default(5),
+  actionKey: z.string().min(1).max(200).optional(),
 });
 
 // ============================================================
@@ -200,6 +201,7 @@ export const updateUserSchema = z.object({
   password: z.string().min(4, 'Password must be at least 4 characters').max(200).optional(),
   role: z.enum(['admin', 'kunde', 'analyse'], { error: 'Role must be admin, kunde, or analyse' }).optional(),
   kundenr: z.string().max(50).optional().nullable(),
+  actionKey: z.string().min(1).max(200).optional(),
 });
 
 // ============================================================

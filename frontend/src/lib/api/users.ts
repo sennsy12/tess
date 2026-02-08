@@ -20,6 +20,7 @@ export interface UpdateUserPayload {
   password?: string;
   role?: 'admin' | 'kunde' | 'analyse';
   kundenr?: string | null;
+  actionKey?: string;
 }
 
 export interface UsersPaginatedResponse {

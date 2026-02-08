@@ -93,6 +93,14 @@ export function AdminETL() {
     }
   };
 
+  const getBulkActionKey = () => {
+    const estimatedLines = bulkConfig.orders * bulkConfig.linesPerOrder;
+    if (estimatedLines <= 1_000_000) return undefined;
+    const key = window.prompt('Skriv inn sikkerhetskode for å generere over 1 000 000 ordrelinjer:');
+    if (!key) return null;
+    return key;
+  };
+
   const etlActions = [
     { id: 'createDB', label: '🏗️ Opprett DB', api: etlApi.createDB },
     { id: 'truncateDB', label: '🗑️ Tøm DB', api: etlApi.truncateDB },
@@ -191,7 +199,13 @@ export function AdminETL() {
                 </p>
                 <div className="flex gap-3">
                   <button
-                    onClick={() => runAction('Generate Bulk', () => etlApi.generateBulkData(bulkConfig))}
+                    onClick={() => {
+                      const actionKey = getBulkActionKey();
+                      if (actionKey === null) return;
+                      runAction('Generate Bulk', () =>
+                        etlApi.generateBulkData({ ...bulkConfig, actionKey }),
+                      );
+                    }}
                     disabled={isLoading !== null}
                     className="btn-secondary"
                   >
@@ -205,7 +219,13 @@ export function AdminETL() {
                     📥 Sett Inn Data
                   </button>
                   <button
-                    onClick={() => runAction('Bulk Pipeline', () => etlApi.runBulkPipeline(bulkConfig))}
+                    onClick={() => {
+                      const actionKey = getBulkActionKey();
+                      if (actionKey === null) return;
+                      runAction('Bulk Pipeline', () =>
+                        etlApi.runBulkPipeline({ ...bulkConfig, actionKey }),
+                      );
+                    }}
                     disabled={isLoading !== null}
                     className="btn-primary"
                   >

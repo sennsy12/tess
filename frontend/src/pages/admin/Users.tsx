@@ -351,8 +351,17 @@ export function AdminUsers() {
         });
       } else if (modalMode === 'edit' && editingUser) {
         const payload: UpdateUserPayload = {};
+        let actionKey: string | undefined;
+        if (formPassword) {
+          const key = window.prompt('Skriv inn sikkerhetskode for å endre passord:');
+          if (!key) return;
+          actionKey = key;
+        }
         if (formUsername !== editingUser.username) payload.username = formUsername;
-        if (formPassword) payload.password = formPassword;
+        if (formPassword) {
+          payload.password = formPassword;
+          payload.actionKey = actionKey;
+        }
         if (formRole !== editingUser.role) payload.role = formRole;
         if (formRole === 'kunde') {
           if (formKundenr !== (editingUser.kundenr ?? ''))

@@ -9,11 +9,11 @@ export const etlApi = {
   insertRealData: () => api.get('/etl/insertRealData'),
   runFullTestPipeline: () => api.get('/etl/runFullTestPipeline'),
   // Bulk data APIs for millions of rows
-  generateBulkData: (config: { customers?: number; orders?: number; linesPerOrder?: number }) =>
+  generateBulkData: (config: { customers?: number; orders?: number; linesPerOrder?: number; actionKey?: string }) =>
     api.post('/etl/generateBulkData', config),
   insertBulkData: () => api.get('/etl/insertBulkData'),
   tableCounts: () => api.get('/etl/tableCounts'),
-  runBulkPipeline: (config: { customers?: number; orders?: number; linesPerOrder?: number }) =>
+  runBulkPipeline: (config: { customers?: number; orders?: number; linesPerOrder?: number; actionKey?: string }) =>
     api.post('/etl/runBulkPipeline', config),
   uploadCsv: (table: string, file: File) => {
     const formData = new FormData();

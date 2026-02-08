@@ -3,6 +3,7 @@ import bcrypt from 'bcrypt';
 import { AuthRequest } from '../middleware/auth.js';
 import { userModel } from '../models/userModel.js';
 import { ValidationError, NotFoundError } from '../middleware/errorHandler.js';
+import { assertAdminActionKey } from '../lib/actionKey.js';
 
 const SALT_ROUNDS = 10;
 
@@ -51,7 +52,7 @@ export const userController = {
    * Create a new user
    */
   create: async (req: AuthRequest, res: Response) => {
-    const { username, password, role, kundenr } = req.body;
+    const { username, password, role, kundenr, actionKey } = req.body;
 
     // Check for duplicate username
     const existing = await userModel.findByUsername(username);
@@ -81,7 +82,7 @@ export const userController = {
     const existing = await userModel.findById(id);
     if (!existing) throw new NotFoundError('User not found');
 
-    const { username, password, role, kundenr } = req.body;
+    const { username, password, role, kundenr, actionKey } = req.body;
 
     // If changing username, check it's not already taken by another user
     if (username && username !== existing.username) {
@@ -100,7 +101,10 @@ export const userController = {
 
     const fields: { username?: string; passwordHash?: string; role?: string; kundenr?: string | null } = {};
     if (username) fields.username = username;
-    if (password) fields.passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+    if (password) {
+      assertAdminActionKey(actionKey, 'password change');
+      fields.passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+    }
     if (role) fields.role = role;
     if (kundenr !== undefined) fields.kundenr = kundenr || null;
 

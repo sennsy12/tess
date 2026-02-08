@@ -6,6 +6,7 @@ import { generateRealData, insertRealData } from '../etl/realDataController.js';
 import { generateBulkTestData, insertBulkTestData, getTableCounts } from '../etl/bulkDataController.js';
 import { uploadCsvToTable } from '../etl/csvUploadController.js';
 import { ValidationError } from '../middleware/errorHandler.js';
+import { assertAdminActionKey } from '../lib/actionKey.js';
 
 export const etlController = {
   createDB: async (req: Request, res: Response) => {
@@ -49,7 +50,13 @@ export const etlController = {
   },
 
   generateBulkData: async (req: Request, res: Response) => {
-    const { customers = 1000, orders = 100000, linesPerOrder = 5 } = req.body;
+    const { customers = 1000, orders = 100000, linesPerOrder = 5, actionKey } = req.body;
+    const estimatedLines = orders * linesPerOrder;
+
+    if (estimatedLines > 1_000_000) {
+      assertAdminActionKey(actionKey, 'bulk data generation over 1,000,000 rows');
+    }
+
     const result = await generateBulkTestData({ customers, orders, linesPerOrder });
     res.json({ success: true, message: 'Bulk data generated successfully', data: result });
   },
@@ -65,7 +72,12 @@ export const etlController = {
   },
 
   runBulkPipeline: async (req: Request, res: Response) => {
-    const { customers = 1000, orders = 100000, linesPerOrder = 5 } = req.body;
+    const { customers = 1000, orders = 100000, linesPerOrder = 5, actionKey } = req.body;
+    const estimatedLines = orders * linesPerOrder;
+
+    if (estimatedLines > 1_000_000) {
+      assertAdminActionKey(actionKey, 'bulk pipeline over 1,000,000 rows');
+    }
     
     console.log('🚀 Starting bulk pipeline...');
     const startTime = Date.now();
