@@ -8,6 +8,27 @@ interface LayoutProps {
   title: string;
 }
 
+// SVG icons for the toggle button
+const ChevronLeftIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M15 18l-6-6 6-6" />
+  </svg>
+);
+
+const ChevronRightIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M9 18l6-6-6-6" />
+  </svg>
+);
+
+const LogoutIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+    <polyline points="16 17 21 12 16 7" />
+    <line x1="21" y1="12" x2="9" y2="12" />
+  </svg>
+);
+
 const kundeNavItems = [
   { path: '/kunde', label: 'Dashboard', icon: '📊' },
   { path: '/kunde/orders', label: 'Ordrer', icon: '📋' },
@@ -36,10 +57,19 @@ export function Layout({ children, title }: LayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+    return localStorage.getItem('sidebar-collapsed') === 'true';
+  });
 
   const handleLogout = () => {
     logout();
     navigate('/login');
+  };
+
+  const toggleSidebar = () => {
+    const newState = !isSidebarCollapsed;
+    setIsSidebarCollapsed(newState);
+    localStorage.setItem('sidebar-collapsed', String(newState));
   };
 
   const getNavItems = () => {
@@ -79,49 +109,118 @@ export function Layout({ children, title }: LayoutProps) {
 
       {/* Sidebar */}
       <aside className={`
-        fixed inset-y-0 left-0 w-64 bg-dark-900 border-r border-dark-800 flex flex-col z-50 transition-transform duration-300 transform
+        fixed inset-y-0 left-0 bg-dark-900 border-r border-dark-800 flex flex-col z-50 transition-all duration-300 transform
         lg:translate-x-0 lg:static lg:inset-auto
-        ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
+        ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+        ${isSidebarCollapsed ? 'w-[72px]' : 'w-64'}
       `}>
-        <div className="p-6 border-b border-dark-800 hidden lg:block">
+        {/* Header with toggle */}
+        <div className={`border-b border-dark-800 hidden lg:flex items-center ${isSidebarCollapsed ? 'justify-center p-4' : 'justify-between p-6'}`}>
+          <div className={`overflow-hidden transition-all duration-300 ${isSidebarCollapsed ? 'w-0 opacity-0' : 'w-auto opacity-100'}`}>
+            <h1 className="text-xl font-bold text-primary-400 whitespace-nowrap">TESS</h1>
+            <p className="text-sm text-dark-400 whitespace-nowrap">Sales Order System</p>
+          </div>
+          <button
+            onClick={toggleSidebar}
+            className="p-2 rounded-lg text-dark-400 hover:text-dark-100 hover:bg-dark-800 transition-colors flex-shrink-0"
+            title={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {isSidebarCollapsed ? <ChevronRightIcon /> : <ChevronLeftIcon />}
+          </button>
+        </div>
+
+        {/* Mobile header inside sidebar */}
+        <div className="p-6 border-b border-dark-800 lg:hidden">
           <h1 className="text-xl font-bold text-primary-400">TESS</h1>
           <p className="text-sm text-dark-400">Sales Order System</p>
         </div>
 
-        <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+        {/* Navigation */}
+        <nav className={`flex-1 space-y-1 overflow-y-auto overflow-x-hidden ${isSidebarCollapsed ? 'p-2' : 'p-4'}`}>
           {navItems.map((item) => (
             <Link
               key={item.path}
               to={item.path}
               onClick={() => setIsMobileMenuOpen(false)}
-              className={`nav-link ${location.pathname === item.path ? 'active' : ''}`}
+              className={`
+                nav-link group relative
+                ${location.pathname === item.path ? 'active' : ''}
+                ${isSidebarCollapsed ? 'justify-center px-0 py-2.5' : ''}
+              `}
+              title={isSidebarCollapsed ? item.label : undefined}
             >
-              <span className="text-lg">{item.icon}</span>
-              <span>{item.label}</span>
+              <span className={`flex-shrink-0 ${isSidebarCollapsed ? 'text-xl' : 'text-lg'}`}>{item.icon}</span>
+              <span className={`transition-all duration-300 whitespace-nowrap ${isSidebarCollapsed ? 'w-0 opacity-0 overflow-hidden' : 'w-auto opacity-100'}`}>
+                {item.label}
+              </span>
+              {/* Tooltip on hover when collapsed */}
+              {isSidebarCollapsed && (
+                <span className="
+                  absolute left-full ml-2 px-3 py-1.5 rounded-lg text-sm font-medium
+                  bg-dark-800 text-dark-100 border border-dark-700
+                  opacity-0 invisible group-hover:opacity-100 group-hover:visible
+                  transition-all duration-200 pointer-events-none z-[100]
+                  whitespace-nowrap shadow-lg shadow-black/20
+                ">
+                  {item.label}
+                </span>
+              )}
             </Link>
           ))}
         </nav>
 
-        <div className="p-4 border-t border-dark-800">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-full bg-primary-600 flex items-center justify-center flex-shrink-0">
+        {/* User profile section */}
+        <div className={`border-t border-dark-800 ${isSidebarCollapsed ? 'p-2' : 'p-4'}`}>
+          <div className={`flex items-center ${isSidebarCollapsed ? 'justify-center mb-2' : 'gap-3 mb-4'}`}>
+            <div className="w-10 h-10 rounded-full bg-primary-600 flex items-center justify-center flex-shrink-0 group relative">
               <span className="text-white font-medium">
                 {user?.username.charAt(0).toUpperCase()}
               </span>
+              {/* Tooltip for avatar when collapsed */}
+              {isSidebarCollapsed && (
+                <span className="
+                  absolute left-full ml-2 px-3 py-1.5 rounded-lg text-sm font-medium
+                  bg-dark-800 text-dark-100 border border-dark-700
+                  opacity-0 invisible group-hover:opacity-100 group-hover:visible
+                  transition-all duration-200 pointer-events-none z-[100]
+                  whitespace-nowrap shadow-lg shadow-black/20
+                ">
+                  {user?.username} ({user?.role})
+                </span>
+              )}
             </div>
-            <div className="flex-1 min-w-0">
+            <div className={`min-w-0 transition-all duration-300 ${isSidebarCollapsed ? 'w-0 opacity-0 overflow-hidden' : 'flex-1 opacity-100'}`}>
               <p className="text-sm font-medium text-dark-100 truncate">
                 {user?.username}
               </p>
               <p className="text-xs text-dark-400 capitalize">{user?.role}</p>
             </div>
           </div>
-          <button
-            onClick={handleLogout}
-            className="w-full btn-secondary text-sm"
-          >
-            Logg ut
-          </button>
+          {isSidebarCollapsed ? (
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center justify-center p-2 rounded-lg text-dark-400 hover:text-red-400 hover:bg-dark-800 transition-colors group relative"
+              title="Logg ut"
+            >
+              <LogoutIcon />
+              <span className="
+                absolute left-full ml-2 px-3 py-1.5 rounded-lg text-sm font-medium
+                bg-dark-800 text-dark-100 border border-dark-700
+                opacity-0 invisible group-hover:opacity-100 group-hover:visible
+                transition-all duration-200 pointer-events-none z-[100]
+                whitespace-nowrap shadow-lg shadow-black/20
+              ">
+                Logg ut
+              </span>
+            </button>
+          ) : (
+            <button
+              onClick={handleLogout}
+              className="w-full btn-secondary text-sm"
+            >
+              Logg ut
+            </button>
+          )}
         </div>
       </aside>
 
