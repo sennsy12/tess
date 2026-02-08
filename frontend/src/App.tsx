@@ -19,6 +19,7 @@ import { AdminStatistics } from './pages/admin/Statistics'
 import { AdminOrders } from './pages/admin/Orders'
 import { AdminOrderDetail } from './pages/admin/OrderDetail'
 import { AdminAdvancedAnalytics } from './pages/admin/AdvancedAnalytics'
+import { AdminUsers } from './pages/admin/Users'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -135,6 +136,11 @@ function App() {
           <Route path="/admin/analytics" element={
             <ProtectedRoute allowedRoles={['admin']}>
               <AdminAdvancedAnalytics />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/users" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <AdminUsers />
             </ProtectedRoute>
           } />
           

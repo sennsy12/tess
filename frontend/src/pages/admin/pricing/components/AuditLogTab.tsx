@@ -67,8 +67,13 @@ export function AuditLogTab() {
       const res = await auditApi.getAll(params);
       setEntries(res.data.data);
       setTotal(res.data.pagination.total);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to load audit log:', error);
+      // Better error handling for the UI
+      if (error.response?.status === 403) {
+        // If it's a 403, we might want to show a specific message or just an empty state
+        setEntries([]);
+      }
     } finally {
       setIsLoading(false);
     }

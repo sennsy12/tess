@@ -26,6 +26,7 @@ const adminNavItems = [
   { path: '/admin/analytics', label: 'Avansert Analyse', icon: '🔬' },
   { path: '/admin/orderlines', label: 'Ordrelinjer', icon: '📝' },
   { path: '/admin/pricing', label: 'Prisstyring', icon: '💰' },
+  { path: '/admin/users', label: 'Brukere', icon: '👤' },
   { path: '/admin/status', label: 'Status', icon: '⚙️' },
   { path: '/admin/etl', label: 'ETL / Data', icon: '🔧' },
 ];

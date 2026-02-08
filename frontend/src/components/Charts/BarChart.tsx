@@ -45,6 +45,10 @@ export function BarChart({
   // Abbreviated formatter for Y-axis ticks
   const axisTick = tickFormatterProp || abbreviateNumber;
 
+  const maxXTicks = 10;
+  const tickInterval = data.length > maxXTicks ? Math.max(0, Math.ceil(data.length / maxXTicks) - 1) : 0;
+  const rotateTicks = data.length > 8;
+
   // Custom X-axis tick that truncates long labels
   const renderXTick = (props: any) => {
     const { x, y, payload } = props;
@@ -56,10 +60,11 @@ export function BarChart({
         <text
           x={0}
           y={0}
-          dy={14}
-          textAnchor="middle"
+          dy={rotateTicks ? 18 : 14}
+          textAnchor={rotateTicks ? 'end' : 'middle'}
           fill="#94a3b8"
           fontSize={11}
+          transform={rotateTicks ? 'rotate(-35)' : undefined}
         >
           {truncated}
         </text>
@@ -71,14 +76,18 @@ export function BarChart({
     <div className="chart-container">
       {title && <h3 className="text-lg font-semibold mb-4 text-dark-100">{title}</h3>}
       <ResponsiveContainer width="100%" height={height}>
-        <RechartsBarChart data={data} margin={{ top: 20, right: 10, left: 10, bottom: 10 }}>
+        <RechartsBarChart
+          data={data}
+          margin={{ top: 20, right: 10, left: 10, bottom: rotateTicks ? 40 : 10 }}
+        >
           <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
           <XAxis
             dataKey={xKey}
             tick={renderXTick}
             axisLine={{ stroke: '#475569' }}
             tickLine={{ stroke: '#475569' }}
-            interval={0}
+            interval={tickInterval}
+            height={rotateTicks ? 50 : undefined}
             label={xLabel ? { value: xLabel, position: 'bottom', fill: '#94a3b8', offset: 0 } : undefined}
           />
           <YAxis

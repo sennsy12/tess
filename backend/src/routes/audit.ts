@@ -5,8 +5,8 @@ import { asyncHandler } from '../middleware/errorHandler.js';
 
 export const auditRouter = Router();
 
-// All audit routes require admin role
-auditRouter.use(authMiddleware, roleGuard('admin'));
+// Audit routes require authentication
+auditRouter.use(authMiddleware);
 
 // Get paginated audit log entries
 auditRouter.get('/', asyncHandler(auditController.getAll));

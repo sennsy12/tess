@@ -15,6 +15,7 @@ import { reportsRouter } from './routes/reports.js';
 import { pricingRouter } from './routes/pricing.js';
 import { dashboardRouter } from './routes/dashboard.js';
 import { auditRouter } from './routes/audit.js';
+import { usersRouter } from './routes/users.js';
 import { initializeDefaultJobs } from './scheduler/index.js';
 import { apiMetricsMiddleware } from './middleware/apiMetrics.js';
 import { generalLimiter } from './middleware/rateLimit.js';
@@ -100,6 +101,7 @@ app.use('/api/reports', reportsRouter);
 app.use('/api/pricing', pricingRouter);
 app.use('/api/dashboard', dashboardRouter);
 app.use('/api/audit', auditRouter);
+app.use('/api/users', usersRouter);
 
 // Initialize scheduler
 initializeDefaultJobs();

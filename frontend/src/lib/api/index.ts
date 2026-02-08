@@ -20,6 +20,7 @@ export { reportsApi } from './reports';
 export { schedulerApi } from './scheduler';
 export { suggestionsApi } from './suggestions';
 export { dashboardApi } from './dashboard';
+export { usersApi } from './users';
 
 // Types
 export type {
@@ -35,3 +36,9 @@ export type {
   StatisticsBatchResponse,
   DashboardAnalyticsBatchResponse,
 } from './statistics';
+
+export type {
+  UserPublic,
+  CreateUserPayload,
+  UpdateUserPayload,
+} from './users';

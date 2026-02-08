@@ -164,6 +164,24 @@ export const orderLineSchema = z.object({
 });
 
 // ============================================================
+// User management validation schemas
+// ============================================================
+
+export const createUserSchema = z.object({
+  username: z.string().min(1, 'Username is required').max(100),
+  password: z.string().min(4, 'Password must be at least 4 characters').max(200),
+  role: z.enum(['admin', 'kunde', 'analyse'], { errorMap: () => ({ message: 'Role must be admin, kunde, or analyse' }) }),
+  kundenr: z.string().max(50).optional(),
+});
+
+export const updateUserSchema = z.object({
+  username: z.string().min(1).max(100).optional(),
+  password: z.string().min(4, 'Password must be at least 4 characters').max(200).optional(),
+  role: z.enum(['admin', 'kunde', 'analyse'], { errorMap: () => ({ message: 'Role must be admin, kunde, or analyse' }) }).optional(),
+  kundenr: z.string().max(50).optional().nullable(),
+});
+
+// ============================================================
 // Search/suggestions validation
 // ============================================================
 
