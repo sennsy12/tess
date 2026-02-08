@@ -4,7 +4,12 @@ import { useNavigate } from 'react-router-dom';
 import { Layout } from '../../components/Layout';
 import { DataTable } from '../../components/DataTable';
 import { AutocompleteInput } from '../../components/AutocompleteInput';
+import { FilterBar, Pagination } from '../../components/admin';
 import { ordersApi, suggestionsApi } from '../../lib/api';
+
+// ────────────────────────────────────────────────────────────
+// Types
+// ────────────────────────────────────────────────────────────
 
 interface Order {
   ordrenr: number;
@@ -24,10 +29,60 @@ interface Suggestion {
   type: string;
 }
 
+// ────────────────────────────────────────────────────────────
+// Constants
+// ────────────────────────────────────────────────────────────
+
+const PAGE_LIMIT = 50;
+
+const FILTER_FIELDS = [
+  { key: 'ordrenr', label: 'Ordrenummer', placeholder: 'F.eks. 1001' },
+  { key: 'startDate', label: 'Fra dato', type: 'date' as const },
+  { key: 'endDate', label: 'Til dato', type: 'date' as const },
+] as const;
+
+const COLUMNS = [
+  {
+    key: 'ordrenr',
+    header: 'Ordrenr',
+    render: (value: number) => (
+      <span className="font-medium text-primary-400">#{value}</span>
+    ),
+  },
+  {
+    key: 'dato',
+    header: 'Dato',
+    render: (value: string) => new Date(value).toLocaleDateString('nb-NO'),
+  },
+  { key: 'kundenavn', header: 'Kunde' },
+  {
+    key: 'kunderef',
+    header: 'Kunderef',
+    render: (value: string) => value || '-',
+  },
+  { key: 'firmanavn', header: 'Firma' },
+  { key: 'lagernavn', header: 'Lager' },
+  { key: 'valutaid', header: 'Valuta' },
+  {
+    key: 'sum',
+    header: 'Sum',
+    render: (value: number) => (
+      <span className="font-semibold">
+        {new Intl.NumberFormat('nb-NO', {
+          style: 'currency',
+          currency: 'NOK',
+        }).format(value)}
+      </span>
+    ),
+  },
+];
+
+// ────────────────────────────────────────────────────────────
+// Component
+// ────────────────────────────────────────────────────────────
+
 export function AdminOrders() {
   const [page, setPage] = useState(1);
-  const [limit] = useState(50);
-  
   const [filters, setFilters] = useState({
     ordrenr: '',
     startDate: '',
@@ -36,210 +91,115 @@ export function AdminOrders() {
   });
   const navigate = useNavigate();
 
+  // ── Data fetching ─────────────────────────────────────
   const { data: ordersData, isLoading } = useQuery({
     queryKey: ['admin', 'orders', page, filters],
     queryFn: async () => {
-      const queryParams = { 
-        ...filters, 
-        page, 
-        limit 
-      };
+      const queryParams = { ...filters, page, limit: PAGE_LIMIT };
       const response = await ordersApi.getAll(queryParams);
       if (response.data.data) {
-        return { orders: response.data.data as Order[], total: response.data.total as number };
+        return {
+          orders: response.data.data as Order[],
+          total: response.data.total as number,
+        };
       }
-      return { orders: response.data as Order[], total: (response.data as Order[]).length };
+      return {
+        orders: response.data as Order[],
+        total: (response.data as Order[]).length,
+      };
     },
   });
 
   const orders = ordersData?.orders ?? [];
   const total = ordersData?.total ?? 0;
+  const totalPages = Math.ceil(total / PAGE_LIMIT);
 
+  // ── Suggestions (autocomplete) ────────────────────────
   const fetchSuggestions = useCallback(async (query: string): Promise<Suggestion[]> => {
     try {
       const response = await suggestionsApi.search(query);
       return response.data;
-    } catch (error) {
-      console.error('Failed to fetch suggestions:', error);
+    } catch {
       return [];
     }
   }, []);
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    setPage(1);
-  };
+  const handleSuggestionSelect = useCallback(
+    (suggestion: Suggestion) => {
+      setFilters((prev) => ({ ...prev, search: suggestion.suggestion }));
+      setPage(1);
+    },
+    [],
+  );
 
-  const handleReset = () => {
+  // ── Filter handlers ───────────────────────────────────
+  const handleReset = useCallback(() => {
     setFilters({ ordrenr: '', startDate: '', endDate: '', search: '' });
     setPage(1);
-  };
+  }, []);
 
-  const handleSuggestionSelect = (suggestion: Suggestion) => {
-    setFilters(prev => ({ ...prev, search: suggestion.suggestion }));
-    setPage(1);
-  };
-
-  const handlePageChange = (newPage: number) => {
-    if (newPage >= 1 && newPage <= Math.ceil(total / limit)) {
-      setPage(newPage);
-    }
-  };
-
-  const columns = [
-    {
-      key: 'ordrenr',
-      header: 'Ordrenr',
-      render: (value: number) => (
-        <span className="font-medium text-primary-400">#{value}</span>
-      ),
-    },
-    {
-      key: 'dato',
-      header: 'Dato',
-      render: (value: string) => new Date(value).toLocaleDateString('nb-NO'),
-    },
-    { key: 'kundenavn', header: 'Kunde' },
-    {
-      key: 'kunderef',
-      header: 'Kunderef',
-      render: (value: string) => value || '-',
-    },
-    { key: 'firmanavn', header: 'Firma' },
-    { key: 'lagernavn', header: 'Lager' },
-    { key: 'valutaid', header: 'Valuta' },
-    {
-      key: 'sum',
-      header: 'Sum',
-      render: (value: number) => (
-        <span className="font-semibold">
-          {new Intl.NumberFormat('nb-NO', { style: 'currency', currency: 'NOK' }).format(value)}
-        </span>
-      ),
-    },
-  ];
-
-  const totalPages = Math.ceil(total / limit);
-
+  // ── Render ────────────────────────────────────────────
   return (
     <Layout title="Admin Ordrer">
       <div className="space-y-6">
         {/* Search filters */}
-        <form onSubmit={handleSearch} className="card">
-          <h3 className="text-lg font-semibold mb-4">Søk i ordrer</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div>
-              <label className="label">Ordrenummer</label>
-              <input
-                type="text"
-                value={filters.ordrenr}
-                onChange={(e) => setFilters({ ...filters, ordrenr: e.target.value })}
-                className="input"
-                placeholder="F.eks. 1001"
-              />
-            </div>
-            <div>
-              <label className="label">Fra dato</label>
-              <input
-                type="date"
-                value={filters.startDate}
-                onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
-                className="input"
-              />
-            </div>
-            <div>
-              <label className="label">Til dato</label>
-              <input
-                type="date"
-                value={filters.endDate}
-                onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
-                className="input"
-              />
-            </div>
-            <div>
-              <label className="label">Fritekst søk</label>
-              <AutocompleteInput
-                value={filters.search}
-                onChange={(value) => setFilters({ ...filters, search: value })}
-                onSelect={handleSuggestionSelect}
-                fetchSuggestions={fetchSuggestions}
-                placeholder="Søk kunde, ref, produkt..."
-                minChars={3}
-              />
-            </div>
+        <FilterBar
+          title="Søk i ordrer"
+          filters={filters}
+          onFilterChange={setFilters}
+          onSubmit={() => setPage(1)}
+          onReset={handleReset}
+          fields={[...FILTER_FIELDS]}
+        >
+          {/* Custom autocomplete field in the extra slot */}
+          <div>
+            <label className="label">Fritekst søk</label>
+            <AutocompleteInput
+              value={filters.search}
+              onChange={(value) => setFilters((prev) => ({ ...prev, search: value }))}
+              onSelect={handleSuggestionSelect}
+              fetchSuggestions={fetchSuggestions}
+              placeholder="Søk kunde, ref, produkt..."
+              minChars={3}
+            />
           </div>
-          <div className="flex gap-3 mt-4">
-            <button type="submit" className="btn-primary">
-              🔍 Søk
-            </button>
-            <button type="button" onClick={handleReset} className="btn-secondary">
-              ↻ Nullstill
-            </button>
-          </div>
-        </form>
+        </FilterBar>
 
         {/* Results */}
         {isLoading ? (
           <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-500"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-500" />
           </div>
         ) : (
           <>
+            {/* Top summary + pagination */}
             <div className="flex justify-between items-center text-sm text-dark-400">
               <div>
-                Viser {orders.length > 0 ? (page - 1) * limit + 1 : 0} - {Math.min(page * limit, total)} av {total} ordrer
+                Viser{' '}
+                {orders.length > 0 ? (page - 1) * PAGE_LIMIT + 1 : 0} -{' '}
+                {Math.min(page * PAGE_LIMIT, total)} av {total} ordrer
               </div>
-              {totalPages > 1 && (
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => handlePageChange(page - 1)}
-                    disabled={page === 1}
-                    className="px-3 py-1 rounded bg-dark-800 hover:bg-dark-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Forrige
-                  </button>
-                  <span className="px-3 py-1">
-                    Side {page} av {totalPages}
-                  </span>
-                  <button
-                    onClick={() => handlePageChange(page + 1)}
-                    disabled={page === totalPages}
-                    className="px-3 py-1 rounded bg-dark-800 hover:bg-dark-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Neste
-                  </button>
-                </div>
-              )}
+              <Pagination
+                pagination={{ page, total, limit: PAGE_LIMIT, totalPages }}
+                onPageChange={setPage}
+                variant="minimal"
+              />
             </div>
+
             <DataTable
               data={orders}
-              columns={columns}
+              columns={COLUMNS}
               onRowClick={(order) => navigate(`/admin/orders/${order.ordrenr}`)}
               emptyMessage="Ingen ordrer funnet"
             />
-            
-            {/* Bottom Pagination */}
-            {totalPages > 1 && (
-              <div className="flex justify-center gap-2 mt-4">
-                <button
-                  onClick={() => handlePageChange(page - 1)}
-                  disabled={page === 1}
-                  className="px-4 py-2 rounded bg-dark-800 hover:bg-dark-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Forrige
-                </button>
-                <span className="px-4 py-2">
-                  Side {page} av {totalPages}
-                </span>
-                <button
-                  onClick={() => handlePageChange(page + 1)}
-                  disabled={page === totalPages}
-                  className="px-4 py-2 rounded bg-dark-800 hover:bg-dark-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Neste
-                </button>
-              </div>
-            )}
+
+            {/* Bottom pagination (full variant) */}
+            <Pagination
+              pagination={{ page, total, limit: PAGE_LIMIT, totalPages }}
+              onPageChange={setPage}
+              variant="simple"
+              className="justify-center"
+            />
           </>
         )}
       </div>

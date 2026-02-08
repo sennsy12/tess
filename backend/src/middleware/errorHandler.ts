@@ -1,8 +1,21 @@
+/**
+ * Error Handling Middleware & Utilities
+ *
+ * Provides a hierarchy of typed application errors and a centralised
+ * Express error-handling middleware that serialises them into consistent
+ * JSON responses. Also includes the `asyncHandler` wrapper that
+ * eliminates try/catch boilerplate in async route handlers.
+ *
+ * @module middleware/errorHandler
+ */
 import { Request, Response, NextFunction } from 'express';
 import { logger } from '../lib/logger.js';
 
 /**
- * Base class for application errors
+ * Base class for operational application errors.
+ *
+ * Subclasses set a specific HTTP status code so the global error
+ * handler can respond appropriately without a switch statement.
  */
 export class AppError extends Error {
   public readonly statusCode: number;
@@ -110,7 +123,18 @@ export const errorHandler = (
 };
 
 /**
- * Wrapper for async route handlers to catch errors and pass to next()
+ * Wraps an async Express handler so that rejected promises are
+ * automatically forwarded to `next()` (the global error handler).
+ *
+ * Eliminates the need for try/catch in every route.
+ *
+ * @example
+ * ```ts
+ * router.get('/foo', asyncHandler(async (req, res) => {
+ *   const data = await fetchData(); // errors forwarded automatically
+ *   res.json(data);
+ * }));
+ * ```
  */
 export const asyncHandler = (fn: Function) => (req: Request, res: Response, next: NextFunction) => {
   Promise.resolve(fn(req, res, next)).catch(next);

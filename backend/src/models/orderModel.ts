@@ -1,5 +1,15 @@
+/**
+ * Order Model
+ *
+ * Handles database operations for the `ordre` table, including
+ * filtered listing, detail retrieval, line-item queries, and
+ * reference-based search.
+ *
+ * @module models/orderModel
+ */
 import { query } from '../db/index.js';
 
+/** Filter parameters accepted by `findAll`. */
 export interface OrderFilters {
   kundenr?: string;
   ordrenr?: string;
@@ -12,6 +22,17 @@ export interface OrderFilters {
 }
 
 export const orderModel = {
+  /**
+   * List orders with dynamic filtering and optional pagination.
+   *
+   * When the caller is a `kunde` user, results are automatically scoped
+   * to that customer's orders for row-level security.
+   *
+   * @param filters    - Dynamic filter criteria
+   * @param user       - Authenticated user context (used for role-based scoping)
+   * @param pagination - Optional `{ limit, offset }` for server-side paging
+   * @returns `{ data, total }` where `data` is the current page of orders
+   */
   findAll: async (
     filters: OrderFilters, 
     user?: { role: string; kundenr?: string },
@@ -97,6 +118,15 @@ export const orderModel = {
     };
   },
 
+  /**
+   * Retrieve a single order by its order number, joining customer,
+   * company, and warehouse data. Respects row-level security for
+   * `kunde` users.
+   *
+   * @param ordrenr - The order number to look up
+   * @param user    - Authenticated user context
+   * @returns The order row or `undefined` if not found / not authorised
+   */
   findByOrderNr: async (ordrenr: number, user?: { role: string; kundenr?: string }) => {
     let sql = `
       SELECT o.*, k.kundenavn, f.firmanavn, l.lagernavn as lager_display
@@ -118,6 +148,13 @@ export const orderModel = {
     return result.rows[0];
   },
 
+  /**
+   * Fetch all line items for an order, joined with product details
+   * and reference records.
+   *
+   * @param ordrenr - Order number whose lines to retrieve
+   * @returns Array of line-item rows enriched with product/reference data
+   */
   findLines: async (ordrenr: number) => {
     const result = await query(
       `SELECT ol.*, v.varenavn, v.varegruppe,
@@ -132,6 +169,14 @@ export const orderModel = {
     return result.rows;
   },
 
+  /**
+   * Full-text search across order reference fields (henvisning1–5).
+   * Results are scoped to the authenticated user when applicable.
+   *
+   * @param q    - Search term (ILIKE matched against all reference columns)
+   * @param user - Authenticated user context
+   * @returns Distinct orders matching the reference search
+   */
   searchReferences: async (q: string, user?: { role: string; kundenr?: string }) => {
     let sql = `
       SELECT DISTINCT o.*, k.kundenavn, f.firmanavn

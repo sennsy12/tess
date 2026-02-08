@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { authApi } from '../lib/api';
 
 interface User {
@@ -20,6 +21,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -45,6 +47,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const response = await authApi.login(username, password);
     const { token: newToken, user: newUser } = response.data;
     
+    // Clear stale data from previous user before setting new state
+    queryClient.clear();
+
     localStorage.setItem('token', newToken);
     localStorage.setItem('user', JSON.stringify(newUser));
     
@@ -56,6 +61,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const response = await authApi.loginKunde(kundenr, password);
     const { token: newToken, user: newUser } = response.data;
     
+    // Clear stale data from previous user before setting new state
+    queryClient.clear();
+
     localStorage.setItem('token', newToken);
     localStorage.setItem('user', JSON.stringify(newUser));
     
@@ -68,6 +76,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('user');
     setToken(null);
     setUser(null);
+    // Remove all cached queries so next login starts fresh
+    queryClient.clear();
   };
 
   return (

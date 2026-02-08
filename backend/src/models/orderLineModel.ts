@@ -1,6 +1,22 @@
+/**
+ * Order Line Model
+ *
+ * Manages CRUD operations for the `ordrelinje` table including
+ * automatic line-number assignment and order-sum recalculation.
+ *
+ * @module models/orderLineModel
+ */
 import { query } from '../db/index.js';
 
 export const orderLineModel = {
+  /**
+   * Retrieve order lines for a given order with server-side pagination.
+   * Joins product details (`vare`) and reference records (`ordre_henvisning`).
+   *
+   * @param ordrenr - The order number
+   * @param options - Optional pagination (`page`, `limit`)
+   * @returns Paginated result with `{ data, pagination }`
+   */
   findByOrderNr: async (ordrenr: number, options?: { page?: number; limit?: number }) => {
     const page = options?.page || 1;
     const limit = options?.limit || 50;
@@ -37,6 +53,13 @@ export const orderLineModel = {
     };
   },
 
+  /**
+   * Create a new order line. Automatically assigns the next available
+   * line number and computes `linjesum = antall * nettpris`.
+   *
+   * @param data - Line-item fields (ordrenr, varekode, antall, enhet, nettpris, linjestatus)
+   * @returns The newly inserted order-line record
+   */
   create: async (data: { ordrenr: number; varekode: string; antall: number; enhet: string; nettpris: number; linjestatus?: number }) => {
     // Get next line number for this order
     const maxLineResult = await query(
@@ -55,6 +78,15 @@ export const orderLineModel = {
     return result.rows[0];
   },
 
+  /**
+   * Update an existing order line identified by `(ordrenr, linjenr)`.
+   * Recomputes `linjesum` from the new quantity and price.
+   *
+   * @param ordrenr - Order number
+   * @param linjenr - Line number within the order
+   * @param data    - Fields to update
+   * @returns The updated row
+   */
   update: async (ordrenr: number, linjenr: number, data: { varekode: string; antall: number; enhet: string; nettpris: number; linjestatus: number }) => {
     const linjesum = data.antall * data.nettpris;
 
@@ -68,6 +100,14 @@ export const orderLineModel = {
     return result.rows[0];
   },
 
+  /**
+   * Delete an order line and its associated reference records.
+   * Cascades to `ordre_henvisning` first to satisfy FK constraints.
+   *
+   * @param ordrenr - Order number
+   * @param linjenr - Line number to delete
+   * @returns The deleted row, or `undefined` if not found
+   */
   delete: async (ordrenr: number, linjenr: number) => {
     // First delete any references
     await query(
@@ -82,6 +122,12 @@ export const orderLineModel = {
     return result.rows[0];
   },
 
+  /**
+   * Recalculate and update the aggregate `sum` column on the parent
+   * order based on the current line items.
+   *
+   * @param ordrenr - Order whose sum should be recalculated
+   */
   updateOrderSum: async (ordrenr: number) => {
     await query(
       `UPDATE ordre SET sum = COALESCE((SELECT SUM(linjesum) FROM ordrelinje WHERE ordrenr = $1), 0) WHERE ordrenr = $1`,
@@ -89,6 +135,15 @@ export const orderLineModel = {
     );
   },
 
+  /**
+   * Upsert reference fields (henvisning1–5) for a given order line.
+   * Uses `ON CONFLICT DO UPDATE` for idempotent writes.
+   *
+   * @param ordrenr - Order number
+   * @param linjenr - Line number
+   * @param refs    - Reference values to set
+   * @returns The upserted reference row
+   */
   updateReferences: async (ordrenr: number, linjenr: number, refs: { henvisning1?: string; henvisning2?: string; henvisning3?: string; henvisning4?: string; henvisning5?: string }) => {
     const result = await query(
       `INSERT INTO ordre_henvisning (ordrenr, linjenr, henvisning1, henvisning2, henvisning3, henvisning4, henvisning5)

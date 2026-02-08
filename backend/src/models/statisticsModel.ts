@@ -1,5 +1,16 @@
+/**
+ * Statistics Model
+ *
+ * Provides aggregated analytics queries over the `ordre` / `ordrelinje`
+ * tables, grouped by various dimensions (customer, product, warehouse,
+ * company, time). Each method supports date-range filtering, optional
+ * customer/category scoping, and server-side pagination.
+ *
+ * @module models/statisticsModel
+ */
 import { query } from '../db/index.js';
 
+/** Common filter parameters shared across all statistics queries. */
 export interface StatsFilters {
   startDate?: string;
   endDate?: string;
@@ -10,6 +21,7 @@ export interface StatsFilters {
   limit?: number;
 }
 
+/** Standard paginated response envelope used by all statistics endpoints. */
 export interface PaginatedResult<T> {
   data: T[];
   pagination: {
@@ -20,6 +32,7 @@ export interface PaginatedResult<T> {
   };
 }
 
+/** Extract and normalise pagination params from a filters object. */
 const getPagination = (filters: StatsFilters) => {
   const page = filters.page || 1;
   const limit = filters.limit || 25;
@@ -27,6 +40,7 @@ const getPagination = (filters: StatsFilters) => {
   return { page, limit, offset };
 };
 
+/** Build the pagination metadata envelope. */
 const buildPagination = (page: number, limit: number, total: number) => ({
   page,
   limit,
@@ -327,7 +341,10 @@ export const statisticsModel = {
     };
   },
 
-  getTimeSeries: async (filters: StatsFilters) => {
+  getTimeSeries: async (
+    filters: StatsFilters,
+    user?: { role: string; kundenr?: string }
+  ) => {
     const groupBy = filters.groupBy || 'month';
     let dateFormat = "TO_CHAR(o.dato, 'YYYY-MM')";
     if (groupBy === 'day') {
@@ -348,6 +365,15 @@ export const statisticsModel = {
     const params: any[] = [];
     let paramIndex = 1;
 
+    // Filter by customer when the logged-in user is a kunde
+    if (user?.role === 'kunde' && user?.kundenr) {
+      sql += ` AND o.kundenr = $${paramIndex++}`;
+      params.push(user.kundenr);
+    } else if (filters.kundenr) {
+      sql += ` AND o.kundenr = $${paramIndex++}`;
+      params.push(filters.kundenr);
+    }
+
     if (filters.startDate) {
       sql += ` AND o.dato >= $${paramIndex++}`;
       params.push(filters.startDate);
@@ -363,10 +389,22 @@ export const statisticsModel = {
     return result.rows;
   },
 
-  getSummary: async (filters: StatsFilters) => {
+  getSummary: async (
+    filters: StatsFilters,
+    user?: { role: string; kundenr?: string }
+  ) => {
     let dateFilter = '';
     const params: any[] = [];
     let paramIndex = 1;
+
+    // Filter by customer when the logged-in user is a kunde
+    if (user?.role === 'kunde' && user?.kundenr) {
+      dateFilter += ` AND o.kundenr = $${paramIndex++}`;
+      params.push(user.kundenr);
+    } else if (filters.kundenr) {
+      dateFilter += ` AND o.kundenr = $${paramIndex++}`;
+      params.push(filters.kundenr);
+    }
 
     if (filters.startDate) {
       dateFilter += ` AND o.dato >= $${paramIndex++}`;

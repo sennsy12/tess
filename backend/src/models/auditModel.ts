@@ -1,5 +1,15 @@
+/**
+ * Audit Log Model
+ *
+ * Provides append-only persistence for entity change tracking.
+ * Every CREATE, UPDATE, and DELETE on pricing-related entities
+ * is recorded here for compliance and debugging.
+ *
+ * @module models/auditModel
+ */
 import { query } from '../db/index.js';
 
+/** A single audit-log row as returned from the database. */
 export interface AuditLogEntry {
   id: number;
   timestamp: Date;
@@ -14,6 +24,7 @@ export interface AuditLogEntry {
   ip_address: string | null;
 }
 
+/** Payload required to insert a new audit-log entry. */
 export interface CreateAuditLogInput {
   user_id?: number | null;
   username: string;
@@ -26,6 +37,7 @@ export interface CreateAuditLogInput {
   ip_address?: string | null;
 }
 
+/** Query filters accepted by `findAll`. */
 export interface AuditLogFilters {
   entity_type?: string;
   action?: string;

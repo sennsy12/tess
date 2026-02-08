@@ -1,10 +1,23 @@
+/**
+ * Database Access Layer
+ *
+ * Provides low-level helpers for querying PostgreSQL:
+ * - `query`       – Execute a single parameterised query
+ * - `getClient`   – Acquire a client from the pool (for manual txn management)
+ * - `transaction`  – Execute a callback inside a BEGIN/COMMIT/ROLLBACK block
+ * - `batchInsert` – Insert many rows via multi-value INSERT
+ * - `bulkCopy`    – High-throughput insert using PostgreSQL COPY protocol
+ * - `getPoolStats` – Expose pool health for monitoring
+ *
+ * @module db
+ */
 import { Pool, PoolConfig } from 'pg';
 import dotenv from 'dotenv';
 import { dbLogger } from '../lib/logger.js';
 
 dotenv.config();
 
-// Optimized pool configuration for high-throughput
+// Pool tuned for high-throughput parallel COPY and batch operations
 const poolConfig: PoolConfig = {
   connectionString: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/tess',
   // Maximum number of clients in the pool (increased for parallel COPY)
@@ -30,7 +43,12 @@ pool.on('error', (err) => {
 });
 
 /**
- * Execute a single query
+ * Execute a single parameterised SQL query and return the result.
+ * Queries taking longer than 100 ms are logged as warnings.
+ *
+ * @param text   - SQL text with `$1`, `$2`, … placeholders
+ * @param params - Bind parameters matching the placeholders
+ * @returns The `pg.QueryResult` from the driver
  */
 export const query = async (text: string, params?: any[]) => {
   const start = Date.now();
@@ -43,12 +61,32 @@ export const query = async (text: string, params?: any[]) => {
 };
 
 /**
- * Get a client for transaction or batch operations
+ * Acquire a dedicated client from the connection pool.
+ *
+ * **Important:** The caller is responsible for calling `client.release()`
+ * when done. Prefer {@link transaction} for most use-cases.
+ *
+ * @returns A `PoolClient` instance
  */
 export const getClient = () => pool.connect();
 
 /**
- * Execute multiple queries in a transaction
+ * Execute a callback inside a database transaction.
+ *
+ * Automatically calls BEGIN before the callback, COMMIT on success,
+ * and ROLLBACK + rethrow on error. The client is always released
+ * back to the pool regardless of outcome.
+ *
+ * @param callback - Async function receiving the `PoolClient`
+ * @returns Whatever the callback resolves to
+ *
+ * @example
+ * ```ts
+ * const user = await transaction(async (client) => {
+ *   await client.query('INSERT INTO users …');
+ *   return client.query('SELECT * FROM users WHERE …');
+ * });
+ * ```
  */
 export const transaction = async <T>(callback: (client: any) => Promise<T>): Promise<T> => {
   const client = await pool.connect();
@@ -66,8 +104,21 @@ export const transaction = async <T>(callback: (client: any) => Promise<T>): Pro
 };
 
 /**
- * Batch insert using unnest for high performance
- * This is much faster than individual inserts
+ * Insert many rows using a multi-value `INSERT … VALUES` statement.
+ *
+ * Rows are chunked into batches of `batchSize` to stay under the
+ * PostgreSQL parameter limit. Uses `ON CONFLICT DO NOTHING` to skip
+ * duplicates.
+ *
+ * **Note:** `tableName` and `columns` are interpolated directly into
+ * the SQL text. Callers must ensure these values are trusted and not
+ * derived from user input.
+ *
+ * @param tableName - Target table (must be a trusted identifier)
+ * @param columns   - Column names (must be trusted identifiers)
+ * @param rows      - Array of value-arrays, one per row
+ * @param batchSize - Max rows per INSERT statement (default `10 000`)
+ * @returns Total number of rows inserted
  */
 export const batchInsert = async (
   tableName: string,
@@ -102,8 +153,23 @@ export const batchInsert = async (
 };
 
 /**
- * Bulk insert using COPY for maximum performance (5-10x faster than batch insert)
- * Accepts array of arrays (rows) and converts to tab-separated format
+ * High-throughput insert using the PostgreSQL `COPY` protocol.
+ *
+ * 5–10x faster than multi-value INSERT for large datasets.
+ * When `onConflict` is `'nothing'`, data is first COPY-ed into a
+ * temporary table, then merged into the real table with
+ * `ON CONFLICT DO NOTHING`.
+ *
+ * **Warning:** `tableName` and `columns` are interpolated directly –
+ * ensure they are trusted identifiers. Rows are converted to
+ * tab-separated text and streamed in 50 000-row chunks to limit
+ * memory pressure.
+ *
+ * @param tableName  - Target table (trusted identifier)
+ * @param columns    - Column names to populate (trusted identifiers)
+ * @param rows       - Array of value-arrays, one per row
+ * @param onConflict - Conflict strategy: `'nothing'` (default) or `'error'`
+ * @returns Number of rows actually inserted
  */
 export const bulkCopy = async (
   tableName: string,
@@ -209,7 +275,9 @@ export const bulkCopy = async (
 };
 
 /**
- * Get pool statistics for monitoring
+ * Return live connection-pool statistics for health-check endpoints.
+ *
+ * @returns `{ totalCount, idleCount, waitingCount }`
  */
 export const getPoolStats = () => ({
   totalCount: pool.totalCount,
