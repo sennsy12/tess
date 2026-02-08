@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo } from 'react';
 import { pricingApi } from '../../../../lib/api';
+import { LineChart } from '../../../../components/Charts';
 import type { PriceList, CustomerGroup, SimulationResult, CustomerImpact, ProductImpact } from '../types';
 
 // ────────────────────────────────────────────────────────────
@@ -522,7 +523,7 @@ export function SimulatorTab({ lists, groups }: SimulatorTabProps) {
                   Simulerer...
                 </span>
               ) : (
-                'Kjor simulering'
+                'Simuler'
               )}
             </button>
             <button onClick={handleReset} className="btn-secondary">
@@ -594,6 +595,23 @@ export function SimulatorTab({ lists, groups }: SimulatorTabProps) {
             </div>
           </div>
 
+          {/* Revenue trend over time */}
+          {result.trend.length > 1 && (
+            <div className="card">
+              <LineChart
+                title="Omsetning over tid"
+                data={result.trend}
+                xKey="date"
+                series={[
+                  { dataKey: 'current_revenue', name: 'Faktisk omsetning', color: '#3b82f6' },
+                  { dataKey: 'simulated_revenue', name: 'Simulert omsetning', color: '#22c55e', strokeDasharray: '6 3' },
+                ]}
+                valueFormatter={(v) => NOK(v)}
+                height={320}
+              />
+            </div>
+          )}
+
           {/* Impact tables */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <ImpactTable
@@ -619,7 +637,7 @@ export function SimulatorTab({ lists, groups }: SimulatorTabProps) {
           </h3>
           <p className="text-dark-400 max-w-md mx-auto">
             Konfigurer en prisregel i panelet ovenfor og klikk{' '}
-            <span className="text-primary-400 font-medium">"Kjor simulering"</span>{' '}
+            <span className="text-primary-400 font-medium">"Simuler"</span>{' '}
             for å se hvordan endringen ville påvirket historisk omsetning.
           </p>
         </div>

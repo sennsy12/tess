@@ -22,6 +22,7 @@ import type {
   RevenueBucket,
   CustomerImpact,
   ProductImpact,
+  TrendPoint,
 } from '../types/simulation.js';
 
 // ────────────────────────────────────────────────────────────
@@ -41,6 +42,7 @@ interface SampleLine {
   linjesum: number;
   customer_group_id: number | null;
   current_rule_id: number | null;
+  dato: string | Date;
 }
 
 /**
@@ -110,7 +112,6 @@ export const pricingSimulatorService = {
     const sampleSize = Math.min(request.sample_size ?? 1000, 5000);
 
     // ── 1. Fetch sample order lines ────────────────────────
-    // ── 1. Fetch sample order lines ────────────────────────
     const lines = await fetchSampleLines(start_date, end_date, sampleSize);
 
     if (lines.length === 0) {
@@ -121,9 +122,10 @@ export const pricingSimulatorService = {
     const currentBucket = createBucket();
     const simulatedBucket = createBucket();
 
-    // Accumulators for per-customer and per-product breakdowns
+    // Accumulators for per-customer, per-product, and per-date breakdowns
     const customerMap = new Map<string, { kundenavn: string; current: number; simulated: number }>();
     const productMap = new Map<string, { varenavn: string; current: number; simulated: number }>();
+    const trendMap = new Map<string, { current: number; simulated: number }>();
     const orderSet = new Set<number>();
 
     for (const line of lines) {
@@ -178,6 +180,13 @@ export const pricingSimulatorService = {
       pEntry.current += currentLineTotal;
       pEntry.simulated += simulatedLineTotal;
       productMap.set(pKey, pEntry);
+
+      // Per-date accumulation (for trend chart)
+      const dateKey = toDateKey(line.dato);
+      const tEntry = trendMap.get(dateKey) ?? { current: 0, simulated: 0 };
+      tEntry.current += currentLineTotal;
+      tEntry.simulated += simulatedLineTotal;
+      trendMap.set(dateKey, tEntry);
     }
 
     currentBucket.affected_orders = orderSet.size;
@@ -193,6 +202,9 @@ export const pricingSimulatorService = {
     const topCustomers = buildTopCustomers(customerMap, 10);
     const topProducts = buildTopProducts(productMap, 10);
 
+    // ── 4. Build trend time-series ─────────────────────────
+    const trend = buildTrend(trendMap);
+
     const revenueDiff = round2(simulatedBucket.total_revenue - currentBucket.total_revenue);
 
     return {
@@ -203,6 +215,7 @@ export const pricingSimulatorService = {
       orders_analysed: orderSet.size,
       top_customers: topCustomers,
       top_products: topProducts,
+      trend,
       computation_time_ms: Date.now() - start,
     };
   },
@@ -229,8 +242,61 @@ function emptyResult(ms: number): SimulationResult {
     orders_analysed: 0,
     top_customers: [],
     top_products: [],
+    trend: [],
     computation_time_ms: ms,
   };
+}
+
+/**
+ * Convert a Date or date-string into a YYYY-MM-DD key.
+ */
+function toDateKey(dato: string | Date): string {
+  const d = dato instanceof Date ? dato : new Date(dato);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Convert the trendMap into a sorted array of TrendPoints.
+ * Automatically groups into months if the date span exceeds 60 days.
+ */
+function buildTrend(
+  map: Map<string, { current: number; simulated: number }>,
+): TrendPoint[] {
+  if (map.size === 0) return [];
+
+  const sortedKeys = Array.from(map.keys()).sort();
+  const firstDate = new Date(sortedKeys[0]);
+  const lastDate = new Date(sortedKeys[sortedKeys.length - 1]);
+  const spanDays = Math.ceil((lastDate.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24));
+
+  // If span > 60 days, aggregate by month for a cleaner chart
+  if (spanDays > 60) {
+    const monthMap = new Map<string, { current: number; simulated: number }>();
+    for (const [dateKey, val] of map.entries()) {
+      const monthKey = dateKey.slice(0, 7); // YYYY-MM
+      const mEntry = monthMap.get(monthKey) ?? { current: 0, simulated: 0 };
+      mEntry.current += val.current;
+      mEntry.simulated += val.simulated;
+      monthMap.set(monthKey, mEntry);
+    }
+    return Array.from(monthMap.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, v]) => ({
+        date,
+        current_revenue: round2(v.current),
+        simulated_revenue: round2(v.simulated),
+      }));
+  }
+
+  // Day-level granularity
+  return sortedKeys.map((date) => {
+    const v = map.get(date)!;
+    return {
+      date,
+      current_revenue: round2(v.current),
+      simulated_revenue: round2(v.simulated),
+    };
+  });
 }
 
 /**

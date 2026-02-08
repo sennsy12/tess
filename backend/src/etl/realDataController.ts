@@ -4,20 +4,14 @@ import { query } from '../db/index.js';
 let generatedRealData: any = null;
 
 /**
- * Generates real data from predefined sources
- * This would typically connect to external APIs or data sources
- * For now, it generates more realistic sample data
+ * Generates realistic data modeled after TESS industrial supply
+ * Products include hoses, couplings, hydraulics, fittings, and seals
  */
 export async function generateRealData() {
-  // In a real implementation, this would:
-  // 1. Connect to external ERP systems
-  // 2. Pull data from CSV files
-  // 3. Call external APIs
-  
   const data = {
     kunder: generateRealisticCustomers(),
     firmaer: generateRealisticFirms(),
-    lager: [] as any[], // Will be generated based on firmaer
+    lager: [] as any[],
     valutaer: [
       { valutaid: 'NOK' },
       { valutaid: 'EUR' },
@@ -27,7 +21,8 @@ export async function generateRealData() {
       { valutaid: 'GBP' },
     ],
     varer: generateRealisticProducts(),
-    ordrer: [] as any[], // Will be generated
+    ordrer: [] as any[],
+    ordre_henvisninger: [] as any[],
   };
 
   // Generate lager based on firmaer
@@ -36,8 +31,10 @@ export async function generateRealData() {
     { lagernavn: `${f.firmanavn} Reservelager`, firmaid: f.firmaid },
   ]);
 
-  // Generate realistic orders
-  data.ordrer = generateRealisticOrders(data.kunder, data.firmaer, data.lager, data.varer);
+  // Generate realistic orders with references
+  const ordrerOgHenvisninger = generateRealisticOrders(data.kunder, data.firmaer, data.lager, data.varer);
+  data.ordrer = ordrerOgHenvisninger.ordrer;
+  data.ordre_henvisninger = ordrerOgHenvisninger.henvisninger;
 
   generatedRealData = data;
   
@@ -48,27 +45,44 @@ export async function generateRealData() {
     valutaer: data.valutaer.length,
     varer: data.varer.length,
     ordrer: data.ordrer.length,
+    ordre_henvisninger: data.ordre_henvisninger.length,
   };
 }
 
 function generateRealisticCustomers() {
-  const customers = [];
-  const prefixes = ['AS', 'ASA', 'ANS', 'DA', 'ENK'];
-  const industries = ['Tech', 'Industri', 'Handel', 'Produksjon', 'Konsulting', 'Logistikk'];
-  const cities = ['Oslo', 'Bergen', 'Trondheim', 'Stavanger', 'Kristiansand', 'Tromsø', 'Drammen', 'Fredrikstad'];
+  // Named industrial customers typical for TESS's market
+  const namedCustomers = [
+    { kundenr: 'K001', kundenavn: 'Equinor ASA' },
+    { kundenr: 'K002', kundenavn: 'Aker Solutions AS' },
+    { kundenr: 'K003', kundenavn: 'Hydro Aluminium AS' },
+    { kundenr: 'K004', kundenavn: 'Kongsberg Maritime AS' },
+    { kundenr: 'K005', kundenavn: 'Kvaerner AS' },
+    { kundenr: 'K006', kundenavn: 'Subsea 7 Norway AS' },
+    { kundenr: 'K007', kundenavn: 'Yara International ASA' },
+    { kundenr: 'K008', kundenavn: 'Elkem ASA' },
+    { kundenr: 'K009', kundenavn: 'Borregaard AS' },
+    { kundenr: 'K010', kundenavn: 'Aibel AS' },
+    { kundenr: 'K011', kundenavn: 'Veidekke Industri AS' },
+    { kundenr: 'K012', kundenavn: 'AF Gruppen ASA' },
+    { kundenr: 'K013', kundenavn: 'Multiconsult ASA' },
+    { kundenr: 'K014', kundenavn: 'Havyard Group AS' },
+    { kundenr: 'K015', kundenavn: 'Framo AS' },
+  ];
 
-  for (let i = 1; i <= 25; i++) {
+  // Generate additional customers with industry-relevant names
+  const sectors = ['Marin', 'Olje og Gass', 'Prosessindustri', 'Bygg og Anlegg', 'Havbruk', 'Bergverk'];
+  const cities = ['Oslo', 'Bergen', 'Stavanger', 'Trondheim', 'Kristiansand', 'Haugesund', 'Ålesund', 'Hammerfest', 'Bodø', 'Sandnes'];
+
+  for (let i = namedCustomers.length + 1; i <= 25; i++) {
     const city = cities[Math.floor(Math.random() * cities.length)];
-    const industry = industries[Math.floor(Math.random() * industries.length)];
-    const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
-    
-    customers.push({
+    const sector = sectors[Math.floor(Math.random() * sectors.length)];
+    namedCustomers.push({
       kundenr: `K${String(i).padStart(3, '0')}`,
-      kundenavn: `${city} ${industry} ${prefix}`,
+      kundenavn: `${city} ${sector} AS`,
     });
   }
-  
-  return customers;
+
+  return namedCustomers;
 }
 
 function generateRealisticFirms() {
@@ -82,25 +96,94 @@ function generateRealisticFirms() {
 }
 
 function generateRealisticProducts() {
-  const varegrupper = ['Elektronikk', 'Møbler', 'Verktøy', 'Kontor', 'IT-Utstyr', 'Sikkerhet'];
   const products = [];
   let counter = 1;
 
-  const productTemplates: Record<string, string[]> = {
-    'Elektronikk': ['Laptop', 'Desktop', 'Monitor', 'Tastatur', 'Mus', 'Headset', 'Webkamera'],
-    'Møbler': ['Kontorstol', 'Skrivebord', 'Bokhylle', 'Arkivskap', 'Møtebord', 'Resepsjonsdisk'],
-    'Verktøy': ['Drill', 'Skrutrekker', 'Hammer', 'Sag', 'Målebånd', 'Avbitertang'],
-    'Kontor': ['Notisblokk', 'Penn', 'Papir A4', 'Mapper', 'Stiftemaskin', 'Hullemaskin'],
-    'IT-Utstyr': ['Server', 'Switch', 'Router', 'UPS', 'Rack', 'Kabler'],
-    'Sikkerhet': ['Kamera', 'Alarm', 'Brannslukker', 'Førstehjelpsskrin', 'Sikkerhetslås'],
+  // TESS-relevant product categories
+  const productTemplates: Record<string, { navn: string; pris: number }[]> = {
+    'Slanger': [
+      { navn: 'Hydraulikkslange 2-lag 1/2"', pris: 850 },
+      { navn: 'Hydraulikkslange 2-lag 3/4"', pris: 1100 },
+      { navn: 'Hydraulikkslange 4-lag 1"', pris: 2200 },
+      { navn: 'Trykkslange R2AT 3/8"', pris: 650 },
+      { navn: 'Trykkslange R2AT 1/2"', pris: 780 },
+      { navn: 'Industrislange EPDM DN25', pris: 420 },
+      { navn: 'Industrislange EPDM DN50', pris: 780 },
+      { navn: 'Industrislange EPDM DN75', pris: 1250 },
+      { navn: 'Sugeslange PVC DN50', pris: 380 },
+      { navn: 'Sugeslange PVC DN75', pris: 560 },
+      { navn: 'Kjemikalieslange PTFE DN25', pris: 1800 },
+      { navn: 'Dampslange DN25 18bar', pris: 2400 },
+      { navn: 'Matvareslange FDA DN38', pris: 950 },
+      { navn: 'Trykkluftslange 13mm 20bar', pris: 320 },
+      { navn: 'Sandblåseslange DN32', pris: 680 },
+      { navn: 'Slangetrommel 20m 3/8"', pris: 4500 },
+      { navn: 'Slangetrommel 15m 1/2"', pris: 5200 },
+    ],
+    'Kuplinger': [
+      { navn: 'Hurtigkobling Tema 2600 1/2"', pris: 350 },
+      { navn: 'Hurtigkobling Tema 2600 3/4"', pris: 480 },
+      { navn: 'Hurtigkobling Tema 2600 1"', pris: 650 },
+      { navn: 'Kamlock-kobling 2" Aluminium', pris: 280 },
+      { navn: 'Kamlock-kobling 3" Rustfritt', pris: 850 },
+      { navn: 'Storz-kobling B75', pris: 420 },
+      { navn: 'Storz-kobling C52', pris: 320 },
+      { navn: 'Perrot-kobling 4" Galvanisert', pris: 560 },
+      { navn: 'Guildline-kobling 2" Messing', pris: 380 },
+    ],
+    'Fittings': [
+      { navn: 'Flens SAE 3000 1/2"', pris: 280 },
+      { navn: 'Flens SAE 3000 3/4"', pris: 350 },
+      { navn: 'Flens SAE 6000 1"', pris: 650 },
+      { navn: 'Nippel JIC 3/4"', pris: 85 },
+      { navn: 'Nippel JIC 1/2"', pris: 65 },
+      { navn: 'Nippel BSP 1/2"', pris: 55 },
+      { navn: 'T-stykke 3/4" BSP', pris: 120 },
+      { navn: 'Vinkelkobling 90° 1/2"', pris: 95 },
+      { navn: 'Reduksjon 3/4" til 1/2"', pris: 45 },
+      { navn: 'Skotkobling 1/2" BSP', pris: 180 },
+    ],
+    'Hydraulikk': [
+      { navn: 'Hydraulikksylinder 50/30-300', pris: 8500 },
+      { navn: 'Hydraulikksylinder 63/40-500', pris: 12000 },
+      { navn: 'Hydraulikkpumpe 28cc', pris: 6500 },
+      { navn: 'Hydraulikkpumpe 40cc', pris: 8200 },
+      { navn: 'Ventilblokk 4/3 Cetop 5', pris: 3800 },
+      { navn: 'Retningsventil 4/3 24VDC', pris: 2200 },
+      { navn: 'Trykkbegrensningsventil 350bar', pris: 950 },
+      { navn: 'Hydraulikkfilter 10 mikron', pris: 280 },
+      { navn: 'Hydraulikkolje HLP 46 20L', pris: 850 },
+      { navn: 'Hydraulikkaggregat 5.5kW', pris: 28000 },
+    ],
+    'Tetninger': [
+      { navn: 'O-ring Viton 25x3', pris: 35 },
+      { navn: 'O-ring Viton 50x4', pris: 55 },
+      { navn: 'O-ring NBR 20x2.5', pris: 12 },
+      { navn: 'Pakningssett Hydraulikksylinder', pris: 450 },
+      { navn: 'V-ring 40mm', pris: 65 },
+      { navn: 'V-ring 60mm', pris: 85 },
+      { navn: 'Stempelpakn. Turcon 50mm', pris: 280 },
+      { navn: 'Stangpakn. Zurcon 30mm', pris: 320 },
+      { navn: 'Flatpakning PTFE DN50', pris: 45 },
+    ],
+    'Verktøy': [
+      { navn: 'Slangepress Uniflex P20', pris: 45000 },
+      { navn: 'Krympeverktøy manuell', pris: 8500 },
+      { navn: 'Momentnøkkel 3/4" 100-500Nm', pris: 2800 },
+      { navn: 'Rørkutter 6-42mm', pris: 950 },
+      { navn: 'Bøyefjær sett 6-22mm', pris: 680 },
+      { navn: 'Slangekutter hydraulisk', pris: 12000 },
+      { navn: 'Renseverkøy for slanger', pris: 350 },
+    ],
   };
 
   for (const [gruppe, produkter] of Object.entries(productTemplates)) {
     for (const produkt of produkter) {
       products.push({
         varekode: `V${String(counter++).padStart(3, '0')}`,
-        varenavn: produkt,
+        varenavn: produkt.navn,
         varegruppe: gruppe,
+        pris: produkt.pris,
       });
     }
   }
@@ -110,9 +193,25 @@ function generateRealisticProducts() {
 
 function generateRealisticOrders(kunder: any[], firmaer: any[], lager: any[], varer: any[]) {
   const orders = [];
+  const henvisninger: any[] = [];
   const valutaer = ['NOK', 'NOK', 'NOK', 'NOK', 'EUR', 'USD']; // NOK more common
+  const years = [2024, 2025, 2026];
 
-  // Generate 50 orders spread across the year
+  // Reference data for ordre_henvisning
+  const prosjekter = [
+    'Prosjekt Nordsjøen', 'Vedlikehold Mongstad', 'Johan Sverdrup Fase 2',
+    'Kårstø Oppgradering', 'Snøhvit LNG', 'Martin Linge Modifikasjon',
+    'Troll A Vedlikehold', 'Hammerfest LNG', 'Oseberg Sør',
+    'Gullfaks Subsea', 'Åsgard B Turnaround', 'Valemon Drift',
+  ];
+  const avdelinger = ['Innkjøp', 'Vedlikehold', 'Drift', 'Prosjekt', 'Lager', 'HMS', 'Mekanisk Verksted'];
+  const kontaktpersoner = [
+    'Ole Hansen', 'Kari Nordmann', 'Per Olsen', 'Anne Kristiansen',
+    'Eirik Berg', 'Silje Strand', 'Lars Johansen', 'Mette Dahl',
+    'Thomas Lie', 'Ingrid Haugen',
+  ];
+
+  // Generate 50 orders spread across 2024-2026
   for (let i = 1; i <= 50; i++) {
     const ordrenr = 2000 + i;
     const kunde = kunder[Math.floor(Math.random() * kunder.length)];
@@ -128,7 +227,7 @@ function generateRealisticOrders(kunder: any[], firmaer: any[], lager: any[], va
     for (let j = 1; j <= numLines; j++) {
       const vare = varer[Math.floor(Math.random() * varer.length)];
       const antall = Math.floor(Math.random() * 20) + 1;
-      const nettpris = Math.floor(Math.random() * 10000) + 100;
+      const nettpris = vare.pris || (Math.floor(Math.random() * 10000) + 100);
       const linjesum = antall * nettpris;
       orderSum += linjesum;
 
@@ -142,19 +241,36 @@ function generateRealisticOrders(kunder: any[], firmaer: any[], lager: any[], va
         linjesum,
         linjestatus: Math.random() > 0.1 ? 1 : 0, // 90% active
       });
+
+      // Generate ordre_henvisning for each line (~75% chance)
+      if (Math.random() > 0.25) {
+        const prosjekt = prosjekter[Math.floor(Math.random() * prosjekter.length)];
+        const avdeling = avdelinger[Math.floor(Math.random() * avdelinger.length)];
+        henvisninger.push({
+          ordrenr,
+          linjenr: j,
+          henvisning1: prosjekt,
+          henvisning2: `${avdeling}-${kunde.kundenr}`,
+          henvisning3: `WO-${Math.floor(Math.random() * 90000) + 10000}`,
+          henvisning4: Math.random() > 0.4 ? `TAG-${String.fromCharCode(65 + Math.floor(Math.random() * 26))}${Math.floor(Math.random() * 999) + 1}` : null,
+          henvisning5: Math.random() > 0.6 ? `Kostnadssted ${Math.floor(Math.random() * 9000) + 1000}` : null,
+        });
+      }
     }
 
-    // Random date in 2024
+    // Random date across 2024-2026
+    const year = years[Math.floor(Math.random() * years.length)];
     const month = Math.floor(Math.random() * 12) + 1;
     const day = Math.floor(Math.random() * 28) + 1;
-    const dato = `2024-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const dato = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const kontakt = kontaktpersoner[Math.floor(Math.random() * kontaktpersoner.length)];
 
     orders.push({
       ordrenr,
       dato,
       kundenr: kunde.kundenr,
-      kundeordreref: `PO-${ordrenr}-${kunde.kundenr}`,
-      kunderef: `Innkjøper ${Math.floor(Math.random() * 10) + 1}`,
+      kundeordreref: `PO-${year}-${String(ordrenr).padStart(5, '0')}`,
+      kunderef: kontakt,
       firmaid: firma.firmaid,
       lagernavn: lagerItem.lagernavn,
       valutaid: valutaer[Math.floor(Math.random() * valutaer.length)],
@@ -163,7 +279,7 @@ function generateRealisticOrders(kunder: any[], firmaer: any[], lager: any[], va
     });
   }
 
-  return orders;
+  return { ordrer: orders, henvisninger };
 }
 
 /**
@@ -244,6 +360,18 @@ export async function insertRealData() {
   }
   results.ordrer = data.ordrer.length;
   results.ordrelinjer = linesInserted;
+
+  // Insert ordre_henvisninger
+  let henvisningerInserted = 0;
+  for (const h of data.ordre_henvisninger) {
+    await query(
+      `INSERT INTO ordre_henvisning (ordrenr, linjenr, henvisning1, henvisning2, henvisning3, henvisning4, henvisning5)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT DO NOTHING`,
+      [h.ordrenr, h.linjenr, h.henvisning1, h.henvisning2, h.henvisning3, h.henvisning4, h.henvisning5]
+    );
+    henvisningerInserted++;
+  }
+  results.ordre_henvisninger = henvisningerInserted;
 
   return results;
 }

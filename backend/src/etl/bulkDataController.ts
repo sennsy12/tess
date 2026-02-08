@@ -23,14 +23,20 @@ export async function generateBulkTestData(config: {
   console.log(`🔄 Generating bulk data: ${customers} customers, ${orders} orders, ~${orders * linesPerOrder} lines`);
   const startTime = Date.now();
 
-  // Generate customers and their corresponding users
+  // Generate customers with industry-relevant names and their corresponding users
   const kundeData: any[][] = [];
   const brukerData: any[][] = [];
+  const sektorer = ['Olje og Gass', 'Marin', 'Prosessindustri', 'Bygg og Anlegg', 'Havbruk', 'Bergverk', 'Energi', 'Transport', 'Verksted', 'Industri'];
+  const byer = ['Oslo', 'Bergen', 'Stavanger', 'Trondheim', 'Kristiansand', 'Haugesund', 'Ålesund', 'Hammerfest', 'Bodø', 'Sandnes', 'Drammen', 'Fredrikstad', 'Tønsberg', 'Skien', 'Moss'];
+  const selskapsformer = ['AS', 'ASA', 'AS', 'AS', 'ANS']; // AS is most common
   for (let i = 1; i <= customers; i++) {
     const kundenr = `K${String(i).padStart(6, '0')}`;
+    const by = byer[i % byer.length];
+    const sektor = sektorer[i % sektorer.length];
+    const form = selskapsformer[i % selskapsformer.length];
     kundeData.push([
       kundenr,
-      `Kunde ${i} AS`,
+      `${by} ${sektor} ${form}`,
     ]);
     brukerData.push([
       kundenr,
@@ -40,20 +46,64 @@ export async function generateBulkTestData(config: {
     ]);
   }
 
-  // Generate products
+  // Generate TESS-relevant products
   const vareData: any[][] = [];
-  const varegrupper = ['Elektronikk', 'Møbler', 'Verktøy', 'Kontor', 'IT', 'Sikkerhet'];
-  for (let i = 1; i <= 500; i++) {
+  const bulkProducts: { gruppe: string; prefix: string; varianter: string[] }[] = [
+    { gruppe: 'Slanger', prefix: 'Hydraulikkslange', varianter: ['2-lag 1/4"', '2-lag 3/8"', '2-lag 1/2"', '2-lag 3/4"', '2-lag 1"', '4-lag 1/2"', '4-lag 3/4"', '4-lag 1"', '4-lag 1-1/4"', '6-lag 1"'] },
+    { gruppe: 'Slanger', prefix: 'Industrislange EPDM', varianter: ['DN20', 'DN25', 'DN32', 'DN38', 'DN50', 'DN63', 'DN75', 'DN100'] },
+    { gruppe: 'Slanger', prefix: 'Trykkslange R2AT', varianter: ['1/4"', '3/8"', '1/2"', '5/8"', '3/4"', '1"'] },
+    { gruppe: 'Slanger', prefix: 'Sugeslange PVC', varianter: ['DN25', 'DN32', 'DN50', 'DN63', 'DN75', 'DN100'] },
+    { gruppe: 'Slanger', prefix: 'Kjemikalieslange PTFE', varianter: ['DN15', 'DN20', 'DN25', 'DN32', 'DN50'] },
+    { gruppe: 'Slanger', prefix: 'Dampslange', varianter: ['DN20 18bar', 'DN25 18bar', 'DN32 18bar', 'DN50 18bar'] },
+    { gruppe: 'Slanger', prefix: 'Matvareslange FDA', varianter: ['DN25', 'DN32', 'DN38', 'DN50'] },
+    { gruppe: 'Slanger', prefix: 'Sandblåseslange', varianter: ['DN25', 'DN32', 'DN38', 'DN50'] },
+    { gruppe: 'Kuplinger', prefix: 'Hurtigkobling Tema', varianter: ['2600 1/4"', '2600 3/8"', '2600 1/2"', '2600 3/4"', '2600 1"', '2500 1/4"', '2500 3/8"', '2500 1/2"'] },
+    { gruppe: 'Kuplinger', prefix: 'Kamlock-kobling', varianter: ['1" Alu', '2" Alu', '3" Alu', '4" Alu', '2" Rustfritt', '3" Rustfritt'] },
+    { gruppe: 'Kuplinger', prefix: 'Storz-kobling', varianter: ['A110', 'B75', 'C52', 'D25'] },
+    { gruppe: 'Fittings', prefix: 'Flens SAE 3000', varianter: ['1/2"', '3/4"', '1"', '1-1/4"', '1-1/2"', '2"'] },
+    { gruppe: 'Fittings', prefix: 'Flens SAE 6000', varianter: ['1/2"', '3/4"', '1"', '1-1/4"'] },
+    { gruppe: 'Fittings', prefix: 'Nippel JIC', varianter: ['1/4"', '3/8"', '1/2"', '3/4"', '1"', '1-1/4"'] },
+    { gruppe: 'Fittings', prefix: 'Nippel BSP', varianter: ['1/4"', '3/8"', '1/2"', '3/4"', '1"'] },
+    { gruppe: 'Fittings', prefix: 'T-stykke BSP', varianter: ['1/4"', '3/8"', '1/2"', '3/4"', '1"'] },
+    { gruppe: 'Fittings', prefix: 'Vinkelkobling 90°', varianter: ['1/4"', '3/8"', '1/2"', '3/4"', '1"'] },
+    { gruppe: 'Hydraulikk', prefix: 'Hydraulikksylinder', varianter: ['40/25-200', '50/30-300', '63/40-400', '63/40-500', '80/50-600', '100/70-800'] },
+    { gruppe: 'Hydraulikk', prefix: 'Hydraulikkpumpe', varianter: ['14cc', '20cc', '28cc', '40cc', '63cc'] },
+    { gruppe: 'Hydraulikk', prefix: 'Hydraulikkfilter', varianter: ['3 mikron', '5 mikron', '10 mikron', '25 mikron'] },
+    { gruppe: 'Tetninger', prefix: 'O-ring Viton', varianter: ['10x2', '15x2.5', '20x3', '25x3', '30x3.5', '40x4', '50x4', '60x5'] },
+    { gruppe: 'Tetninger', prefix: 'O-ring NBR', varianter: ['10x2', '15x2.5', '20x2.5', '25x3', '30x3', '40x3.5', '50x4'] },
+    { gruppe: 'Tetninger', prefix: 'V-ring', varianter: ['20mm', '30mm', '40mm', '50mm', '60mm', '80mm'] },
+    { gruppe: 'Verktøy', prefix: 'Momentnøkkel', varianter: ['1/2" 40-200Nm', '1/2" 100-500Nm', '3/4" 100-500Nm', '3/4" 200-1000Nm'] },
+    { gruppe: 'Verktøy', prefix: 'Rørkutter', varianter: ['3-16mm', '6-42mm', '10-60mm'] },
+  ];
+
+  let vareTeller = 1;
+  for (const template of bulkProducts) {
+    for (const variant of template.varianter) {
+      if (vareTeller > 500) break;
+      vareData.push([
+        `V${String(vareTeller).padStart(5, '0')}`,
+        `${template.prefix} ${variant}`,
+        template.gruppe,
+      ]);
+      vareTeller++;
+    }
+    if (vareTeller > 500) break;
+  }
+  // Fill remaining with generic products if needed
+  while (vareTeller <= 500) {
+    const restGrupper = ['Slanger', 'Kuplinger', 'Fittings', 'Hydraulikk', 'Tetninger', 'Verktøy'];
     vareData.push([
-      `V${String(i).padStart(5, '0')}`,
-      `Produkt ${i}`,
-      varegrupper[i % varegrupper.length],
+      `V${String(vareTeller).padStart(5, '0')}`,
+      `Industriprodukt ${vareTeller}`,
+      restGrupper[vareTeller % restGrupper.length],
     ]);
+    vareTeller++;
   }
 
-  // Generate orders and order lines
+  // Generate orders, order lines, and order references
   const ordreData: any[][] = [];
   const ordrelinjeData: any[][] = [];
+  const henvisningData: any[][] = [];
   
   const firmaer = [1, 2, 3, 4, 5];
   const lagerMap: Record<number, string> = {
@@ -64,16 +114,31 @@ export async function generateBulkTestData(config: {
     5: 'Region Nord Hovedlager',
   };
   const valutaer = ['NOK', 'NOK', 'NOK', 'EUR', 'USD', 'SEK'];
+  const years = [2024, 2025, 2026];
+  const prosjekter = [
+    'Nordsjøen Vedlikehold', 'Mongstad Oppgradering', 'Sverdrup Fase 2',
+    'Kårstø Drift', 'Snøhvit LNG', 'Martin Linge', 'Troll A',
+    'Hammerfest LNG', 'Oseberg Sør', 'Gullfaks Subsea',
+    'Åsgard Turnaround', 'Valemon Drift', 'Gina Krog', 'Edvard Grieg',
+    'Sleipner Vest', 'Statfjord C', 'Njord Bravo', 'Heidrun TLP',
+  ];
+  const avdelinger = ['Innkjøp', 'Vedlikehold', 'Drift', 'Prosjekt', 'Lager', 'HMS', 'Mek. Verksted', 'Elektro'];
+  const kontaktpersoner = [
+    'Ole Hansen', 'Kari Nordmann', 'Per Olsen', 'Anne Kristiansen',
+    'Eirik Berg', 'Silje Strand', 'Lars Johansen', 'Mette Dahl',
+    'Thomas Lie', 'Ingrid Haugen', 'Bjørn Eriksen', 'Hilde Moen',
+  ];
 
   for (let i = 1; i <= orders; i++) {
     const kundenr = `K${String((i % customers) + 1).padStart(6, '0')}`;
     const firmaid = firmaer[i % firmaer.length];
     const ordrenr = 10000 + i;
     
-    // Random date in 2024
+    // Random date across 2024-2026
+    const year = years[i % years.length];
     const month = Math.floor(Math.random() * 12) + 1;
     const day = Math.floor(Math.random() * 28) + 1;
-    const dato = `2024-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const dato = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     
     let orderSum = 0;
     const numLines = Math.floor(Math.random() * linesPerOrder) + 1;
@@ -95,14 +160,31 @@ export async function generateBulkTestData(config: {
         linjesum,
         1,
       ]);
+
+      // Generate ordre_henvisning for ~60% of lines
+      if (i % 5 !== 0 || j <= 2) {
+        const prosjekt = prosjekter[(i + j) % prosjekter.length];
+        const avdeling = avdelinger[(i + j) % avdelinger.length];
+        henvisningData.push([
+          ordrenr,
+          j,
+          prosjekt,
+          `${avdeling}-${kundenr}`,
+          `WO-${10000 + ((i * 7 + j * 3) % 90000)}`,
+          (i + j) % 3 === 0 ? `TAG-${String.fromCharCode(65 + (i % 26))}${(i * j) % 999 + 1}` : null,
+          (i + j) % 4 === 0 ? `Kostnadssted ${1000 + (i % 9000)}` : null,
+        ]);
+      }
     }
     
+    const kontakt = kontaktpersoner[i % kontaktpersoner.length];
+
     ordreData.push([
       ordrenr,
       dato,
       kundenr,
-      `PO-${ordrenr}`,
-      `Ref-${i}`,
+      `PO-${year}-${String(ordrenr).padStart(6, '0')}`,
+      kontakt,
       firmaid,
       lagerMap[firmaid],
       valutaer[i % valutaer.length],
@@ -124,6 +206,7 @@ export async function generateBulkTestData(config: {
     varer: vareData,
     ordrer: ordreData,
     ordrelinjer: ordrelinjeData,
+    henvisninger: henvisningData,
   };
 
   return {
@@ -132,6 +215,7 @@ export async function generateBulkTestData(config: {
     productsGenerated: vareData.length,
     ordersGenerated: ordreData.length,
     orderLinesGenerated: ordrelinjeData.length,
+    orderReferencesGenerated: henvisningData.length,
     generationTimeMs: duration,
   };
 }
@@ -214,6 +298,17 @@ export async function insertBulkTestData(): Promise<any> {
     results.ordrelinjer = linjeResults.reduce((sum, count) => sum + count, 0);
     console.log(`    ✓ Order lines finished in ${Date.now() - linjeStart}ms`);
 
+    // Run ordre_henvisning in parallel
+    if (data.henvisninger && data.henvisninger.length > 0) {
+      const henvisningStart = Date.now();
+      const henvisningChunks = splitIntoChunks(data.henvisninger, PARALLEL_CHUNKS);
+      const henvisningResults = await Promise.all(
+        henvisningChunks.map(chunk => bulkCopy('ordre_henvisning', ['ordrenr', 'linjenr', 'henvisning1', 'henvisning2', 'henvisning3', 'henvisning4', 'henvisning5'], chunk))
+      );
+      results.ordre_henvisninger = henvisningResults.reduce((sum, count) => sum + count, 0);
+      console.log(`    ✓ Order references finished in ${Date.now() - henvisningStart}ms`);
+    }
+
   } finally {
     // 5. Recreate indexes
     console.log('  Recreating indexes (this might take a few seconds)...');
@@ -229,7 +324,7 @@ export async function insertBulkTestData(): Promise<any> {
 
   const duration = Date.now() - startTime;
   results.insertionTimeMs = duration;
-  results.totalRows = (results.brukere || 0) + results.ordrer + results.ordrelinjer;
+  results.totalRows = (results.brukere || 0) + results.ordrer + results.ordrelinjer + (results.ordre_henvisninger || 0);
   results.rowsPerSecond = Math.round(results.totalRows / (duration / 1000));
 
   console.log(`✅ ULTIMATE insert completed: ${results.totalRows} rows in ${duration}ms (${results.rowsPerSecond} rows/s)`);

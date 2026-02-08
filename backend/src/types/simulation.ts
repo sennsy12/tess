@@ -69,6 +69,16 @@ export interface ProductImpact {
   difference_pct: number;
 }
 
+/** A single data point in the revenue-over-time trend. */
+export interface TrendPoint {
+  /** Date string (YYYY-MM-DD or YYYY-MM depending on granularity) */
+  date: string;
+  /** Actual historical revenue for this period */
+  current_revenue: number;
+  /** Simulated revenue for this period */
+  simulated_revenue: number;
+}
+
 /** Full response from the simulation endpoint. */
 export interface SimulationResult {
   /** Summarised before / after numbers */
@@ -83,6 +93,8 @@ export interface SimulationResult {
   top_customers: CustomerImpact[];
   /** Top products affected */
   top_products: ProductImpact[];
+  /** Revenue trend over time (sorted chronologically) */
+  trend: TrendPoint[];
   /** Wall-clock time of the simulation (ms) */
   computation_time_ms: number;
 }

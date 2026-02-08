@@ -96,6 +96,12 @@ export interface ProductImpact {
   difference_pct: number;
 }
 
+export interface TrendPoint {
+  date: string;
+  current_revenue: number;
+  simulated_revenue: number;
+}
+
 export interface SimulationResult {
   current: RevenueBucket;
   simulated: RevenueBucket;
@@ -104,6 +110,7 @@ export interface SimulationResult {
   orders_analysed: number;
   top_customers: CustomerImpact[];
   top_products: ProductImpact[];
+  trend: TrendPoint[];
   computation_time_ms: number;
 }
 

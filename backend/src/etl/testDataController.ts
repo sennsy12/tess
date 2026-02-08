@@ -5,15 +5,18 @@ let generatedTestData: any = null;
 
 /**
  * Generates test data (customers, products, orders, etc.)
+ * Products are based on TESS industrial supply categories (hoses, fittings, hydraulics)
  */
 export async function generateTestData() {
+  const ordrerAndHenvisninger = generateRandomOrders();
+
   const data = {
     kunder: [
-      { kundenr: 'K001', kundenavn: 'Nordisk Handel AS' },
-      { kundenr: 'K002', kundenavn: 'Bergen Industri' },
-      { kundenr: 'K003', kundenavn: 'Oslo Leverandør' },
-      { kundenr: 'K004', kundenavn: 'Trondheim Tech AS' },
-      { kundenr: 'K005', kundenavn: 'Stavanger Solutions' },
+      { kundenr: 'K001', kundenavn: 'Equinor ASA' },
+      { kundenr: 'K002', kundenavn: 'Aker Solutions AS' },
+      { kundenr: 'K003', kundenavn: 'Hydro Aluminium AS' },
+      { kundenr: 'K004', kundenavn: 'Kongsberg Maritime AS' },
+      { kundenr: 'K005', kundenavn: 'Kvaerner AS' },
     ],
     firmaer: [
       { firmaid: 1, firmanavn: 'Hovedkontor' },
@@ -32,16 +35,19 @@ export async function generateTestData() {
       { valutaid: 'SEK' },
     ],
     varer: [
-      { varekode: 'V001', varenavn: 'Laptop Pro 15"', varegruppe: 'Elektronikk' },
-      { varekode: 'V002', varenavn: 'Trådløs Mus', varegruppe: 'Elektronikk' },
-      { varekode: 'V003', varenavn: 'Kontorstol Ergo', varegruppe: 'Møbler' },
-      { varekode: 'V004', varenavn: 'Skrivebord 160cm', varegruppe: 'Møbler' },
-      { varekode: 'V005', varenavn: 'Skrutrekker Sett', varegruppe: 'Verktøy' },
-      { varekode: 'V006', varenavn: 'Hammer Pro', varegruppe: 'Verktøy' },
-      { varekode: 'V007', varenavn: 'USB-C Kabel 2m', varegruppe: 'Elektronikk' },
-      { varekode: 'V008', varenavn: 'Monitor 27" 4K', varegruppe: 'Elektronikk' },
+      { varekode: 'V001', varenavn: 'Hydraulikkslange 2-lag 1/2"', varegruppe: 'Slanger' },
+      { varekode: 'V002', varenavn: 'Trykkslange R2AT 3/4"', varegruppe: 'Slanger' },
+      { varekode: 'V003', varenavn: 'Industrislange EPDM DN50', varegruppe: 'Slanger' },
+      { varekode: 'V004', varenavn: 'Hurtigkobling Tema 2600', varegruppe: 'Kuplinger' },
+      { varekode: 'V005', varenavn: 'Kamlock-kobling 2" Aluminium', varegruppe: 'Kuplinger' },
+      { varekode: 'V006', varenavn: 'Flens SAE 3000 1"', varegruppe: 'Fittings' },
+      { varekode: 'V007', varenavn: 'O-ring Viton 25x3', varegruppe: 'Tetninger' },
+      { varekode: 'V008', varenavn: 'Hydraulikksylinder 50/30', varegruppe: 'Hydraulikk' },
+      { varekode: 'V009', varenavn: 'Sugeslange PVC DN75', varegruppe: 'Slanger' },
+      { varekode: 'V010', varenavn: 'Nippel JIC 3/4"', varegruppe: 'Fittings' },
     ],
-    ordrer: generateRandomOrders(),
+    ordrer: ordrerAndHenvisninger.ordrer,
+    ordre_henvisninger: ordrerAndHenvisninger.henvisninger,
   };
 
   generatedTestData = data;
@@ -52,20 +58,26 @@ export async function generateTestData() {
     valutaer: data.valutaer.length,
     varer: data.varer.length,
     ordrer: data.ordrer.length,
+    ordre_henvisninger: data.ordre_henvisninger.length,
   };
 }
 
 function generateRandomOrders() {
   const orders = [];
+  const henvisninger: any[] = [];
   const kundeNr = ['K001', 'K002', 'K003', 'K004', 'K005'];
   const firmaer = [1, 2, 3];
   const lagerMap: Record<number, string> = { 1: 'Hovedlager', 2: 'Nordlager', 3: 'Sørlager' };
   const valutaer = ['NOK', 'NOK', 'NOK', 'EUR', 'USD']; // NOK more common
-  const varer = ['V001', 'V002', 'V003', 'V004', 'V005', 'V006', 'V007', 'V008'];
+  const varer = ['V001', 'V002', 'V003', 'V004', 'V005', 'V006', 'V007', 'V008', 'V009', 'V010'];
   const priser: Record<string, number> = {
-    V001: 15000, V002: 500, V003: 5000, V004: 8000,
-    V005: 300, V006: 200, V007: 150, V008: 6000,
+    V001: 850, V002: 1200, V003: 2400, V004: 3500, V005: 1800,
+    V006: 450, V007: 35, V008: 12000, V009: 1600, V010: 280,
   };
+
+  const prosjekter = ['Prosjekt Nordsjøen', 'Vedlikehold Mongstad', 'Johan Sverdrup Fase 2', 'Kårstø Oppgradering', 'Snøhvit LNG'];
+  const avdelinger = ['Innkjøp', 'Vedlikehold', 'Drift', 'Prosjekt', 'Lager'];
+  const years = [2024, 2025, 2026];
 
   // Generate 20 random orders
   for (let i = 1; i <= 20; i++) {
@@ -95,18 +107,34 @@ function generateRandomOrders() {
         linjesum,
         linjestatus: 1,
       });
+
+      // Generate ordre_henvisning for each line (~70% chance)
+      if (Math.random() > 0.3) {
+        const prosjekt = prosjekter[Math.floor(Math.random() * prosjekter.length)];
+        const avdeling = avdelinger[Math.floor(Math.random() * avdelinger.length)];
+        henvisninger.push({
+          ordrenr,
+          linjenr: j,
+          henvisning1: prosjekt,
+          henvisning2: `${avdeling}-${kundenr}`,
+          henvisning3: `WO-${Math.floor(Math.random() * 90000) + 10000}`,
+          henvisning4: Math.random() > 0.5 ? `TAG-${String.fromCharCode(65 + Math.floor(Math.random() * 26))}${Math.floor(Math.random() * 999) + 1}` : null,
+          henvisning5: Math.random() > 0.7 ? `Bestilling ${Math.floor(Math.random() * 9000) + 1000}` : null,
+        });
+      }
     }
 
-    // Random date in 2024
+    // Random date across 2024-2026
+    const year = years[Math.floor(Math.random() * years.length)];
     const month = Math.floor(Math.random() * 12) + 1;
     const day = Math.floor(Math.random() * 28) + 1;
-    const dato = `2024-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const dato = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
     orders.push({
       ordrenr,
       dato,
       kundenr,
-      kundeordreref: `REF-${ordrenr}`,
+      kundeordreref: `PO-${year}-${String(ordrenr).padStart(5, '0')}`,
       kunderef: `Kontakt ${kundenr}`,
       firmaid,
       lagernavn: lagerMap[firmaid],
@@ -116,7 +144,7 @@ function generateRandomOrders() {
     });
   }
 
-  return orders;
+  return { ordrer: orders, henvisninger };
 }
 
 /**
@@ -197,6 +225,18 @@ export async function insertTestData() {
   }
   results.ordrer = data.ordrer.length;
   results.ordrelinjer = linesInserted;
+
+  // Insert ordre_henvisninger
+  let henvisningerInserted = 0;
+  for (const h of data.ordre_henvisninger) {
+    await query(
+      `INSERT INTO ordre_henvisning (ordrenr, linjenr, henvisning1, henvisning2, henvisning3, henvisning4, henvisning5)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT DO NOTHING`,
+      [h.ordrenr, h.linjenr, h.henvisning1, h.henvisning2, h.henvisning3, h.henvisning4, h.henvisning5]
+    );
+    henvisningerInserted++;
+  }
+  results.ordre_henvisninger = henvisningerInserted;
 
   // Insert default users
   await query(
