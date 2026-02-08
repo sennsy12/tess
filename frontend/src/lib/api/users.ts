@@ -39,5 +39,6 @@ export const usersApi = {
   getById: (id: number) => api.get<UserPublic>(`/users/${id}`),
   create: (data: CreateUserPayload) => api.post<UserPublic>('/users', data),
   update: (id: number, data: UpdateUserPayload) => api.put<UserPublic>(`/users/${id}`, data),
-  delete: (id: number) => api.delete<{ message: string }>(`/users/${id}`),
+  delete: (id: number, actionKey: string) =>
+    api.delete<{ message: string }>(`/users/${id}`, { data: { actionKey } }),
 };

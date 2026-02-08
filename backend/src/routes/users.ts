@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { authMiddleware, roleGuard } from '../middleware/auth.js';
 import { userController } from '../controllers/userController.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
-import { validate, createUserSchema, updateUserSchema } from '../middleware/validation.js';
+import { validate, createUserSchema, updateUserSchema, deleteUserSchema } from '../middleware/validation.js';
 
 export const usersRouter = Router();
 
@@ -23,4 +23,4 @@ usersRouter.post('/', validate(createUserSchema), asyncHandler(userController.cr
 usersRouter.put('/:id', validate(updateUserSchema), asyncHandler(userController.update));
 
 // DELETE /api/users/:id - Delete user
-usersRouter.delete('/:id', asyncHandler(userController.delete));
+usersRouter.delete('/:id', validate(deleteUserSchema), asyncHandler(userController.delete));

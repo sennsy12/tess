@@ -302,7 +302,8 @@ export function AdminUsers() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: number) => usersApi.delete(id),
+    mutationFn: ({ id, actionKey }: { id: number; actionKey: string }) =>
+      usersApi.delete(id, actionKey),
     onSuccess: () => {
       invalidateUsers();
       if (users.length === 1 && page > 1) setPage((p) => p - 1);
@@ -456,7 +457,12 @@ export function AdminUsers() {
       <ConfirmModal
         open={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
-        onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+        onConfirm={() => {
+          if (!deleteTarget) return;
+          const actionKey = window.prompt('Skriv inn sikkerhetskode for å slette bruker:');
+          if (!actionKey) return;
+          deleteMutation.mutate({ id: deleteTarget.id, actionKey });
+        }}
         title="Slett bruker"
         confirmLabel="Slett"
         loading={deleteMutation.isPending}

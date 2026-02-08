@@ -125,6 +125,9 @@ export const userController = {
       throw new ValidationError('You cannot delete your own account');
     }
 
+    const { actionKey } = req.body;
+    assertAdminActionKey(actionKey, 'delete user');
+
     const deleted = await userModel.delete(id);
     if (!deleted) throw new NotFoundError('User not found');
 

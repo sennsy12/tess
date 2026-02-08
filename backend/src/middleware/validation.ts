@@ -204,6 +204,10 @@ export const updateUserSchema = z.object({
   actionKey: z.string().min(1).max(200).optional(),
 });
 
+export const deleteUserSchema = z.object({
+  actionKey: z.string().min(1, 'Action key is required').max(200),
+});
+
 // ============================================================
 // Search/suggestions validation
 // ============================================================
