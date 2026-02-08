@@ -148,7 +148,7 @@ export function Login() {
               </div>
               <div className="bg-dark-800/50 p-2 rounded">
                 <p className="mb-1"><strong>Kunde-innlogging:</strong></p>
-                <p>Bruk kundenummer (f.eks. <strong>K000001</strong>) og passord <strong>kunde123</strong></p>
+                <p>Bruk kundenummer (f.eks. <strong>K000001</strong>) og passord <strong>admin123</strong></p>
                 <p className="text-dark-500 mt-1 italic">* Krever at bulk-data er generert i ETL-panelet</p>
               </div>
             </div>
