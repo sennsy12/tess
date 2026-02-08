@@ -26,6 +26,7 @@ services:
       NODE_ENV: production
       DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD}@db:5432/tess
       JWT_SECRET: ${JWT_SECRET}
+      ADMIN_ACTION_KEY: ${ADMIN_ACTION_KEY:-123}
       PORT: 5000
     depends_on:
       - db
