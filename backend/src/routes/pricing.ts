@@ -1,8 +1,9 @@
 import { Router } from 'express';
 import { authMiddleware } from '../middleware/auth.js';
 import { pricingController } from '../controllers/pricingController.js';
+import { pricingSimulatorController } from '../controllers/pricingSimulatorController.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
-import { validate, createGroupSchema, createPriceListSchema, createPriceRuleSchema, calculatePriceSchema } from '../middleware/validation.js';
+import { validate, createGroupSchema, createPriceListSchema, createPriceRuleSchema, calculatePriceSchema, simulateSchema } from '../middleware/validation.js';
 
 export const pricingRouter = Router();
 
@@ -74,6 +75,13 @@ pricingRouter.put('/rules/:id', authMiddleware, asyncHandler(pricingController.u
 
 // Delete a rule
 pricingRouter.delete('/rules/:id', authMiddleware, asyncHandler(pricingController.deleteRule));
+
+// ============================================
+// PRICING SIMULATION
+// ============================================
+
+// Simulate the revenue impact of a proposed rule change
+pricingRouter.post('/simulate', authMiddleware, validate(simulateSchema), asyncHandler(pricingSimulatorController.simulate));
 
 // ============================================
 // PRICE CALCULATION

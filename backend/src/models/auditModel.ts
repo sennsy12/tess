@@ -106,22 +106,27 @@ export const auditModel = {
     const limit = filters.limit || 50;
     const offset = (page - 1) * limit;
 
-    const countResult = await query(
-      `SELECT COUNT(*) as total FROM audit_log ${whereClause}`,
-      values
-    );
+    try {
+      const countResult = await query(
+        `SELECT COUNT(*) as total FROM audit_log ${whereClause}`,
+        values
+      );
 
-    const dataResult = await query(
-      `SELECT * FROM audit_log ${whereClause}
-       ORDER BY timestamp DESC
-       LIMIT $${paramIndex++} OFFSET $${paramIndex++}`,
-      [...values, limit, offset]
-    );
+      const dataResult = await query(
+        `SELECT * FROM audit_log ${whereClause}
+         ORDER BY timestamp DESC
+         LIMIT $${paramIndex++} OFFSET $${paramIndex++}`,
+        [...values, limit, offset]
+      );
 
-    return {
-      data: dataResult.rows,
-      total: parseInt(countResult.rows[0].total),
-    };
+      return {
+        data: dataResult.rows,
+        total: parseInt(countResult.rows[0].total),
+      };
+    } catch (error) {
+      console.error('Audit log query error:', error);
+      throw error;
+    }
   },
 
   /**

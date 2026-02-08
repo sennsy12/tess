@@ -74,4 +74,22 @@ export const pricingApi = {
   ) => api.post('/pricing/calculate/bulk', { items, kundenr }),
   getCustomerRules: (kundenr: string) =>
     api.get(`/pricing/customer/${kundenr}/rules`),
+
+  // Pricing Simulation
+  simulate: (data: {
+    proposed_rule: {
+      rule_id?: number | null;
+      price_list_id: number;
+      varekode?: string | null;
+      varegruppe?: string | null;
+      kundenr?: string | null;
+      customer_group_id?: number | null;
+      min_quantity?: number;
+      discount_percent?: number | null;
+      fixed_price?: number | null;
+    };
+    start_date?: string;
+    end_date?: string;
+    sample_size?: number;
+  }) => api.post('/pricing/simulate', data),
 };

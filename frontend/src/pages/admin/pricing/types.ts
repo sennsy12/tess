@@ -69,7 +69,45 @@ export interface AuditEntry {
   ip_address: string | null;
 }
 
-export type Tab = 'groups' | 'lists' | 'rules' | 'customers' | 'preview' | 'audit';
+// ── Simulation types ──────────────────────────────────────
+
+export interface RevenueBucket {
+  total_revenue: number;
+  total_discount: number;
+  affected_orders: number;
+  affected_lines: number;
+}
+
+export interface CustomerImpact {
+  kundenr: string;
+  kundenavn: string;
+  current_revenue: number;
+  simulated_revenue: number;
+  difference: number;
+  difference_pct: number;
+}
+
+export interface ProductImpact {
+  varekode: string;
+  varenavn: string;
+  current_revenue: number;
+  simulated_revenue: number;
+  difference: number;
+  difference_pct: number;
+}
+
+export interface SimulationResult {
+  current: RevenueBucket;
+  simulated: RevenueBucket;
+  revenue_difference: number;
+  revenue_difference_pct: number;
+  orders_analysed: number;
+  top_customers: CustomerImpact[];
+  top_products: ProductImpact[];
+  computation_time_ms: number;
+}
+
+export type Tab = 'groups' | 'lists' | 'rules' | 'customers' | 'preview' | 'audit' | 'simulator';
 
 export interface GroupFormData {
   name: string;
@@ -126,5 +164,6 @@ export const TABS = [
   { id: 'rules' as Tab, label: 'Prisregler', icon: '💰' },
   { id: 'customers' as Tab, label: 'Tildeling', icon: '🔗' },
   { id: 'preview' as Tab, label: 'Test priser', icon: '🔍' },
+  { id: 'simulator' as Tab, label: 'Simulator', icon: '🧪' },
   { id: 'audit' as Tab, label: 'Endringslogg', icon: '📜' },
 ];

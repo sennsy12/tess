@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Layout } from '../../../components/Layout';
 import { Tabs, TabContent } from '../../../components/Tabs';
 import { usePricingData } from './usePricingData';
-import { GroupsTab, ListsTab, RulesTab, CustomersTab, PreviewTab, AuditLogTab } from './components';
+import { GroupsTab, ListsTab, RulesTab, CustomersTab, PreviewTab, SimulatorTab, AuditLogTab } from './components';
 import { Tab, TABS } from './types';
 
 export function AdminPricing() {
@@ -103,6 +103,15 @@ export function AdminPricing() {
           <TabContent tabKey="preview">
             <PreviewTab
               customersWithGroups={pricing.customersWithGroups}
+            />
+          </TabContent>
+        )}
+
+        {activeTab === 'simulator' && (
+          <TabContent tabKey="simulator">
+            <SimulatorTab
+              lists={pricing.lists}
+              groups={pricing.groups}
             />
           </TabContent>
         )}

@@ -20,7 +20,7 @@ export const auditController = {
       endDate,
       page,
       limit,
-    } = req.query;
+    } = req.query as any;
 
     const result = await auditModel.findAll({
       entity_type: entity_type as string | undefined,
@@ -28,17 +28,17 @@ export const auditController = {
       user_id: user_id ? parseInt(user_id as string) : undefined,
       startDate: startDate as string | undefined,
       endDate: endDate as string | undefined,
-      page: page ? parseInt(page as string) : 1,
-      limit: limit ? parseInt(limit as string) : 50,
+      page: page as number | undefined,
+      limit: limit as number | undefined,
     });
 
     res.json({
       data: result.data,
       pagination: {
-        page: page ? parseInt(page as string) : 1,
-        limit: limit ? parseInt(limit as string) : 50,
+        page: page as number || 1,
+        limit: limit as number || 50,
         total: result.total,
-        totalPages: Math.ceil(result.total / (limit ? parseInt(limit as string) : 50)),
+        totalPages: Math.ceil(result.total / (limit as number || 50)),
       },
     });
   },

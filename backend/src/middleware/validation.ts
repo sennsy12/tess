@@ -139,6 +139,27 @@ export const calculatePriceSchema = z.object({
 });
 
 // ============================================================
+// Pricing simulation schemas
+// ============================================================
+
+export const simulateSchema = z.object({
+  proposed_rule: z.object({
+    rule_id: z.number().int().optional().nullable(),
+    price_list_id: z.number().int().positive(),
+    varekode: z.string().max(50).optional().nullable(),
+    varegruppe: z.string().max(100).optional().nullable(),
+    kundenr: z.string().max(50).optional().nullable(),
+    customer_group_id: z.number().int().positive().optional().nullable(),
+    min_quantity: z.number().min(0).default(0),
+    discount_percent: z.number().min(0).max(100).optional().nullable(),
+    fixed_price: z.number().min(0).optional().nullable(),
+  }),
+  start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD').optional(),
+  end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD').optional(),
+  sample_size: z.number().int().min(1).max(5000).default(1000),
+});
+
+// ============================================================
 // Order validation schemas
 // ============================================================
 
