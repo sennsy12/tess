@@ -7,11 +7,11 @@
  *  - Render a tiny consumer component to exercise the hook.
  */
 
-import { render, screen, act, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from '../AuthContext';
-import { vi } from 'vitest';
+import { vi, describe, beforeEach, it, expect } from 'vitest';
 
 // ── Mocks ────────────────────────────────────────────────────────────
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { ExportButton } from '../../../../components/ExportButton';
 import { productsApi } from '../../../../lib/api';
 import { AutocompleteInput } from '../../../../components/AutocompleteInput';
@@ -29,7 +29,6 @@ export function StatsFilters({
   chartRef,
 }: StatsFiltersProps) {
   const [varegrupper, setVaregrupper] = useState<string[]>([]);
-  const [isLoadingGroups, setIsLoadingGroups] = useState(false);
   const [localVaregruppe, setLocalVaregruppe] = useState(filters.varegruppe);
 
   // Update local state when prop changes (e.g. on reset)
@@ -39,14 +38,11 @@ export function StatsFilters({
 
   useEffect(() => {
     const loadGroups = async () => {
-      setIsLoadingGroups(true);
       try {
         const response = await productsApi.getGroups();
         setVaregrupper(response.data);
       } catch (error) {
         console.error('Failed to load varegrupper:', error);
-      } finally {
-        setIsLoadingGroups(false);
       }
     };
     loadGroups();

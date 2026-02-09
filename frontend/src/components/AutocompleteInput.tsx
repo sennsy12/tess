@@ -126,20 +126,6 @@ export function AutocompleteInput({
     }
   };
 
-  const getTypeLabel = (type: string) => {
-    switch (type) {
-      case 'kunde': return 'Kunde';
-      case 'referanse': return 'Referanse';
-      case 'kunderef': return 'Kunderef';
-      case 'firma': return 'Firma';
-      case 'lager': return 'Lager';
-      case 'vare': return 'Produkt';
-      case 'varegruppe': return 'Varegruppe';
-      case 'henvisning': return 'Henvisning';
-      default: return type;
-    }
-  };
-
   return (
     <div ref={containerRef} className="relative">
       <div className="relative">

@@ -105,11 +105,10 @@ export function ChartSkeleton({ height = 'h-64' }: ChartSkeletonProps) {
     <div className="card">
       <Bone className="h-5 w-48 mb-6" />
       <div className={`${height} flex items-end gap-2 px-4`}>
-        {[40, 65, 45, 80, 55, 70, 50, 75, 60, 85, 45, 70].map((h, i) => (
+        {[40, 65, 45, 80, 55, 70, 50, 75, 60, 85, 45, 70].map((_, i) => (
           <Bone
             key={i}
             className="flex-1 rounded-t"
-            style={{ height: `${h}%` } as React.CSSProperties}
           />
         ))}
       </div>
