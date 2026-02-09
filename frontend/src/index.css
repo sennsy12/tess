@@ -51,7 +51,7 @@ body {
   }
 
   .card {
-    @apply bg-dark-900/50 backdrop-blur-sm border border-dark-800 rounded-xl p-4 lg:p-6 overflow-hidden;
+    @apply bg-dark-900/50 backdrop-blur-sm border border-dark-800 rounded-xl p-4 lg:p-6;
   }
 
   .card-interactive {

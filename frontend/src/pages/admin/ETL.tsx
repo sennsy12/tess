@@ -252,21 +252,7 @@ export function AdminETL() {
               {/* CSV Upload */}
               <div className="card">
                 <h3 className="font-semibold mb-4">📤 Last opp CSV</h3>
-                <div className="flex gap-4 items-end">
-                  <div>
-                    <label className="label">Velg Tabell</label>
-                    <select
-                      className="input"
-                      id="csv-table-select"
-                    >
-                      <option value="ordre">Ordre</option>
-                      <option value="ordrelinje">Ordrelinje</option>
-                      <option value="kunde">Kunde</option>
-                      <option value="vare">Vare</option>
-                      <option value="firma">Firma</option>
-                      <option value="lager">Lager</option>
-                    </select>
-                  </div>
+                <div className="space-y-4">
                   <div className="flex-1">
                     <label className="label">Velg CSV Fil</label>
                     <input
@@ -276,24 +262,31 @@ export function AdminETL() {
                       id="csv-file-input"
                     />
                   </div>
+                  
+                  <div className="bg-blue-900/20 p-4 rounded-lg border border-blue-800/30">
+                    <h4 className="text-sm font-semibold text-blue-400 mb-2">Instruksjoner:</h4>
+                    <ul className="text-xs text-dark-300 space-y-1 list-disc pl-4">
+                      <li>Filen må være en CSV med <b>header-rad</b>.</li>
+                      <li>Systemet vil automatisk gjenkjenne tabellen basert på kolonnenavnene.</li>
+                      <li>Eksisterende rader (basert på primærnøkkel) vil bli hoppet over.</li>
+                      <li>Støttede tabeller: Ordre, Ordrelinje, Kunde, Vare, Firma, Lager.</li>
+                    </ul>
+                  </div>
+
                   <button
                     onClick={() => {
-                      const tableSelect = document.getElementById('csv-table-select') as HTMLSelectElement;
                       const fileInput = document.getElementById('csv-file-input') as HTMLInputElement;
                       const file = fileInput.files?.[0];
                       if (file) {
-                        runAction(`Upload CSV to ${tableSelect.value}`, () => etlApi.uploadCsv(tableSelect.value, file));
+                        runAction(`Last opp CSV`, () => etlApi.uploadCsv('', file));
                       }
                     }}
                     disabled={isLoading !== null}
-                    className="btn-primary"
+                    className="btn-primary w-full md:w-auto"
                   >
-                    📤 Last Opp
+                    {isLoading === 'Last opp CSV' ? '⏳ Laster opp...' : '📤 Last Opp'}
                   </button>
                 </div>
-                <p className="text-xs text-dark-400 mt-2">
-                  Filen må være en CSV med header-rad som matcher kolonnenavnene i databasen.
-                </p>
               </div>
             </div>
           </TabContent>

@@ -104,7 +104,7 @@ export const etlController = {
     const { table } = req.body;
     const allowedTables = ['ordre', 'ordrelinje', 'kunde', 'vare', 'firma', 'lager'];
 
-    if (!table || !allowedTables.includes(table)) {
+    if (table && !allowedTables.includes(table)) {
       // Cleanup file before throwing
       if (req.file && fs.existsSync(req.file.path)) {
         fs.unlinkSync(req.file.path);
@@ -113,13 +113,28 @@ export const etlController = {
     }
 
     try {
-      const duration = await uploadCsvToTable(table, req.file.path);
+      const { duration, table: detectedTable, rowCount, attemptedRows } = await uploadCsvToTable(req.file.path, table);
+      const msPerInsertedRow = rowCount > 0 ? Number((duration / rowCount).toFixed(3)) : null;
+      const rowsPerSecond = duration > 0 ? Number(((rowCount * 1000) / duration).toFixed(2)) : 0;
 
       res.json({ 
         success: true, 
-        message: `CSV uploaded to ${table} successfully`,
+        message: `CSV lastet opp til ${detectedTable} (${rowCount}/${attemptedRows} rader)`,
         duration,
-        table
+        table: detectedTable,
+        rowCount,
+        attemptedRows,
+        performance: {
+          rowsPerSecond,
+          msPerInsertedRow
+        },
+        details: {
+          insertedRows: rowCount,
+          attemptedRows,
+          durationMs: duration,
+          rowsPerSecond,
+          msPerInsertedRow
+        }
       });
     } finally {
       // Ensure file is deleted

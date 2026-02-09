@@ -120,6 +120,7 @@ export function AutocompleteInput({
       case 'firma': return '🏢';
       case 'lager': return '📦';
       case 'vare': return '🏷️';
+      case 'varegruppe': return '📁';
       case 'henvisning': return '🔗';
       default: return '🔍';
     }
@@ -133,6 +134,7 @@ export function AutocompleteInput({
       case 'firma': return 'Firma';
       case 'lager': return 'Lager';
       case 'vare': return 'Produkt';
+      case 'varegruppe': return 'Varegruppe';
       case 'henvisning': return 'Henvisning';
       default: return type;
     }
@@ -159,21 +161,20 @@ export function AutocompleteInput({
       </div>
 
       {isOpen && suggestions.length > 0 && (
-        <div className="absolute z-50 w-full mt-1 bg-dark-800 border border-dark-700 rounded-lg shadow-xl overflow-hidden">
+        <div className="absolute z-[9999] w-full mt-1 bg-dark-800 border border-dark-700 rounded-md shadow-2xl overflow-y-auto max-h-48 ring-1 ring-black/50">
           {suggestions.map((suggestion, index) => (
             <button
               key={`${suggestion.suggestion}-${suggestion.type}-${index}`}
               onClick={() => handleSelect(suggestion)}
-              className={`w-full px-4 py-3 flex items-center gap-3 text-left transition-colors ${
+              className={`w-full px-2 py-1 flex items-center gap-2 text-left transition-colors border-b border-dark-700/20 last:border-0 ${
                 index === highlightedIndex
-                  ? 'bg-primary-600/20 text-primary-300'
+                  ? 'bg-primary-600/40 text-primary-100'
                   : 'hover:bg-dark-700/50'
               }`}
             >
-              <span className="text-lg">{getTypeIcon(suggestion.type)}</span>
-              <div className="flex-1 min-w-0">
-                <span className="block truncate">{suggestion.suggestion}</span>
-                <span className="text-xs text-dark-400">{getTypeLabel(suggestion.type)}</span>
+              <span className="text-xs opacity-60">{getTypeIcon(suggestion.type)}</span>
+              <div className="flex-1 min-w-0 leading-tight">
+                <span className="block truncate text-xs font-medium">{suggestion.suggestion}</span>
               </div>
             </button>
           ))}
