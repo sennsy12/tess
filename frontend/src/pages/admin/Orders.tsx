@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { Layout } from '../../components/Layout';
 import { DataTable } from '../../components/DataTable';
 import { AutocompleteInput } from '../../components/AutocompleteInput';
-import { FilterBar, Pagination } from '../../components/admin';
+import { FilterBar, Pagination, TableSkeleton } from '../../components/admin';
 import { ordersApi, suggestionsApi } from '../../lib/api';
 
 // ────────────────────────────────────────────────────────────
@@ -167,8 +167,8 @@ export function AdminOrders() {
 
         {/* Results */}
         {isLoading ? (
-          <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-500" />
+          <div className="card p-0 lg:p-0 overflow-hidden">
+            <TableSkeleton rows={10} columns={8} />
           </div>
         ) : (
           <>

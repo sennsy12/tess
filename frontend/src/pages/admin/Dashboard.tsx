@@ -7,6 +7,7 @@ import {
   statusApi,
   dashboardApi,
 } from '../../lib/api';
+import { StatCardSkeleton, ChartSkeleton } from '../../components/admin';
 import { formatCurrencyNok, formatNumberNb, abbreviateCurrencyNok } from '../../lib/formatters';
 import {
   TopProductsWidget,
@@ -38,16 +39,6 @@ export function AdminDashboard() {
   const firmaStats = (analytics?.firma?.data ?? []).filter((f: any) => f.total_sum > 0);
   const lagerStats = (analytics?.lager?.data ?? []).filter((l: any) => l.total_sum > 0);
 
-  if (isLoading) {
-    return (
-      <Layout title="Admin Dashboard">
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-500"></div>
-        </div>
-      </Layout>
-    );
-  }
-
   return (
     <Layout title="Admin Dashboard">
       <div className="space-y-6">
@@ -69,46 +60,64 @@ export function AdminDashboard() {
         </div>
 
         {/* Stats cards row 1 - Database counts */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 stagger-fade-in">
-          <div className="stat-card">
-            <span className="stat-label">Ordrer i DB</span>
-            <span className="stat-value">{formatNumberNb(status?.tables?.orders || 0)}</span>
+        {isLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <StatCardSkeleton />
+            <StatCardSkeleton />
+            <StatCardSkeleton />
+            <StatCardSkeleton />
           </div>
-          <div className="stat-card">
-            <span className="stat-label">Kunder i DB</span>
-            <span className="stat-value">{formatNumberNb(status?.tables?.customers || 0)}</span>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 stagger-fade-in">
+            <div className="stat-card">
+              <span className="stat-label">Ordrer i DB</span>
+              <span className="stat-value">{formatNumberNb(status?.tables?.orders || 0)}</span>
+            </div>
+            <div className="stat-card">
+              <span className="stat-label">Kunder i DB</span>
+              <span className="stat-value">{formatNumberNb(status?.tables?.customers || 0)}</span>
+            </div>
+            <div className="stat-card">
+              <span className="stat-label">Produkter i DB</span>
+              <span className="stat-value">{formatNumberNb(status?.tables?.products || 0)}</span>
+            </div>
+            <div className="stat-card">
+              <span className="stat-label">Brukere i DB</span>
+              <span className="stat-value">{formatNumberNb(status?.tables?.users || 0)}</span>
+            </div>
           </div>
-          <div className="stat-card">
-            <span className="stat-label">Produkter i DB</span>
-            <span className="stat-value">{formatNumberNb(status?.tables?.products || 0)}</span>
-          </div>
-          <div className="stat-card">
-            <span className="stat-label">Brukere i DB</span>
-            <span className="stat-value">{formatNumberNb(status?.tables?.users || 0)}</span>
-          </div>
-        </div>
+        )}
 
         {/* Stats cards row 2 - Business metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 stagger-fade-in">
-          <div className="stat-card gradient-primary text-white">
-            <span className="stat-label text-white/80">Total Omsetning</span>
-            <span className="stat-value text-2xl">
-              {formatCurrencyNok(summary?.totalRevenue || 0)}
-            </span>
+        {isLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <StatCardSkeleton />
+            <StatCardSkeleton />
+            <StatCardSkeleton />
+            <StatCardSkeleton />
           </div>
-          <div className="stat-card gradient-success text-white">
-            <span className="stat-label text-white/80">Totale Ordrer</span>
-            <span className="stat-value">{formatNumberNb(summary?.totalOrders || 0)}</span>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 stagger-fade-in">
+            <div className="stat-card gradient-primary text-white">
+              <span className="stat-label text-white/80">Total Omsetning</span>
+              <span className="stat-value text-2xl">
+                {formatCurrencyNok(summary?.totalRevenue || 0)}
+              </span>
+            </div>
+            <div className="stat-card gradient-success text-white">
+              <span className="stat-label text-white/80">Totale Ordrer</span>
+              <span className="stat-value">{formatNumberNb(summary?.totalOrders || 0)}</span>
+            </div>
+            <div className="stat-card gradient-warning text-white">
+              <span className="stat-label text-white/80">Aktive Kunder</span>
+              <span className="stat-value">{formatNumberNb(summary?.activeCustomers || 0)}</span>
+            </div>
+            <div className="stat-card gradient-danger text-white">
+              <span className="stat-label text-white/80">Produkter Solgt</span>
+              <span className="stat-value">{formatNumberNb(summary?.productsOrdered || 0)}</span>
+            </div>
           </div>
-          <div className="stat-card gradient-warning text-white">
-            <span className="stat-label text-white/80">Aktive Kunder</span>
-            <span className="stat-value">{formatNumberNb(summary?.activeCustomers || 0)}</span>
-          </div>
-          <div className="stat-card gradient-danger text-white">
-            <span className="stat-label text-white/80">Produkter Solgt</span>
-            <span className="stat-value">{formatNumberNb(summary?.productsOrdered || 0)}</span>
-          </div>
-        </div>
+        )}
 
         {/* Widget row - Top Products and Top Customers */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -128,58 +137,71 @@ export function AdminDashboard() {
         </div>
 
         {/* Charts */}
-        <div ref={chartRef} className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="card">
-              <LineChart
-                data={timeSeries}
-                xKey="period"
-                yKey="total_sum"
-                title="📈 Omsetning over tid"
-                color="#10b981"
-                seriesName="Omsetning"
-                valueFormatter={formatCurrencyNok}
-                tickFormatter={abbreviateCurrencyNok}
-              />
+        {isLoading ? (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <ChartSkeleton />
+              <ChartSkeleton />
             </div>
-            <div className="card">
-              <BarChart
-                data={timeSeries}
-                xKey="period"
-                yKey="order_count"
-                title="📊 Ordrer per måned"
-                color="#8b5cf6"
-                seriesName="Antall Ordrer"
-              />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <ChartSkeleton />
+              <ChartSkeleton />
             </div>
           </div>
+        ) : (
+          <div ref={chartRef} className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="card">
+                <LineChart
+                  data={timeSeries}
+                  xKey="period"
+                  yKey="total_sum"
+                  title="📈 Omsetning over tid"
+                  color="#10b981"
+                  seriesName="Omsetning"
+                  valueFormatter={formatCurrencyNok}
+                  tickFormatter={abbreviateCurrencyNok}
+                />
+              </div>
+              <div className="card">
+                <BarChart
+                  data={timeSeries}
+                  xKey="period"
+                  yKey="order_count"
+                  title="📊 Ordrer per måned"
+                  color="#8b5cf6"
+                  seriesName="Antall Ordrer"
+                />
+              </div>
+            </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="card">
-              <PieChart
-                data={firmaStats}
-                nameKey="firmanavn"
-                valueKey="total_sum"
-                title="🏢 Omsetning per Firma"
-                seriesName="Omsetning"
-                valueFormatter={formatCurrencyNok}
-                height={360}
-              />
-            </div>
-            <div className="card">
-              <BarChart
-                data={lagerStats}
-                xKey="lagernavn"
-                yKey="total_sum"
-                title="📦 Omsetning per Lager"
-                color="#f59e0b"
-                seriesName="Omsetning"
-                valueFormatter={formatCurrencyNok}
-                tickFormatter={abbreviateCurrencyNok}
-              />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="card">
+                <PieChart
+                  data={firmaStats}
+                  nameKey="firmanavn"
+                  valueKey="total_sum"
+                  title="🏢 Omsetning per Firma"
+                  seriesName="Omsetning"
+                  valueFormatter={formatCurrencyNok}
+                  height={360}
+                />
+              </div>
+              <div className="card">
+                <BarChart
+                  data={lagerStats}
+                  xKey="lagernavn"
+                  yKey="total_sum"
+                  title="📦 Omsetning per Lager"
+                  color="#f59e0b"
+                  seriesName="Omsetning"
+                  valueFormatter={formatCurrencyNok}
+                  tickFormatter={abbreviateCurrencyNok}
+                />
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
     </Layout>
   );

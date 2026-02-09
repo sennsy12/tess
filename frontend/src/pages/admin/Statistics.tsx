@@ -12,6 +12,7 @@ import {
   StatisticsSummary,
 } from '../../lib/api';
 import { formatCurrencyNok } from '../../lib/formatters';
+import { ChartSkeleton, TableSkeleton } from '../../components/admin';
 import { SavedReportsList } from '../../components/SavedReportsList';
 import { StatsFilters } from './statistics/components/StatsFilters';
 import { StatsCharts } from './statistics/components/StatsCharts';
@@ -201,8 +202,11 @@ export function AdminStatistics() {
         {/* Right Column: Charts & Data */}
         <div className="lg:col-span-2 space-y-6">
           {isLoading ? (
-            <div className="flex items-center justify-center h-64 card">
-              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-500"></div>
+            <div className="space-y-6">
+              <ChartSkeleton height="h-72" />
+              <div className="card p-0 lg:p-0 overflow-hidden">
+                <TableSkeleton rows={8} columns={6} />
+              </div>
             </div>
           ) : (
             <div ref={chartRef} className="space-y-6">

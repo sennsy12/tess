@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { Layout } from '../../components/Layout';
 import { DataTable } from '../../components/DataTable';
-import { Pagination, FormModal } from '../../components/admin';
+import { Pagination, FormModal, TableSkeleton } from '../../components/admin';
 import { ordersApi, orderlinesApi, productsApi } from '../../lib/api';
 
 // ────────────────────────────────────────────────────────────
@@ -253,16 +253,6 @@ export function AdminOrderLines() {
   ];
 
   // ── Render ────────────────────────────────────────────
-  if (isLoading) {
-    return (
-      <Layout title="Ordrelinjer">
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-500" />
-        </div>
-      </Layout>
-    );
-  }
-
   return (
     <Layout title="Ordrelinjer">
       <div className="space-y-6">
@@ -271,28 +261,32 @@ export function AdminOrderLines() {
           <div className="flex items-center gap-4">
             <div className="flex-1">
               <label className="label">Søk/Velg Ordre</label>
-              <div className="flex gap-2">
-                <input
-                  type="number"
-                  value={selectedOrder || ''}
-                  onChange={(e) => setSelectedOrder(Number(e.target.value))}
-                  className="input w-32"
-                  placeholder="Ordrenr"
-                />
-                <select
-                  value={selectedOrder || ''}
-                  onChange={(e) => setSelectedOrder(Number(e.target.value))}
-                  className="input flex-1"
-                >
-                  <option value="">Velg fra liste...</option>
-                  {orders.map((order) => (
-                    <option key={order.ordrenr} value={order.ordrenr}>
-                      #{order.ordrenr} - {order.kundenavn || order.kundenr} (
-                      {new Date(order.dato).toLocaleDateString('nb-NO')})
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {isLoading ? (
+                <div className="animate-pulse rounded bg-dark-700/60 h-10 w-full" />
+              ) : (
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    value={selectedOrder || ''}
+                    onChange={(e) => setSelectedOrder(Number(e.target.value))}
+                    className="input w-32"
+                    placeholder="Ordrenr"
+                  />
+                  <select
+                    value={selectedOrder || ''}
+                    onChange={(e) => setSelectedOrder(Number(e.target.value))}
+                    className="input flex-1"
+                  >
+                    <option value="">Velg fra liste...</option>
+                    {orders.map((order) => (
+                      <option key={order.ordrenr} value={order.ordrenr}>
+                        #{order.ordrenr} - {order.kundenavn || order.kundenr} (
+                        {new Date(order.dato).toLocaleDateString('nb-NO')})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
             <div className="pt-6">
               <button onClick={handleCreate} className="btn-primary">
@@ -303,12 +297,18 @@ export function AdminOrderLines() {
         </div>
 
         {/* Order lines table */}
+        {isLoading ? (
+          <div className="card p-0 lg:p-0 overflow-hidden">
+            <TableSkeleton rows={8} columns={10} />
+          </div>
+        ) : (
         <DataTable
           data={orderLines}
           columns={columns}
           emptyMessage="Ingen ordrelinjer funnet"
           pageSize={9999}
         />
+        )}
 
         {/* Server-side Pagination */}
         {paginationInfo && (

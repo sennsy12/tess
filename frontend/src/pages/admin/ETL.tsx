@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Layout } from '../../components/Layout';
+import { ActionKeyModal, GridStatSkeleton, ListSkeleton } from '../../components/admin';
 import { Tabs, TabContent } from '../../components/Tabs';
 import { etlApi, schedulerApi } from '../../lib/api';
 
@@ -29,12 +30,18 @@ export function AdminETL() {
   const [isLoading, setIsLoading] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'etl' | 'bulk' | 'scheduler'>('etl');
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [jobsLoading, setJobsLoading] = useState(false);
   const [tableCounts, setTableCounts] = useState<Record<string, number>>({});
+  const [countsLoading, setCountsLoading] = useState(false);
   const [bulkConfig, setBulkConfig] = useState({
     customers: 1000,
     orders: 10000,
     linesPerOrder: 5,
   });
+  const [pendingBulkAction, setPendingBulkAction] = useState<{
+    type: 'generate' | 'pipeline';
+    config: { customers: number; orders: number; linesPerOrder: number };
+  } | null>(null);
 
   useEffect(() => {
     if (activeTab === 'scheduler') {
@@ -46,20 +53,26 @@ export function AdminETL() {
   }, [activeTab]);
 
   const loadJobs = async () => {
+    setJobsLoading(true);
     try {
       const response = await schedulerApi.getJobs();
       setJobs(response.data);
     } catch (error) {
       console.error('Failed to load jobs:', error);
+    } finally {
+      setJobsLoading(false);
     }
   };
 
   const loadTableCounts = async () => {
+    setCountsLoading(true);
     try {
       const response = await etlApi.tableCounts();
       setTableCounts(response.data.counts || {});
     } catch (error) {
       console.error('Failed to load table counts:', error);
+    } finally {
+      setCountsLoading(false);
     }
   };
 
@@ -93,13 +106,9 @@ export function AdminETL() {
     }
   };
 
-  const getBulkActionKey = () => {
-    const estimatedLines = bulkConfig.orders * bulkConfig.linesPerOrder;
-    if (estimatedLines <= 1_000_000) return undefined;
-    const key = window.prompt('Skriv inn sikkerhetskode for å generere over 1 000 000 ordrelinjer:');
-    if (!key) return null;
-    return key;
-  };
+  const estimatedPendingLines = pendingBulkAction
+    ? pendingBulkAction.config.orders * pendingBulkAction.config.linesPerOrder
+    : 0;
 
   const etlActions = [
     { id: 'createDB', label: '🏗️ Opprett DB', api: etlApi.createDB },
@@ -152,14 +161,18 @@ export function AdminETL() {
               {/* Table counts */}
               <div className="card">
                 <h3 className="font-semibold mb-4">📊 Nåværende Data</h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 stagger-fade-in">
-                  {Object.entries(tableCounts).map(([table, count]) => (
-                    <div key={table} className="bg-dark-800/50 p-3 rounded-lg transition-all duration-200 hover:bg-dark-800/80">
-                      <span className="text-dark-400 text-sm capitalize">{table}</span>
-                      <p className="text-xl font-bold">{count.toLocaleString()}</p>
-                    </div>
-                  ))}
-                </div>
+                {countsLoading && Object.keys(tableCounts).length === 0 ? (
+                  <GridStatSkeleton count={6} />
+                ) : (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 stagger-fade-in">
+                    {Object.entries(tableCounts).map(([table, count]) => (
+                      <div key={table} className="bg-dark-800/50 p-3 rounded-lg transition-all duration-200 hover:bg-dark-800/80">
+                        <span className="text-dark-400 text-sm capitalize">{table}</span>
+                        <p className="text-xl font-bold">{count.toLocaleString()}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Bulk configuration */}
@@ -200,11 +213,12 @@ export function AdminETL() {
                 <div className="flex gap-3">
                   <button
                     onClick={() => {
-                      const actionKey = getBulkActionKey();
-                      if (actionKey === null) return;
-                      runAction('Generate Bulk', () =>
-                        etlApi.generateBulkData({ ...bulkConfig, actionKey }),
-                      );
+                      const estimatedLines = bulkConfig.orders * bulkConfig.linesPerOrder;
+                      if (estimatedLines > 1_000_000) {
+                        setPendingBulkAction({ type: 'generate', config: { ...bulkConfig } });
+                        return;
+                      }
+                      runAction('Generate Bulk', () => etlApi.generateBulkData({ ...bulkConfig }));
                     }}
                     disabled={isLoading !== null}
                     className="btn-secondary"
@@ -220,11 +234,12 @@ export function AdminETL() {
                   </button>
                   <button
                     onClick={() => {
-                      const actionKey = getBulkActionKey();
-                      if (actionKey === null) return;
-                      runAction('Bulk Pipeline', () =>
-                        etlApi.runBulkPipeline({ ...bulkConfig, actionKey }),
-                      );
+                      const estimatedLines = bulkConfig.orders * bulkConfig.linesPerOrder;
+                      if (estimatedLines > 1_000_000) {
+                        setPendingBulkAction({ type: 'pipeline', config: { ...bulkConfig } });
+                        return;
+                      }
+                      runAction('Bulk Pipeline', () => etlApi.runBulkPipeline({ ...bulkConfig }));
                     }}
                     disabled={isLoading !== null}
                     className="btn-primary"
@@ -290,6 +305,9 @@ export function AdminETL() {
             <div className="space-y-6">
               <div className="card">
                 <h3 className="font-semibold mb-4">⏰ Planlagte Jobber</h3>
+                {jobsLoading && jobs.length === 0 ? (
+                  <ListSkeleton count={3} />
+                ) : (
                 <div className="space-y-3 stagger-fade-in">
                   {jobs.map((job) => (
                     <div key={job.id} className="flex items-center justify-between bg-dark-800/50 p-4 rounded-lg transition-all duration-200 hover:bg-dark-800/80">
@@ -331,6 +349,7 @@ export function AdminETL() {
                     </div>
                   ))}
                 </div>
+                )}
               </div>
             </div>
           </TabContent>
@@ -374,6 +393,25 @@ export function AdminETL() {
           )}
         </div>
       </div>
+
+      {/* Action key modal for large bulk operations */}
+      <ActionKeyModal
+        open={!!pendingBulkAction}
+        onClose={() => setPendingBulkAction(null)}
+        onConfirm={(actionKey) => {
+          if (!pendingBulkAction) return;
+          const config = pendingBulkAction.config;
+          if (pendingBulkAction.type === 'generate') {
+            runAction('Generate Bulk', () => etlApi.generateBulkData({ ...config, actionKey }));
+          } else {
+            runAction('Bulk Pipeline', () => etlApi.runBulkPipeline({ ...config, actionKey }));
+          }
+          setPendingBulkAction(null);
+        }}
+        title="Sikkerhetskode kreves"
+        description={`Operasjonen vil generere omtrent ${estimatedPendingLines.toLocaleString()} ordrelinjer. Skriv inn sikkerhetskoden for å fortsette.`}
+        confirmLabel="Fortsett"
+      />
     </Layout>
   );
 }

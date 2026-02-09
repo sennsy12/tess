@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { Layout } from '../../components/Layout';
-import { PageHeader, Pagination, FormModal, ConfirmModal } from '../../components/admin';
+import { PageHeader, Pagination, FormModal, ConfirmModal, ActionKeyModal, TableSkeleton } from '../../components/admin';
 import { usersApi } from '../../lib/api';
 import type { UserPublic, CreateUserPayload, UpdateUserPayload } from '../../lib/api';
 
@@ -250,6 +250,12 @@ export function AdminUsers() {
   const [modalMode, setModalMode] = useState<ModalMode>(null);
   const [editingUser, setEditingUser] = useState<UserPublic | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<UserPublic | null>(null);
+  const [pendingPasswordUpdate, setPendingPasswordUpdate] = useState<{
+    id: number;
+    username: string;
+    data: UpdateUserPayload;
+  } | null>(null);
+  const [pendingDeleteUser, setPendingDeleteUser] = useState<UserPublic | null>(null);
 
   // Form fields
   const [formUsername, setFormUsername] = useState('');
@@ -278,12 +284,35 @@ export function AdminUsers() {
 
   const createMutation = useMutation({
     mutationFn: (data: CreateUserPayload) => usersApi.create(data),
+    onMutate: async (newUser) => {
+      await queryClient.cancelQueries({ queryKey: ['admin', 'users'] });
+      const previousData = queryClient.getQueryData(['admin', 'users', page]);
+      queryClient.setQueryData(['admin', 'users', page], (old: any) => {
+        if (!old) return old;
+        const optimisticUser: UserPublic = {
+          id: Date.now(),
+          username: newUser.username,
+          role: newUser.role,
+          kundenr: newUser.kundenr,
+          created_at: new Date().toISOString(),
+        };
+        return {
+          ...old,
+          data: [optimisticUser, ...old.data],
+          pagination: { ...old.pagination, total: old.pagination.total + 1 },
+        };
+      });
+      return { previousData };
+    },
     onSuccess: () => {
       invalidateUsers();
       toast.success('Bruker opprettet');
       closeModal();
     },
-    onError: (err: any) => {
+    onError: (err: any, _vars, context) => {
+      if (context?.previousData) {
+        queryClient.setQueryData(['admin', 'users', page], context.previousData);
+      }
       toast.error(err.response?.data?.error ?? 'Kunne ikke opprette bruker');
     },
   });
@@ -291,12 +320,36 @@ export function AdminUsers() {
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: UpdateUserPayload }) =>
       usersApi.update(id, data),
+    onMutate: async ({ id, data }) => {
+      await queryClient.cancelQueries({ queryKey: ['admin', 'users'] });
+      const previousData = queryClient.getQueryData(['admin', 'users', page]);
+      queryClient.setQueryData(['admin', 'users', page], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          data: old.data.map((u: UserPublic) =>
+            u.id === id
+              ? {
+                  ...u,
+                  ...(data.username && { username: data.username }),
+                  ...(data.role && { role: data.role }),
+                  ...(data.kundenr !== undefined && { kundenr: data.kundenr }),
+                }
+              : u,
+          ),
+        };
+      });
+      return { previousData };
+    },
     onSuccess: () => {
       invalidateUsers();
       toast.success('Bruker oppdatert');
       closeModal();
     },
-    onError: (err: any) => {
+    onError: (err: any, _vars, context) => {
+      if (context?.previousData) {
+        queryClient.setQueryData(['admin', 'users', page], context.previousData);
+      }
       toast.error(err.response?.data?.error ?? 'Kunne ikke oppdatere bruker');
     },
   });
@@ -304,13 +357,29 @@ export function AdminUsers() {
   const deleteMutation = useMutation({
     mutationFn: ({ id, actionKey }: { id: number; actionKey: string }) =>
       usersApi.delete(id, actionKey),
+    onMutate: async ({ id }) => {
+      await queryClient.cancelQueries({ queryKey: ['admin', 'users'] });
+      const previousData = queryClient.getQueryData(['admin', 'users', page]);
+      queryClient.setQueryData(['admin', 'users', page], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          data: old.data.filter((u: UserPublic) => u.id !== id),
+          pagination: { ...old.pagination, total: Math.max(0, old.pagination.total - 1) },
+        };
+      });
+      return { previousData };
+    },
     onSuccess: () => {
       invalidateUsers();
       if (users.length === 1 && page > 1) setPage((p) => p - 1);
       toast.success('Bruker slettet');
       setDeleteTarget(null);
     },
-    onError: (err: any) => {
+    onError: (err: any, _vars, context) => {
+      if (context?.previousData) {
+        queryClient.setQueryData(['admin', 'users', page], context.previousData);
+      }
       toast.error(err.response?.data?.error ?? 'Kunne ikke slette bruker');
     },
   });
@@ -352,16 +421,9 @@ export function AdminUsers() {
         });
       } else if (modalMode === 'edit' && editingUser) {
         const payload: UpdateUserPayload = {};
-        let actionKey: string | undefined;
-        if (formPassword) {
-          const key = window.prompt('Skriv inn sikkerhetskode for å endre passord:');
-          if (!key) return;
-          actionKey = key;
-        }
         if (formUsername !== editingUser.username) payload.username = formUsername;
         if (formPassword) {
           payload.password = formPassword;
-          payload.actionKey = actionKey;
         }
         if (formRole !== editingUser.role) payload.role = formRole;
         if (formRole === 'kunde') {
@@ -369,6 +431,14 @@ export function AdminUsers() {
             payload.kundenr = formKundenr || null;
         } else if (editingUser.kundenr) {
           payload.kundenr = null;
+        }
+        if (formPassword) {
+          setPendingPasswordUpdate({
+            id: editingUser.id,
+            username: editingUser.username,
+            data: payload,
+          });
+          return;
         }
         updateMutation.mutate({ id: editingUser.id, data: payload });
       }
@@ -389,19 +459,37 @@ export function AdminUsers() {
     setDeleteTarget(user);
   }, []);
 
+  const handleActionKeyClose = useCallback(() => {
+    setPendingPasswordUpdate(null);
+    setPendingDeleteUser(null);
+  }, []);
+
+  const handleActionKeyConfirm = useCallback(
+    (actionKey: string) => {
+      if (pendingPasswordUpdate) {
+        updateMutation.mutate({
+          id: pendingPasswordUpdate.id,
+          data: { ...pendingPasswordUpdate.data, actionKey },
+        });
+        setPendingPasswordUpdate(null);
+        return;
+      }
+      if (pendingDeleteUser) {
+        deleteMutation.mutate({ id: pendingDeleteUser.id, actionKey });
+        setPendingDeleteUser(null);
+      }
+    },
+    [pendingPasswordUpdate, pendingDeleteUser, updateMutation, deleteMutation],
+  );
+
   const isSaving = createMutation.isPending || updateMutation.isPending;
+  const isActionKeyLoading = pendingPasswordUpdate
+    ? updateMutation.isPending
+    : pendingDeleteUser
+      ? deleteMutation.isPending
+      : false;
 
   // ── Render ──────────────────────────────────────────────
-  if (isLoading) {
-    return (
-      <Layout title="Brukere">
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-500" />
-        </div>
-      </Layout>
-    );
-  }
-
   return (
     <Layout title="Brukere">
       <div className="space-y-6">
@@ -418,7 +506,11 @@ export function AdminUsers() {
 
         {/* Users table */}
         <div className="card p-0 lg:p-0 overflow-hidden">
-          <UserTable users={users} onEdit={openEdit} onDelete={handleDelete} />
+          {isLoading ? (
+            <TableSkeleton rows={8} columns={6} />
+          ) : (
+            <UserTable users={users} onEdit={openEdit} onDelete={handleDelete} />
+          )}
 
           {/* Pagination */}
           <Pagination
@@ -459,9 +551,8 @@ export function AdminUsers() {
         onClose={() => setDeleteTarget(null)}
         onConfirm={() => {
           if (!deleteTarget) return;
-          const actionKey = window.prompt('Skriv inn sikkerhetskode for å slette bruker:');
-          if (!actionKey) return;
-          deleteMutation.mutate({ id: deleteTarget.id, actionKey });
+          setPendingDeleteUser(deleteTarget);
+          setDeleteTarget(null);
         }}
         title="Slett bruker"
         confirmLabel="Slett"
@@ -471,6 +562,23 @@ export function AdminUsers() {
         <span className="font-medium text-dark-100">{deleteTarget?.username}</span>?
         Denne handlingen kan ikke angres.
       </ConfirmModal>
+
+      {/* Action key modal */}
+      <ActionKeyModal
+        open={!!pendingPasswordUpdate || !!pendingDeleteUser}
+        onClose={handleActionKeyClose}
+        onConfirm={handleActionKeyConfirm}
+        title={pendingDeleteUser ? 'Slett bruker' : 'Bekreft passordendring'}
+        description={
+          pendingDeleteUser
+            ? `Skriv inn sikkerhetskode for å slette brukeren ${pendingDeleteUser.username}.`
+            : pendingPasswordUpdate
+              ? `Skriv inn sikkerhetskode for å endre passordet til ${pendingPasswordUpdate.username}.`
+              : undefined
+        }
+        confirmLabel={pendingDeleteUser ? 'Slett' : 'Bekreft'}
+        loading={isActionKeyLoading}
+      />
     </Layout>
   );
 }
