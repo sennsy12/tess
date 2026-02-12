@@ -4,7 +4,7 @@ import { authMiddleware, roleGuard } from '../middleware/auth.js';
 import { etlController } from '../controllers/etlController.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { etlLimiter } from '../middleware/rateLimit.js';
-import { validate, bulkDataSchema } from '../middleware/validation.js';
+import { validate, bulkDataSchema, etlIngestSchema } from '../middleware/validation.js';
 
 export const etlRouter = Router();
 
@@ -60,4 +60,7 @@ etlRouter.post('/runBulkPipeline', validate(bulkDataSchema), asyncHandler(etlCon
 
 // Upload CSV directly to database (Streaming COPY)
 etlRouter.post('/upload-csv', upload.single('file'), asyncHandler(etlController.uploadCsv));
+
+// Unified source ingest endpoint (csv/json/api)
+etlRouter.post('/ingest', upload.single('file'), validate(etlIngestSchema), asyncHandler(etlController.ingestStream));
 

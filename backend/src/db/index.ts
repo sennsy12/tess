@@ -13,6 +13,8 @@
  */
 import { Pool, PoolConfig } from 'pg';
 import dotenv from 'dotenv';
+import { once } from 'events';
+import { Readable } from 'stream';
 import { dbLogger } from '../lib/logger.js';
 
 dotenv.config();
@@ -184,7 +186,7 @@ export const bulkCopy = async (
     const copyStreams = await import('pg-copy-streams');
     
     // Use a temp table for ON CONFLICT DO NOTHING support
-    const tempTable = `temp_${tableName}_${Date.now()}`;
+    const tempTable = `temp_${tableName}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     
     // Start transaction to keep temp table alive
     await client.query('BEGIN');
@@ -242,26 +244,34 @@ export const bulkCopy = async (
       });
 
       // Convert rows to tab-separated text and write to stream
-      // Process in chunks to avoid memory issues
-      const CHUNK_SIZE = 50000;
-      for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
-        const chunk = rows.slice(i, i + CHUNK_SIZE);
-        const text = chunk.map(row => 
-          row.map((val: any) => {
-            if (val === null || val === undefined) return '\\N';
-            // Escape special characters for COPY format
-            return String(val)
-              .replace(/\\/g, '\\\\')
-              .replace(/\t/g, '\\t')
-              .replace(/\n/g, '\\n')
-              .replace(/\r/g, '\\r');
-          }).join('\t')
-        ).join('\n') + '\n';
-        
-        stream.write(text);
-      }
-      
-      stream.end();
+      // Process in chunks to avoid memory issues and honor backpressure.
+      void (async () => {
+        try {
+          const CHUNK_SIZE = 50000;
+          for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
+            const chunk = rows.slice(i, i + CHUNK_SIZE);
+            const text = chunk.map(row =>
+              row.map((val: any) => {
+                if (val === null || val === undefined) return '\\N';
+                // Escape special characters for COPY format
+                return String(val)
+                  .replace(/\\/g, '\\\\')
+                  .replace(/\t/g, '\\t')
+                  .replace(/\n/g, '\\n')
+                  .replace(/\r/g, '\\r');
+              }).join('\t')
+            ).join('\n') + '\n';
+
+            if (!stream.write(text)) {
+              await once(stream, 'drain');
+            }
+          }
+
+          stream.end();
+        } catch (err) {
+          reject(err);
+        }
+      })();
     });
 
     await client.query('COMMIT');
@@ -272,6 +282,143 @@ export const bulkCopy = async (
   } finally {
     client.release();
   }
+};
+
+/**
+ * Stream pre-formatted COPY lines into PostgreSQL COPY STDIN.
+ *
+ * This is a stream-first primitive for large ETL jobs where data is produced
+ * incrementally (CSV/JSON/API adapters) and should not be fully buffered in memory.
+ */
+export const copyFromLineStream = async (
+  tableName: string,
+  columns: string[],
+  source: AsyncIterable<string> | Readable,
+  onConflict: 'nothing' | 'error' = 'nothing'
+): Promise<number> => {
+  const client = await pool.connect();
+  let streamedRows = 0;
+  try {
+    const copyStreams = await import('pg-copy-streams');
+    const tempTable = `temp_${tableName}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+    await client.query('BEGIN');
+
+    if (onConflict === 'nothing') {
+      await client.query(`CREATE TEMP TABLE ${tempTable} (LIKE ${tableName} INCLUDING DEFAULTS) ON COMMIT DROP`);
+      const allColsResult = await client.query(`
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_name = $1
+      `, [tableName]);
+      const allCols = allColsResult.rows.map((r: any) => r.column_name);
+      const missingCols = allCols.filter((c: string) => !columns.includes(c));
+      for (const col of missingCols) {
+        await client.query(`ALTER TABLE ${tempTable} ALTER COLUMN ${col} DROP NOT NULL`);
+      }
+    }
+
+    const targetTable = onConflict === 'nothing' ? tempTable : tableName;
+    const copyStream = client.query(
+      copyStreams.from(`COPY ${targetTable} (${columns.join(', ')}) FROM STDIN WITH (FORMAT text, NULL '\\N')`)
+    );
+
+    await new Promise<void>((resolve, reject) => {
+      copyStream.once('error', reject);
+      copyStream.once('finish', () => resolve());
+
+      void (async () => {
+        try {
+          const iterator: AsyncIterable<any> =
+            source instanceof Readable ? source : source;
+          for await (const chunk of iterator) {
+            if (!copyStream.write(chunk)) {
+              await once(copyStream, 'drain');
+            }
+            streamedRows += 1;
+          }
+          copyStream.end();
+        } catch (error) {
+          reject(error);
+        }
+      })();
+    });
+
+    if (onConflict === 'nothing') {
+      // 1. Auto-provision missing dimensions from the staging table
+      // This ensures foreign key constraints are met before the final insert.
+      if (columns.includes('kundenr')) {
+        await client.query(`
+          INSERT INTO public.kunde (kundenr, kundenavn)
+          SELECT DISTINCT kundenr, 'Auto-generert' FROM ${tempTable}
+          WHERE kundenr IS NOT NULL
+          ON CONFLICT (kundenr) DO NOTHING
+        `);
+      }
+      if (columns.includes('firmaid')) {
+        await client.query(`
+          INSERT INTO public.firma (firmaid, firmanavn)
+          SELECT DISTINCT firmaid, 'Firma ' || firmaid FROM ${tempTable}
+          WHERE firmaid IS NOT NULL
+          ON CONFLICT (firmaid) DO NOTHING
+        `);
+      }
+      if (columns.includes('valutaid')) {
+        await client.query(`
+          INSERT INTO public.valuta (valutaid)
+          SELECT DISTINCT valutaid FROM ${tempTable}
+          WHERE valutaid IS NOT NULL
+          ON CONFLICT (valutaid) DO NOTHING
+        `);
+      }
+      if (columns.includes('varekode')) {
+        await client.query(`
+          INSERT INTO public.vare (varekode, varenavn)
+          SELECT DISTINCT varekode, 'Produkt ' || varekode FROM ${tempTable}
+          WHERE varekode IS NOT NULL
+          ON CONFLICT (varekode) DO NOTHING
+        `);
+      }
+      if (columns.includes('lagernavn') && columns.includes('firmaid')) {
+        await client.query(`
+          INSERT INTO public.lager (lagernavn, firmaid)
+          SELECT DISTINCT lagernavn, firmaid FROM ${tempTable}
+          WHERE lagernavn IS NOT NULL AND firmaid IS NOT NULL
+          ON CONFLICT (lagernavn, firmaid) DO NOTHING
+        `);
+      }
+
+      // 2. Final insert from staging to real table
+      const result = await client.query(`
+        INSERT INTO ${tableName} (${columns.join(', ')})
+        SELECT ${columns.join(', ')} FROM ${tempTable}
+        ON CONFLICT DO NOTHING
+      `);
+      await client.query('COMMIT');
+      return result.rowCount || 0;
+    }
+
+    await client.query('COMMIT');
+    return streamedRows;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+};
+
+/**
+ * Returns the set of column names for a table in the public schema.
+ */
+export const getTableColumns = async (tableName: string): Promise<Set<string>> => {
+  const result = await pool.query(
+    `SELECT column_name
+     FROM information_schema.columns
+     WHERE table_schema = $1 AND table_name = $2`,
+    ['public', tableName]
+  );
+  return new Set(result.rows.map((r: { column_name: string }) => r.column_name));
 };
 
 /**

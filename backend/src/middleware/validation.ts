@@ -102,6 +102,31 @@ export const bulkDataSchema = z.object({
   actionKey: z.string().min(1).max(200).optional(),
 });
 
+export const etlIngestSchema = z.object({
+  sourceType: z.enum(['csv', 'json', 'api']),
+  table: z.enum(['ordre', 'ordrelinje', 'kunde', 'vare', 'firma', 'lager']),
+  strictMode: z.boolean().default(false),
+  onConflict: z.enum(['nothing', 'error']).default('nothing'),
+  sourceMapping: z.record(z.string(), z.string()).optional(),
+  csv: z.object({
+    delimiter: z.string().min(1).max(2).optional(),
+  }).optional(),
+  json: z.object({
+    mode: z.enum(['ndjson', 'array']).default('array'),
+    filePath: z.string().max(500).optional(),
+  }).optional(),
+  api: z.object({
+    url: z.string().url(),
+    method: z.enum(['GET', 'POST']).default('GET'),
+    headers: z.record(z.string(), z.string()).optional(),
+    body: z.record(z.string(), z.unknown()).optional(),
+    timeoutMs: z.number().int().min(1000).max(120000).default(20000),
+    dataPath: z.string().max(200).optional(),
+    nextPagePath: z.string().max(200).optional(),
+    maxPages: z.number().int().min(1).max(100000).default(1000),
+  }).optional(),
+});
+
 // ============================================================
 // Pricing validation schemas
 // ============================================================

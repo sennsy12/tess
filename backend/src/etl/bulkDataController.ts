@@ -1,4 +1,5 @@
 import { query } from '../db/index.js';
+import { etlLogger } from '../lib/logger.js';
 
 // Pre-calculated hash for 'kunde123' to save CPU time during generation
 const KUNDE_PASSWORD_HASH = '$2b$10$55MITFPNmmdu9pau6zk9Iul2mIJU0g.hJccUnCfYT.9ChAfcUz20W';
@@ -20,7 +21,10 @@ export async function generateBulkTestData(config: {
     linesPerOrder = 5,
   } = config;
 
-  console.log(`🔄 Generating bulk data: ${customers} customers, ${orders} orders, ~${orders * linesPerOrder} lines`);
+  etlLogger.info(
+    { stage: 'bulk-generate-start', customers, orders, estimatedLines: orders * linesPerOrder },
+    'Generating bulk data'
+  );
   const startTime = Date.now();
 
   // Generate customers with industry-relevant names and their corresponding users
@@ -193,12 +197,12 @@ export async function generateBulkTestData(config: {
 
     // Progress logging every 10000 orders
     if (i % 10000 === 0) {
-      console.log(`  Generated ${i}/${orders} orders...`);
+      etlLogger.debug({ stage: 'bulk-generate-progress', generatedOrders: i, totalOrders: orders }, 'Bulk generation progress');
     }
   }
 
   const duration = Date.now() - startTime;
-  console.log(`✅ Data generation completed in ${duration}ms`);
+  etlLogger.info({ stage: 'bulk-generate-complete', durationMs: duration }, 'Bulk data generation completed');
 
   generatedBulkData = {
     kunder: kundeData,
@@ -232,7 +236,7 @@ export async function insertBulkTestData(): Promise<any> {
   const results: Record<string, any> = {};
   const startTime = Date.now();
 
-  console.log('🚀 Starting ULTIMATE high-speed parallel bulk insert...');
+  etlLogger.info({ stage: 'bulk-insert-start' }, 'Starting high-speed bulk insert');
 
   // 1. Prepare base data
   await query('INSERT INTO firma (firmaid, firmanavn) VALUES (1, \'Hovedkontor Oslo\'), (2, \'Region Vest\'), (3, \'Region Sør\'), (4, \'Region Midt\'), (5, \'Region Nord\') ON CONFLICT DO NOTHING');
@@ -252,7 +256,7 @@ export async function insertBulkTestData(): Promise<any> {
   const { bulkCopy } = await import('../db/index.js');
 
   // 2. Ensure customers and products exist before COPY (FK constraints)
-  console.log('  Ensuring customers, users, and products exist...');
+  etlLogger.debug({ stage: 'bulk-insert-prepare-dimensions' }, 'Ensuring customers, users, and products exist');
   await bulkCopy('kunde', ['kundenr', 'kundenavn'], data.kunder);
   
   // Use a transaction-safe way to insert users if they don't exist
@@ -262,7 +266,7 @@ export async function insertBulkTestData(): Promise<any> {
   await bulkCopy('vare', ['varekode', 'varenavn', 'varegruppe'], data.varer);
 
   // 3. Drop indexes to speed up insertion
-  console.log('  Dropping indexes for maximum speed...');
+  etlLogger.debug({ stage: 'bulk-insert-drop-indexes' }, 'Dropping indexes for maximum speed');
   await query('DROP INDEX IF EXISTS idx_ordrelinje_ordrenr');
   await query('DROP INDEX IF EXISTS idx_ordrelinje_varekode');
   await query('DROP INDEX IF EXISTS idx_ordre_kundenr');
@@ -277,7 +281,7 @@ export async function insertBulkTestData(): Promise<any> {
       return Array.from({ length: chunks }, (_, i) => array.slice(i * size, (i + 1) * size));
     };
 
-    console.log(`  Executing parallel COPY with ${PARALLEL_CHUNKS} streams...`);
+    etlLogger.info({ stage: 'bulk-insert-copy-start', parallelChunks: PARALLEL_CHUNKS }, 'Executing parallel COPY');
     
     const ordreChunks = splitIntoChunks(data.ordrer, PARALLEL_CHUNKS);
     const linjeChunks = splitIntoChunks(data.ordrelinjer, PARALLEL_CHUNKS);
@@ -288,7 +292,7 @@ export async function insertBulkTestData(): Promise<any> {
       ordreChunks.map(chunk => bulkCopy('ordre', ['ordrenr', 'dato', 'kundenr', 'kundeordreref', 'kunderef', 'firmaid', 'lagernavn', 'valutaid', 'sum'], chunk))
     );
     results.ordrer = ordreResults.reduce((sum, count) => sum + count, 0);
-    console.log(`    ✓ Orders finished in ${Date.now() - ordreStart}ms`);
+    etlLogger.info({ stage: 'bulk-insert-orders-finished', durationMs: Date.now() - ordreStart }, 'Orders copy finished');
 
     // Run lines in parallel
     const linjeStart = Date.now();
@@ -296,7 +300,7 @@ export async function insertBulkTestData(): Promise<any> {
       linjeChunks.map(chunk => bulkCopy('ordrelinje', ['linjenr', 'ordrenr', 'varekode', 'antall', 'enhet', 'nettpris', 'linjesum', 'linjestatus'], chunk))
     );
     results.ordrelinjer = linjeResults.reduce((sum, count) => sum + count, 0);
-    console.log(`    ✓ Order lines finished in ${Date.now() - linjeStart}ms`);
+    etlLogger.info({ stage: 'bulk-insert-lines-finished', durationMs: Date.now() - linjeStart }, 'Order lines copy finished');
 
     // Run ordre_henvisning in parallel
     if (data.henvisninger && data.henvisninger.length > 0) {
@@ -306,12 +310,15 @@ export async function insertBulkTestData(): Promise<any> {
         henvisningChunks.map(chunk => bulkCopy('ordre_henvisning', ['ordrenr', 'linjenr', 'henvisning1', 'henvisning2', 'henvisning3', 'henvisning4', 'henvisning5'], chunk))
       );
       results.ordre_henvisninger = henvisningResults.reduce((sum, count) => sum + count, 0);
-      console.log(`    ✓ Order references finished in ${Date.now() - henvisningStart}ms`);
+      etlLogger.info(
+        { stage: 'bulk-insert-references-finished', durationMs: Date.now() - henvisningStart },
+        'Order references copy finished'
+      );
     }
 
   } finally {
     // 5. Recreate indexes
-    console.log('  Recreating indexes (this might take a few seconds)...');
+    etlLogger.debug({ stage: 'bulk-insert-recreate-indexes' }, 'Recreating indexes');
     const indexStart = Date.now();
     await Promise.all([
       query('CREATE INDEX idx_ordrelinje_ordrenr ON ordrelinje(ordrenr)'),
@@ -319,7 +326,7 @@ export async function insertBulkTestData(): Promise<any> {
       query('CREATE INDEX idx_ordre_kundenr ON ordre(kundenr)'),
       query('CREATE INDEX idx_ordre_dato ON ordre(dato)')
     ]);
-    console.log(`    ✓ Indexes recreated in ${Date.now() - indexStart}ms`);
+    etlLogger.info({ stage: 'bulk-insert-indexes-finished', durationMs: Date.now() - indexStart }, 'Indexes recreated');
   }
 
   const duration = Date.now() - startTime;
@@ -327,7 +334,10 @@ export async function insertBulkTestData(): Promise<any> {
   results.totalRows = (results.brukere || 0) + results.ordrer + results.ordrelinjer + (results.ordre_henvisninger || 0);
   results.rowsPerSecond = Math.round(results.totalRows / (duration / 1000));
 
-  console.log(`✅ ULTIMATE insert completed: ${results.totalRows} rows in ${duration}ms (${results.rowsPerSecond} rows/s)`);
+  etlLogger.info(
+    { stage: 'bulk-insert-complete', totalRows: results.totalRows, durationMs: duration, rowsPerSecond: results.rowsPerSecond },
+    'High-speed bulk insert completed'
+  );
 
   return results;
 }

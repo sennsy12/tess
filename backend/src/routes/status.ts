@@ -3,6 +3,7 @@ import { authMiddleware, roleGuard } from '../middleware/auth.js';
 import { statusController } from '../controllers/statusController.js';
 import { getApiMetrics, getApiMetricsSummary } from '../middleware/apiMetrics.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
+import { getEtlMetrics } from '../etl/etlMetrics.js';
 
 export const statusRouter = Router();
 
@@ -24,6 +25,11 @@ statusRouter.get('/api-metrics', authMiddleware, roleGuard('admin'), asyncHandle
     summary: getApiMetricsSummary(),
     endpoints: getApiMetrics()
   });
+}));
+
+// Get ETL pipeline metrics (admin only)
+statusRouter.get('/etl-metrics', authMiddleware, roleGuard('admin'), asyncHandler(async (req: Request, res: Response) => {
+  res.json(getEtlMetrics());
 }));
 
 
