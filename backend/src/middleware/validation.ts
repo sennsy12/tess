@@ -102,30 +102,67 @@ export const bulkDataSchema = z.object({
   actionKey: z.string().min(1).max(200).optional(),
 });
 
+/** Staged bulk pipeline: generate + insert in batches to avoid OOM (20M+ rows). */
+export const bulkStagesSchema = z.object({
+  totalOrders: z.number().int().min(1).max(20_000_000),
+  ordersPerBatch: z.number().int().min(10_000).max(500_000).default(50_000),
+  customers: z.number().int().min(1).max(100000).default(1000),
+  linesPerOrder: z.number().int().min(1).max(100).default(5),
+});
+
+/** Streaming bulk pipeline and fast bulk loader. */
+export const bulkStreamingSchema = z.object({
+  totalOrders: z.number().int().min(1).max(20_000_000),
+  customers: z.number().int().min(1).max(100000).default(1000),
+  linesPerOrder: z.number().int().min(1).max(100).default(5),
+  jobId: z.string().max(100).optional(),
+});
+
 export const etlIngestSchema = z.object({
   sourceType: z.enum(['csv', 'json', 'api']),
   table: z.enum(['ordre', 'ordrelinje', 'kunde', 'vare', 'firma', 'lager']),
   strictMode: z.boolean().default(false),
-  onConflict: z.enum(['nothing', 'error']).default('nothing'),
+  onConflict: z.enum(['nothing', 'error', 'upsert']).default('nothing'),
   sourceMapping: z.record(z.string(), z.string()).optional(),
-  csv: z.object({
-    delimiter: z.string().min(1).max(2).optional(),
-  }).optional(),
-  json: z.object({
-    mode: z.enum(['ndjson', 'array']).default('array'),
-    filePath: z.string().max(500).optional(),
-  }).optional(),
-  api: z.object({
-    url: z.string().url(),
-    method: z.enum(['GET', 'POST']).default('GET'),
-    headers: z.record(z.string(), z.string()).optional(),
-    body: z.record(z.string(), z.unknown()).optional(),
-    timeoutMs: z.number().int().min(1000).max(120000).default(20000),
-    dataPath: z.string().max(200).optional(),
-    nextPagePath: z.string().max(200).optional(),
-    maxPages: z.number().int().min(1).max(100000).default(1000),
-  }).optional(),
+  jobId: z.string().max(100).optional(),
+  checkpoint: z.boolean().default(false),
+  deadLetter: z.boolean().default(false),
+  progressInterval: z.number().int().min(100).max(100000).default(5000),
+  upsertKeyColumns: z.array(z.string().max(100)).optional(),
+  upsertUpdateColumns: z.array(z.string().max(100)).optional(),
+  maxRows: z.number().int().min(1).optional(),
+  maxDurationMs: z.number().int().min(1000).optional(),
+  maxDeadLetters: z.number().int().min(1).optional(),
+  maxHeapMb: z.number().int().min(1).optional(),
+  csv: z
+    .object({
+      delimiter: z.string().min(1).max(2).optional(),
+      compression: z.enum(['none', 'gzip', 'brotli']).default('none'),
+    })
+    .optional(),
+  json: z
+    .object({
+      mode: z.enum(['ndjson', 'array']).default('array'),
+      compression: z.enum(['none', 'gzip', 'brotli']).default('none'),
+    })
+    .optional(),
+  api: z
+    .object({
+      url: z.string().url(),
+      method: z.enum(['GET', 'POST']).default('GET'),
+      headers: z.record(z.string(), z.string()).optional(),
+      body: z.record(z.string(), z.unknown()).optional(),
+      timeoutMs: z.number().int().min(1000).max(120000).default(20000),
+      dataPath: z.string().max(200).optional(),
+      nextPagePath: z.string().max(200).optional(),
+      maxPages: z.number().int().min(1).max(100000).default(1000),
+      minRequestIntervalMs: z.number().int().min(0).max(60000).default(0),
+    })
+    .optional(),
 });
+
+/** Inferred type for ETL ingest request body (use after validate(etlIngestSchema)). */
+export type EtlIngestBody = z.infer<typeof etlIngestSchema>;
 
 // ============================================================
 // Pricing validation schemas

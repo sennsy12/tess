@@ -68,8 +68,9 @@ export async function uploadCsvToTable(
   let attemptedRows = 0;
   let rejectedRows = 0;
 
-  // For combined order-line CSV files we keep backward compatibility:
-  // write orders first, then lines from the same source file.
+  // For combined order+line CSV (one row per order line, with order fields repeated):
+  // Insert ordre first (one row per CSV row; ON CONFLICT DO NOTHING dedupes by ordrenr),
+  // then ordrelinje. Order-level fields (e.g. sum) use the first row per ordrenr.
   if (!providedTable && detectedTable === 'ordrelinje' && headers.includes('ordrenr') && headers.includes('linjenr')) {
     await runStreamingEtl({
       sourceType: 'csv',

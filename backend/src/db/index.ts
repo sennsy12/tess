@@ -247,7 +247,7 @@ export const bulkCopy = async (
       // Process in chunks to avoid memory issues and honor backpressure.
       void (async () => {
         try {
-          const CHUNK_SIZE = 50000;
+          const CHUNK_SIZE = 25_000;
           for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
             const chunk = rows.slice(i, i + CHUNK_SIZE);
             const text = chunk.map(row =>
@@ -285,26 +285,54 @@ export const bulkCopy = async (
 };
 
 /**
+ * Count COPY text lines in a chunk (each line is one row).
+ */
+function countCopyLines(chunk: string): number {
+  if (!chunk || typeof chunk !== 'string') return 0;
+  const matches = chunk.match(/\n/g);
+  return matches ? matches.length : (chunk.trim() ? 1 : 0);
+}
+
+export interface CopyFromLineStreamOptions {
+  onConflict?: 'nothing' | 'error' | 'upsert';
+  /** For upsert: unique key columns (e.g. ['ordrenr']). */
+  upsertKeyColumns?: string[];
+  /** For upsert: columns to update when conflict (default: all non-key columns). */
+  upsertUpdateColumns?: string[];
+  /** Called periodically with number of rows streamed so far. */
+  onProgress?: (rowsStreamed: number) => void;
+  progressInterval?: number;
+  /** If set, log warning when heap (MB) exceeds this. */
+  heapWarnMb?: number;
+  /** If set, abort COPY when heap (MB) exceeds this (failed_heap_guard). */
+  heapAbortMb?: number;
+}
+
+/**
  * Stream pre-formatted COPY lines into PostgreSQL COPY STDIN.
  *
  * This is a stream-first primitive for large ETL jobs where data is produced
  * incrementally (CSV/JSON/API adapters) and should not be fully buffered in memory.
+ * Respects backpressure when source is a Readable.
  */
 export const copyFromLineStream = async (
   tableName: string,
   columns: string[],
   source: AsyncIterable<string> | Readable,
-  onConflict: 'nothing' | 'error' = 'nothing'
+  onConflict: 'nothing' | 'error' | 'upsert' = 'nothing',
+  options: CopyFromLineStreamOptions = {}
 ): Promise<number> => {
+  const { onProgress, progressInterval = 5000, upsertKeyColumns, upsertUpdateColumns } = options;
   const client = await pool.connect();
   let streamedRows = 0;
+  let lastProgressEmit = 0;
   try {
     const copyStreams = await import('pg-copy-streams');
     const tempTable = `temp_${tableName}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
     await client.query('BEGIN');
 
-    if (onConflict === 'nothing') {
+    if (onConflict === 'nothing' || onConflict === 'upsert') {
       await client.query(`CREATE TEMP TABLE ${tempTable} (LIKE ${tableName} INCLUDING DEFAULTS) ON COMMIT DROP`);
       const allColsResult = await client.query(`
         SELECT column_name
@@ -318,7 +346,7 @@ export const copyFromLineStream = async (
       }
     }
 
-    const targetTable = onConflict === 'nothing' ? tempTable : tableName;
+    const targetTable = onConflict === 'nothing' || onConflict === 'upsert' ? tempTable : tableName;
     const copyStream = client.query(
       copyStreams.from(`COPY ${targetTable} (${columns.join(', ')}) FROM STDIN WITH (FORMAT text, NULL '\\N')`)
     );
@@ -327,15 +355,44 @@ export const copyFromLineStream = async (
       copyStream.once('error', reject);
       copyStream.once('finish', () => resolve());
 
+      const heapAbortMb = options.heapAbortMb ?? (() => {
+        const v = process.env.ETL_HEAP_ABORT_MB;
+        const n = v ? Number(v) : NaN;
+        return Number.isFinite(n) ? n : undefined;
+      })();
+      const heapWarnMb = options.heapWarnMb ?? (() => {
+        const v = process.env.ETL_HEAP_WARN_MB;
+        const n = v ? Number(v) : NaN;
+        return Number.isFinite(n) ? n : undefined;
+      })();
+
       void (async () => {
         try {
-          const iterator: AsyncIterable<any> =
+          const iterator: AsyncIterable<string> =
             source instanceof Readable ? source : source;
           for await (const chunk of iterator) {
             if (!copyStream.write(chunk)) {
               await once(copyStream, 'drain');
             }
-            streamedRows += 1;
+            streamedRows += countCopyLines(chunk);
+            if (progressInterval > 0 && streamedRows - lastProgressEmit >= progressInterval) {
+              lastProgressEmit = streamedRows;
+              if (onProgress) onProgress(streamedRows);
+              if (heapWarnMb !== undefined || heapAbortMb !== undefined) {
+                const heapUsedMb = process.memoryUsage().heapUsed / (1024 * 1024);
+                if (heapWarnMb !== undefined && heapUsedMb >= heapWarnMb) {
+                  dbLogger.warn({ heapUsedMB: heapUsedMb, threshold: heapWarnMb, streamedRows }, 'ETL heap above warning threshold');
+                }
+                if (heapAbortMb !== undefined && heapUsedMb >= heapAbortMb) {
+                  copyStream.end();
+                  reject(new Error(`Heap limit exceeded (failed_heap_guard): ${heapUsedMb.toFixed(1)} MB >= ${heapAbortMb} MB`));
+                  return;
+                }
+              }
+            }
+          }
+          if (onProgress && lastProgressEmit !== streamedRows) {
+            onProgress(streamedRows);
           }
           copyStream.end();
         } catch (error) {
@@ -344,7 +401,7 @@ export const copyFromLineStream = async (
       })();
     });
 
-    if (onConflict === 'nothing') {
+    if (onConflict === 'nothing' || onConflict === 'upsert') {
       // 1. Auto-provision missing dimensions from the staging table
       // This ensures foreign key constraints are met before the final insert.
       if (columns.includes('kundenr')) {
@@ -389,6 +446,33 @@ export const copyFromLineStream = async (
       }
 
       // 2. Final insert from staging to real table
+      if (onConflict === 'upsert') {
+        const keyCols = upsertKeyColumns?.length ? upsertKeyColumns : [];
+        if (keyCols.length === 0) {
+          await client.query('ROLLBACK');
+          throw new Error('upsert requires upsertKeyColumns');
+        }
+        const updateCols =
+          upsertUpdateColumns?.length
+            ? upsertUpdateColumns
+            : columns.filter((c) => !keyCols.includes(c));
+        const setClause =
+          updateCols.length > 0
+            ? updateCols.map((c) => `${c} = EXCLUDED.${c}`).join(', ')
+            : null;
+        const conflictClause = `ON CONFLICT (${keyCols.join(', ')})`;
+        const doUpdate = setClause
+          ? `DO UPDATE SET ${setClause}`
+          : 'DO NOTHING';
+        const result = await client.query(`
+          INSERT INTO ${tableName} (${columns.join(', ')})
+          SELECT ${columns.join(', ')} FROM ${tempTable}
+          ${conflictClause} ${doUpdate}
+        `);
+        await client.query('COMMIT');
+        return result.rowCount || 0;
+      }
+
       const result = await client.query(`
         INSERT INTO ${tableName} (${columns.join(', ')})
         SELECT ${columns.join(', ')} FROM ${tempTable}

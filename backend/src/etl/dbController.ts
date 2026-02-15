@@ -76,6 +76,16 @@ export async function createDB() {
       PRIMARY KEY (ordrenr, linjenr),
       FOREIGN KEY (ordrenr, linjenr) REFERENCES public.ordrelinje(ordrenr, linjenr)
     )`,
+    `CREATE TABLE IF NOT EXISTS public.etl_failures (
+      id SERIAL PRIMARY KEY,
+      job_id text NOT NULL,
+      stage text NOT NULL,
+      table_name text,
+      approx_row bigint,
+      error_code text,
+      error_message text,
+      created_at timestamptz DEFAULT CURRENT_TIMESTAMP
+    )`,
   ];
 
   const results = [];

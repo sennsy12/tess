@@ -68,7 +68,8 @@ describe('runStreamingEtl', () => {
       'ordre',
       ['ordrenr', 'dato', 'kundenr'],
       expect.anything(),
-      'nothing'
+      'nothing',
+      expect.objectContaining({ progressInterval: 5000 })
     );
   });
 
@@ -90,7 +91,8 @@ describe('runStreamingEtl', () => {
       'ordre',
       ['ordrenr', 'dato', 'kundenr'],
       expect.anything(),
-      'error'
+      'error',
+      expect.objectContaining({ progressInterval: 5000 })
     );
   });
 
@@ -107,5 +109,43 @@ describe('runStreamingEtl', () => {
 
     expect(result.sourceType).toBe('api');
     expect(result.attemptedRows).toBe(1);
+  });
+
+  it('throws when onConflict is upsert without upsertKeyColumns', async () => {
+    mockCsvSource.mockReturnValue(rows([{ ordrenr: '1', dato: '2026-01-01', kundenr: 'K001' }]));
+    await expect(
+      runStreamingEtl({
+        sourceType: 'csv',
+        table: 'ordre',
+        csv: { filePath: 'dummy.csv' },
+        onConflict: 'upsert',
+      })
+    ).rejects.toThrow(/upsert.*requires upsertKeyColumns/);
+    expect(mockCopyFromLineStream).not.toHaveBeenCalled();
+  });
+
+  it('runs with onConflict upsert when upsertKeyColumns provided', async () => {
+    mockCsvSource.mockReturnValue(rows([
+      { ordrenr: '1', dato: '2026-01-01', kundenr: 'K001' },
+      { ordrenr: '2', dato: '2026-01-02', kundenr: 'K002' },
+    ]));
+    const result = await runStreamingEtl({
+      sourceType: 'csv',
+      table: 'ordre',
+      csv: { filePath: 'dummy.csv' },
+      onConflict: 'upsert',
+      upsertKeyColumns: ['ordrenr'],
+    });
+    expect(result.insertedRows).toBe(2);
+    expect(mockCopyFromLineStream).toHaveBeenCalledWith(
+      'ordre',
+      ['ordrenr', 'dato', 'kundenr'],
+      expect.anything(),
+      'upsert',
+      expect.objectContaining({
+        upsertKeyColumns: ['ordrenr'],
+        progressInterval: 5000,
+      })
+    );
   });
 });

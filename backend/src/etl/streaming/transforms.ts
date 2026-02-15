@@ -134,13 +134,42 @@ export function transformValue(column: string, rawValue: string, rowIndex: numbe
 }
 
 export function isRowValid(table: EtlTableName, valueByColumn: Map<string, string | number | null>): boolean {
+  const reason = getRowValidationError(table, valueByColumn);
+  return reason === null;
+}
+
+/** Returns validation error message or null if valid. Used for dead-letter reporting. */
+export function getRowValidationError(
+  table: EtlTableName,
+  valueByColumn: Map<string, string | number | null>
+): string | null {
   if (table === 'ordre') {
-    return valueByColumn.get('ordrenr') !== null;
+    if (valueByColumn.get('ordrenr') === null) return 'missing ordrenr';
+    return null;
   }
   if (table === 'ordrelinje') {
-    return valueByColumn.get('ordrenr') !== null && valueByColumn.get('linjenr') !== null;
+    if (valueByColumn.get('ordrenr') === null) return 'missing ordrenr';
+    if (valueByColumn.get('linjenr') === null) return 'missing linjenr';
+    return null;
   }
-  return true;
+  if (table === 'kunde') {
+    if (valueByColumn.get('kundenr') === null) return 'missing kundenr';
+    return null;
+  }
+  if (table === 'vare') {
+    if (valueByColumn.get('varekode') === null) return 'missing varekode';
+    return null;
+  }
+  if (table === 'firma') {
+    if (valueByColumn.get('firmaid') === null) return 'missing firmaid';
+    return null;
+  }
+  if (table === 'lager') {
+    if (valueByColumn.get('lagernavn') === null) return 'missing lagernavn';
+    if (valueByColumn.get('firmaid') === null) return 'missing firmaid';
+    return null;
+  }
+  return null;
 }
 
 export function formatCopyValue(value: unknown): string {

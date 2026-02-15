@@ -1,5 +1,14 @@
 import { ApiSourceConfig } from '../types.js';
 
+export interface ApiRowSourceOptions {
+  /** When resuming, start from this URL instead of config.url. */
+  initialUrl?: string;
+  /** Called when we have a next-page URL so the pipeline can save it in checkpoint. */
+  onResumeState?: (state: Record<string, unknown>) => void;
+  /** When aborted, in-flight fetch is aborted and iteration stops. */
+  signal?: AbortSignal;
+}
+
 interface RetryConfig {
   maxRetries: number;
   baseDelayMs: number;
@@ -60,7 +69,10 @@ function normalizeRecords(data: unknown): Array<Record<string, unknown>> {
   return [{ value: data }];
 }
 
-export async function* apiRowSource(config: ApiSourceConfig): AsyncGenerator<Record<string, unknown>> {
+export async function* apiRowSource(
+  config: ApiSourceConfig,
+  options: ApiRowSourceOptions = {}
+): AsyncGenerator<Record<string, unknown>> {
   const {
     url,
     method = 'GET',
@@ -70,35 +82,76 @@ export async function* apiRowSource(config: ApiSourceConfig): AsyncGenerator<Rec
     dataPath = 'data',
     nextPagePath = 'next',
     maxPages = 1000,
+    minRequestIntervalMs = 0,
+    parallelPages = 1,
   } = config;
 
+  type PageResult = { payload: unknown; nextUrl: string | null };
+  const { initialUrl, onResumeState, signal } = options;
   const retry: RetryConfig = { maxRetries: 3, baseDelayMs: 500 };
-  let currentUrl: string | null = url;
+  const prefetchNext = parallelPages > 1;
+  let currentUrl: string | null = initialUrl ?? url;
   let page = 0;
+  let lastRequestTime = 0;
+  let nextFetchPromise: Promise<PageResult> | null = null;
 
-  while (currentUrl && page < maxPages) {
-    page += 1;
-
+  async function fetchPage(pageUrl: string): Promise<PageResult> {
+    if (signal?.aborted) {
+      throw new DOMException('API ingest aborted', 'AbortError');
+    }
+    if (minRequestIntervalMs > 0 && lastRequestTime > 0) {
+      const elapsed = Date.now() - lastRequestTime;
+      if (elapsed < minRequestIntervalMs) {
+        await sleep(minRequestIntervalMs - elapsed);
+      }
+    }
+    lastRequestTime = Date.now();
     const controller = new AbortController();
+    if (signal) {
+      signal.addEventListener('abort', () => controller.abort());
+    }
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const response = await fetchWithRetry(currentUrl, {
-        method,
-        headers: { 'content-type': 'application/json', ...headers },
-        body: body ? JSON.stringify(body) : undefined,
-        signal: controller.signal,
-      }, retry);
+      const response = await fetchWithRetry(
+        pageUrl,
+        {
+          method,
+          headers: { 'content-type': 'application/json', ...headers },
+          body: body ? JSON.stringify(body) : undefined,
+          signal: controller.signal,
+        },
+        retry
+      );
       const payload = await response.json();
-
-      const dataValue = pathGet(payload, dataPath);
-      for (const row of normalizeRecords(dataValue)) {
-        yield row;
-      }
-
       const nextValue = pathGet(payload, nextPagePath);
-      currentUrl = typeof nextValue === 'string' && nextValue.length > 0 ? nextValue : null;
+      const nextUrl =
+        typeof nextValue === 'string' && nextValue.length > 0 ? nextValue : null;
+      return { payload, nextUrl };
     } finally {
       clearTimeout(timeout);
+    }
+  }
+
+  while (currentUrl && page < maxPages) {
+    if (signal?.aborted) {
+      throw new DOMException('API ingest aborted', 'AbortError');
+    }
+    page += 1;
+    const nextPromise: Promise<PageResult> = nextFetchPromise ?? fetchPage(currentUrl);
+    nextFetchPromise = null;
+    const { payload, nextUrl } = await nextPromise;
+
+    if (nextUrl && onResumeState) {
+      onResumeState({ nextUrl });
+    }
+    if (prefetchNext && nextUrl) {
+      nextFetchPromise = fetchPage(nextUrl);
+    }
+    currentUrl = nextUrl;
+
+    const dataValue = pathGet(payload, dataPath);
+    for (const row of normalizeRecords(dataValue)) {
+      yield row;
     }
   }
 }
