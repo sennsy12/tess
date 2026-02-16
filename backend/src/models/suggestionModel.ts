@@ -78,6 +78,30 @@ export const suggestionModel = {
         FROM ordre_henvisning oh
         JOIN ordre o ON o.ordrenr = oh.ordrenr
         WHERE LOWER(oh.henvisning2) LIKE $1 AND oh.henvisning2 IS NOT NULL AND ($2::text IS NULL OR o.kundenr = $2)
+        
+        UNION
+        
+        -- Henvisning3
+        SELECT oh.henvisning3 as suggestion, 'henvisning' as type, oh.henvisning3 as value
+        FROM ordre_henvisning oh
+        JOIN ordre o ON o.ordrenr = oh.ordrenr
+        WHERE LOWER(oh.henvisning3) LIKE $1 AND oh.henvisning3 IS NOT NULL AND ($2::text IS NULL OR o.kundenr = $2)
+        
+        UNION
+        
+        -- Henvisning4
+        SELECT oh.henvisning4 as suggestion, 'henvisning' as type, oh.henvisning4 as value
+        FROM ordre_henvisning oh
+        JOIN ordre o ON o.ordrenr = oh.ordrenr
+        WHERE LOWER(oh.henvisning4) LIKE $1 AND oh.henvisning4 IS NOT NULL AND ($2::text IS NULL OR o.kundenr = $2)
+        
+        UNION
+        
+        -- Henvisning5
+        SELECT oh.henvisning5 as suggestion, 'henvisning' as type, oh.henvisning5 as value
+        FROM ordre_henvisning oh
+        JOIN ordre o ON o.ordrenr = oh.ordrenr
+        WHERE LOWER(oh.henvisning5) LIKE $1 AND oh.henvisning5 IS NOT NULL AND ($2::text IS NULL OR o.kundenr = $2)
       ) AS suggestions
       WHERE suggestion IS NOT NULL
       LIMIT 10

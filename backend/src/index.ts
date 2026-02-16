@@ -110,12 +110,22 @@ initializeDefaultJobs();
 import { errorHandler } from './middleware/errorHandler.js';
 app.use(errorHandler);
 
-const server = app.listen(PORT, () => {
-  logger.info({ port: PORT }, 'Server started');
-});
+let server: any;
 
-// Increase timeout to 5 minutes for large ETL jobs
-server.timeout = 300000;
+if (process.env.NODE_ENV !== 'test') {
+  server = app.listen(PORT, () => {
+    logger.info({ port: PORT }, 'Server started');
+  });
+  
+  // Increase timeout to 5 minutes for large ETL jobs
+  server.timeout = 300000;
+}
+
+
+if (server) {
+  // Increase timeout to 5 minutes for large ETL jobs
+  server.timeout = 300000;
+}
 
 export default app;
 

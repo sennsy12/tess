@@ -4,6 +4,7 @@ import { Layout } from '../../components/Layout';
 import { DataTable } from '../../components/DataTable';
 import { AutocompleteInput } from '../../components/AutocompleteInput';
 import { ordersApi, suggestionsApi } from '../../lib/api';
+import { TableSkeleton } from '../../components/admin';
 
 interface Order {
   ordrenr: number;
@@ -189,7 +190,7 @@ export function KundeOrders() {
                 onChange={(value) => setFilters({ ...filters, search: value })}
                 onSelect={handleSuggestionSelect}
                 fetchSuggestions={fetchSuggestions}
-                placeholder="Søk kunde, ref, produkt..."
+                placeholder="Søk kundenr, henvisning, ref, kunde..."
                 minChars={3}
               />
             </div>
@@ -206,8 +207,8 @@ export function KundeOrders() {
 
         {/* Results */}
         {isLoading ? (
-          <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-500"></div>
+          <div className="card p-0 lg:p-0 overflow-hidden">
+            <TableSkeleton rows={10} columns={8} />
           </div>
         ) : (
           <>

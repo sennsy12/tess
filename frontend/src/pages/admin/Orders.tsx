@@ -159,7 +159,7 @@ export function AdminOrders() {
               onChange={(value) => setFilters((prev) => ({ ...prev, search: value }))}
               onSelect={handleSuggestionSelect}
               fetchSuggestions={fetchSuggestions}
-              placeholder="Søk kunde, ref, produkt..."
+              placeholder="Søk kundenr, henvisning, ref, kunde..."
               minChars={3}
             />
           </div>

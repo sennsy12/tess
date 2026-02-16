@@ -16,7 +16,6 @@ export function AdminAdvancedAnalytics() {
     chartType: 'bar' as ChartType,
     startDate: '',
     endDate: '',
-    kundenr: '',
     search: '',
   });
 
@@ -26,7 +25,7 @@ export function AdminAdvancedAnalytics() {
 
   useEffect(() => {
     loadData();
-  }, [config.metric, config.dimension, config.startDate, config.endDate, config.kundenr]);
+  }, [config.metric, config.dimension, config.startDate, config.endDate, config.search]);
 
   const loadData = async () => {
     setIsLoading(true);
@@ -36,7 +35,7 @@ export function AdminAdvancedAnalytics() {
         dimension: config.dimension,
         startDate: config.startDate || undefined,
         endDate: config.endDate || undefined,
-        kundenr: config.kundenr || undefined,
+        search: config.search || undefined,
       });
       setData(response.data);
     } catch (error) {
@@ -78,8 +77,16 @@ export function AdminAdvancedAnalytics() {
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Configuration Panel */}
         <div className="lg:col-span-1 space-y-6 min-w-0">
-          <div className="card overflow-hidden">
-            <h3 className="font-semibold text-lg mb-4 break-words">⚙️ Konfigurasjon</h3>
+          <div className="card overflow-visible">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-lg break-words">⚙️ Konfigurasjon</h3>
+              <button
+                onClick={() => setConfig({ metric: 'sum', dimension: 'month', chartType: 'bar', startDate: '', endDate: '', search: '' })}
+                className="text-xs px-2 py-1 rounded border border-dark-600 hover:bg-dark-700 text-dark-300 hover:text-dark-100 transition-colors"
+              >
+                Nullstill
+              </button>
+            </div>
             
             <div className="space-y-4">
               {/* Metric Selection */}
@@ -164,22 +171,22 @@ export function AdminAdvancedAnalytics() {
                 </div>
               </div>
 
-              {/* Customer Filter */}
+              {/* Customer / Reference Filter */}
               <div className="pt-4 border-t border-dark-700 min-w-0">
-                <label className="label break-words text-sm">Filtrer på Kunde<br /><span className="text-dark-400">(Valgfritt)</span></label>
+                <label className="label break-words text-sm">Søk kundenr / henvisning<br /><span className="text-dark-400">(Valgfritt)</span></label>
                 <AutocompleteInput
-                  value={config.kundenr}
-                  onChange={(val) => setConfig({ ...config, kundenr: val })}
+                  value={config.search}
+                  onChange={(val) => setConfig({ ...config, search: val })}
                   fetchSuggestions={async (q) => {
                     const response = await suggestionsApi.search(q);
                     return response.data;
                   }}
                   onSelect={(suggestion) => {
-                    if (suggestion.type === 'kunde' && 'value' in suggestion) {
-                      setConfig({ ...config, kundenr: String((suggestion as any).value) });
+                    if ('value' in suggestion) {
+                      setConfig({ ...config, search: String((suggestion as any).value) });
                     }
                   }}
-                  placeholder="Eks: K001"
+                  placeholder="Kundenr, henvisning..."
                   minChars={1}
                 />
               </div>

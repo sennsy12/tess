@@ -5,7 +5,8 @@ import { LineChart, PieChart } from '../../components/Charts';
 import { ExportButton } from '../../components/ExportButton';
 import { statisticsApi, ordersApi } from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
-
+import { AnimatedStatCard } from '../../components/dashboard/AnimatedStatCard';
+import { StatCardSkeleton, ChartSkeleton } from '../../components/admin';
 export function KundeDashboard() {
   const { user } = useAuth();
   const chartRef = useRef<HTMLDivElement>(null);
@@ -40,8 +41,14 @@ export function KundeDashboard() {
   if (isLoading) {
     return (
       <Layout title="Dashboard">
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-500"></div>
+        <div className="space-y-6">
+          <div className="card"><div className="h-14 animate-pulse rounded bg-dark-700/40" /></div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <StatCardSkeleton /><StatCardSkeleton /><StatCardSkeleton /><StatCardSkeleton />
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <ChartSkeleton /><ChartSkeleton />
+          </div>
         </div>
       </Layout>
     );
@@ -54,7 +61,7 @@ export function KundeDashboard() {
     <Layout title="Kunde Dashboard">
       <div className="space-y-6">
         {/* Welcome message */}
-        <div className="card bg-gradient-to-r from-primary-600/20 to-primary-800/20 border-primary-700/50">
+        <div className="card bg-gradient-to-r from-primary-600/20 to-primary-800/20 border-primary-700/50 animate-fade-in">
           <h3 className="text-xl font-semibold text-dark-50">
             Velkommen, {user?.kundenr || user?.username}! 👋
           </h3>
@@ -64,27 +71,31 @@ export function KundeDashboard() {
         </div>
 
         {/* Stats cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="stat-card">
-            <span className="stat-label">Totale Ordrer</span>
-            <span className="stat-value">{summary?.totalOrders || 0}</span>
-          </div>
-          <div className="stat-card">
-            <span className="stat-label">Total Omsetning</span>
-            <span className="stat-value">
-              {currencyFormatter(summary?.totalRevenue || 0)}
-            </span>
-          </div>
-          <div className="stat-card">
-            <span className="stat-label">Produkter Bestilt</span>
-            <span className="stat-value">{summary?.productsOrdered || 0}</span>
-          </div>
-          <div className="stat-card">
-            <span className="stat-label">Gjennomsnitt/Ordre</span>
-            <span className="stat-value">
-              {currencyFormatter((summary?.totalRevenue || 0) / Math.max(summary?.totalOrders || 1, 1))}
-            </span>
-          </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 stagger-fade-in">
+          <AnimatedStatCard
+            label="Totale Ordrer"
+            value={summary?.totalOrders || 0}
+            sparkData={timeSeries.map((t: any) => ({ value: t.order_count ?? t.total_orders ?? 0 }))}
+            sparkKey="value"
+            sparkColor="#6366f1"
+          />
+          <AnimatedStatCard
+            label="Total Omsetning"
+            value={summary?.totalRevenue || 0}
+            formatter={currencyFormatter}
+            sparkData={timeSeries.map((t: any) => ({ value: t.total_sum ?? 0 }))}
+            sparkKey="value"
+            sparkColor="#10b981"
+          />
+          <AnimatedStatCard
+            label="Produkter Bestilt"
+            value={summary?.productsOrdered || 0}
+          />
+          <AnimatedStatCard
+            label="Gjennomsnitt/Ordre"
+            value={Math.round((summary?.totalRevenue || 0) / Math.max(summary?.totalOrders || 1, 1))}
+            formatter={currencyFormatter}
+          />
         </div>
 
         {/* Export button */}

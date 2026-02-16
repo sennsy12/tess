@@ -90,7 +90,20 @@ export const orderModel = {
       baseSql += ` AND (
         o.kundeordreref ILIKE $${paramIndex} OR 
         o.kunderef ILIKE $${paramIndex} OR
-        k.kundenavn ILIKE $${paramIndex}
+        k.kundenavn ILIKE $${paramIndex} OR
+        o.kundenr ILIKE $${paramIndex} OR
+        EXISTS (
+          SELECT 1 FROM ordrelinje ol2
+          INNER JOIN ordre_henvisning oh ON ol2.ordrenr = oh.ordrenr AND ol2.linjenr = oh.linjenr
+          WHERE ol2.ordrenr = o.ordrenr
+          AND (
+            oh.henvisning1 ILIKE $${paramIndex} OR
+            oh.henvisning2 ILIKE $${paramIndex} OR
+            oh.henvisning3 ILIKE $${paramIndex} OR
+            oh.henvisning4 ILIKE $${paramIndex} OR
+            oh.henvisning5 ILIKE $${paramIndex}
+          )
+        )
       )`;
       params.push(`%${filters.search}%`);
       paramIndex++;

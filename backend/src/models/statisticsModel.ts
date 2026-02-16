@@ -16,6 +16,7 @@ export interface StatsFilters {
   endDate?: string;
   varegruppe?: string;
   kundenr?: string;
+  search?: string;
   groupBy?: string;
   page?: number;
   limit?: number;
@@ -527,8 +528,26 @@ export const statisticsModel = {
       // Force customer to only see their own data
       sql += ` AND o.kundenr = $${paramIndex++}`;
       params.push(user.kundenr);
+    } else if (filters.search) {
+      // Free-text search: match kundenr OR any henvisning1-5
+      const searchPattern = `%${filters.search}%`;
+      sql += ` AND (
+        o.kundenr::text ILIKE $${paramIndex} OR
+        EXISTS (
+          SELECT 1 FROM ordre_henvisning oh
+          WHERE oh.ordrenr = o.ordrenr AND (
+            oh.henvisning1 ILIKE $${paramIndex} OR
+            oh.henvisning2 ILIKE $${paramIndex} OR
+            oh.henvisning3 ILIKE $${paramIndex} OR
+            oh.henvisning4 ILIKE $${paramIndex} OR
+            oh.henvisning5 ILIKE $${paramIndex}
+          )
+        )
+      )`;
+      params.push(searchPattern);
+      paramIndex++;
     } else if (filters.kundenr) {
-      // Allow admin/analyse to filter by specific customer if provided
+      // Exact kundenr match (legacy / direct filter)
       sql += ` AND o.kundenr = $${paramIndex++}`;
       params.push(filters.kundenr);
     }

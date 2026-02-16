@@ -3,7 +3,11 @@ module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
   roots: ['<rootDir>/src'],
-  testMatch: ['**/__tests__/**/*.test.ts'],
+  testMatch: [
+    '**/__tests__/**/*.test.ts',
+    '**/tests/*.test.ts',
+    '**/tests/**/*.test.ts'
+  ],
   moduleNameMapper: {
     // Strip .js extensions from imports so ts-jest can resolve .ts files
     '^(\\.{1,2}/.*)\\.js$': '$1',

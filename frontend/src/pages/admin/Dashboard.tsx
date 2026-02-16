@@ -8,7 +8,8 @@ import {
   dashboardApi,
 } from '../../lib/api';
 import { StatCardSkeleton, ChartSkeleton } from '../../components/admin';
-import { formatCurrencyNok, formatNumberNb, abbreviateCurrencyNok } from '../../lib/formatters';
+import { formatCurrencyNok, abbreviateCurrencyNok } from '../../lib/formatters';
+import { AnimatedStatCard } from '../../components/dashboard/AnimatedStatCard';
 import {
   TopProductsWidget,
   TopCustomersWidget,
@@ -43,7 +44,7 @@ export function AdminDashboard() {
     <Layout title="Admin Dashboard">
       <div className="space-y-6">
         {/* System status */}
-        <div className="card bg-gradient-to-r from-green-600/20 to-emerald-600/20 border-green-700/50">
+        <div className="card bg-gradient-to-r from-green-600/20 to-emerald-600/20 border-green-700/50 animate-fade-in">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className={`w-4 h-4 rounded-full ${status?.status === 'healthy' ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
@@ -69,22 +70,10 @@ export function AdminDashboard() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 stagger-fade-in">
-            <div className="stat-card">
-              <span className="stat-label">Ordrer i DB</span>
-              <span className="stat-value">{formatNumberNb(status?.tables?.orders || 0)}</span>
-            </div>
-            <div className="stat-card">
-              <span className="stat-label">Kunder i DB</span>
-              <span className="stat-value">{formatNumberNb(status?.tables?.customers || 0)}</span>
-            </div>
-            <div className="stat-card">
-              <span className="stat-label">Produkter i DB</span>
-              <span className="stat-value">{formatNumberNb(status?.tables?.products || 0)}</span>
-            </div>
-            <div className="stat-card">
-              <span className="stat-label">Brukere i DB</span>
-              <span className="stat-value">{formatNumberNb(status?.tables?.users || 0)}</span>
-            </div>
+            <AnimatedStatCard label="Ordrer i DB" value={status?.tables?.orders || 0} />
+            <AnimatedStatCard label="Kunder i DB" value={status?.tables?.customers || 0} />
+            <AnimatedStatCard label="Produkter i DB" value={status?.tables?.products || 0} />
+            <AnimatedStatCard label="Brukere i DB" value={status?.tables?.users || 0} />
           </div>
         )}
 
@@ -98,24 +87,37 @@ export function AdminDashboard() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 stagger-fade-in">
-            <div className="stat-card gradient-primary text-white">
-              <span className="stat-label text-white/80">Total Omsetning</span>
-              <span className="stat-value text-2xl">
-                {formatCurrencyNok(summary?.totalRevenue || 0)}
-              </span>
-            </div>
-            <div className="stat-card gradient-success text-white">
-              <span className="stat-label text-white/80">Totale Ordrer</span>
-              <span className="stat-value">{formatNumberNb(summary?.totalOrders || 0)}</span>
-            </div>
-            <div className="stat-card gradient-warning text-white">
-              <span className="stat-label text-white/80">Aktive Kunder</span>
-              <span className="stat-value">{formatNumberNb(summary?.activeCustomers || 0)}</span>
-            </div>
-            <div className="stat-card gradient-danger text-white">
-              <span className="stat-label text-white/80">Produkter Solgt</span>
-              <span className="stat-value">{formatNumberNb(summary?.productsOrdered || 0)}</span>
-            </div>
+            <AnimatedStatCard
+              label="Total Omsetning"
+              value={summary?.totalRevenue || 0}
+              formatter={formatCurrencyNok}
+              className="gradient-primary text-white"
+              labelClassName="text-white/80"
+              sparkData={timeSeries.map((t: any) => ({ value: t.total_sum }))}
+              sparkKey="value"
+              sparkColor="#ffffff"
+            />
+            <AnimatedStatCard
+              label="Totale Ordrer"
+              value={summary?.totalOrders || 0}
+              className="gradient-success text-white"
+              labelClassName="text-white/80"
+              sparkData={timeSeries.map((t: any) => ({ value: t.order_count }))}
+              sparkKey="value"
+              sparkColor="#ffffff"
+            />
+            <AnimatedStatCard
+              label="Aktive Kunder"
+              value={summary?.activeCustomers || 0}
+              className="gradient-warning text-white"
+              labelClassName="text-white/80"
+            />
+            <AnimatedStatCard
+              label="Produkter Solgt"
+              value={summary?.productsOrdered || 0}
+              className="gradient-danger text-white"
+              labelClassName="text-white/80"
+            />
           </div>
         )}
 
