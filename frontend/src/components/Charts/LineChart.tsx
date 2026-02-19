@@ -134,7 +134,7 @@ export function LineChart({
               }}
             />
           )}
-          {resolvedSeries.map((s, i) => (
+          {resolvedSeries.map((s, _i) => (
             <Line
               key={s.dataKey}
               type="monotone"

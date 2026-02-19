@@ -130,7 +130,7 @@ export function BarChart({
             formatter={(value: number) => [tooltipFormatter(value), seriesName]}
           />
           <Bar dataKey={yKey} radius={[4, 4, 0, 0]} maxBarSize={60}>
-            {data.map((entry, index) => (
+            {data.map((_entry, index) => (
               <Cell key={`cell-${index}`} fill={color} fillOpacity={0.9} />
             ))}
           </Bar>
