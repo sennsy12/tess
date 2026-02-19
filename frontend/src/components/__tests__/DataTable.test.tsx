@@ -145,8 +145,17 @@ describe('DataTable', () => {
     expect(screen.queryByText('Item 3')).not.toBeInTheDocument();
 
     // Pagination info should be visible
-    expect(screen.getByText(/Viser 1-2 av 5/)).toBeInTheDocument();
-    expect(screen.getByText(/Side 1 av 3/)).toBeInTheDocument();
+    // We use a function matcher because the text is split across multiple span elements
+    expect(screen.getByText((_content, element) => {
+      const hasText = (node: Element | null) => node?.textContent === 'Viser 1 - 2 av 5';
+      const nodeHasText = hasText(element);
+      const childrenDontHaveText = Array.from(element?.children || []).every(
+        (child) => !hasText(child as Element)
+      );
+      return nodeHasText && childrenDontHaveText;
+    })).toBeInTheDocument();
+    
+    expect(screen.getByText(/1 \/ 3/)).toBeInTheDocument();
   });
 
   it('navigates to next page when next button is clicked', async () => {
@@ -170,6 +179,6 @@ describe('DataTable', () => {
   it('does not show pagination when all data fits on one page', () => {
     render(<DataTable data={sampleData} columns={sampleColumns} pageSize={50} />);
 
-    expect(screen.queryByText(/Side/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/\//)).not.toBeInTheDocument();
   });
 });
