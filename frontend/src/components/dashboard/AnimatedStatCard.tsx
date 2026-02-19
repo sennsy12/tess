@@ -37,8 +37,8 @@ export function AnimatedStatCard({
 
   return (
     <div className={`stat-card ${className}`}>
-      <span className={`stat-label ${labelClassName}`}>{label}</span>
-      <span className="stat-value">{formatter(animated)}</span>
+      <div className={`stat-label ${labelClassName}`}>{label}</div>
+      <div className="stat-value">{formatter(animated)}</div>
       {sparkData && sparkData.length >= 2 && (
         <div className="mt-2">
           <Sparkline data={sparkData} dataKey={sparkKey} color={sparkColor} height={28} />

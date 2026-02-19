@@ -153,54 +153,67 @@ export function AdminDashboard() {
         ) : (
           <div ref={chartRef} className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="card">
-                <LineChart
-                  data={timeSeries}
-                  xKey="period"
-                  yKey="total_sum"
-                  title="📈 Omsetning over tid"
-                  color="#10b981"
-                  seriesName="Omsetning"
-                  valueFormatter={formatCurrencyNok}
-                  tickFormatter={abbreviateCurrencyNok}
-                />
-              </div>
-              <div className="card">
-                <BarChart
-                  data={timeSeries}
-                  xKey="period"
-                  yKey="order_count"
-                  title="📊 Ordrer per måned"
-                  color="#8b5cf6"
-                  seriesName="Antall Ordrer"
-                />
-              </div>
+              <LineChart
+                data={timeSeries}
+                xKey="period"
+                yKey="total_sum"
+                title="📈 Omsetning over tid"
+                color="#10b981"
+                seriesName="Omsetning"
+                valueFormatter={formatCurrencyNok}
+                tickFormatter={abbreviateCurrencyNok}
+              />
+              <BarChart
+                data={timeSeries}
+                xKey="period"
+                yKey="order_count"
+                title="📊 Ordrer per måned"
+                color="#8b5cf6"
+                seriesName="Antall Ordrer"
+              />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="card">
-                <PieChart
-                  data={firmaStats}
-                  nameKey="firmanavn"
-                  valueKey="total_sum"
-                  title="🏢 Omsetning per Firma"
-                  seriesName="Omsetning"
-                  valueFormatter={formatCurrencyNok}
-                  height={360}
-                />
-              </div>
-              <div className="card">
-                <BarChart
-                  data={lagerStats}
-                  xKey="lagernavn"
-                  yKey="total_sum"
-                  title="📦 Omsetning per Lager"
-                  color="#f59e0b"
-                  seriesName="Omsetning"
-                  valueFormatter={formatCurrencyNok}
-                  tickFormatter={abbreviateCurrencyNok}
-                />
-              </div>
+              <LineChart
+                data={timeSeries}
+                xKey="period"
+                yKey="total_sum"
+                title="📈 Omsetning over tid"
+                color="#10b981"
+                seriesName="Omsetning"
+                valueFormatter={formatCurrencyNok}
+                tickFormatter={abbreviateCurrencyNok}
+              />
+              <BarChart
+                data={timeSeries}
+                xKey="period"
+                yKey="order_count"
+                title="📊 Ordrer per måned"
+                color="#8b5cf6"
+                seriesName="Antall Ordrer"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <PieChart
+                data={firmaStats}
+                nameKey="firmanavn"
+                valueKey="total_sum"
+                title="🏢 Omsetning per Firma"
+                seriesName="Omsetning"
+                valueFormatter={formatCurrencyNok}
+                height={360}
+              />
+              <BarChart
+                data={lagerStats}
+                xKey="lagernavn"
+                yKey="total_sum"
+                title="📦 Omsetning per Lager"
+                color="#f59e0b"
+                seriesName="Omsetning"
+                valueFormatter={formatCurrencyNok}
+                tickFormatter={abbreviateCurrencyNok}
+              />
             </div>
           </div>
         )}
