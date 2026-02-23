@@ -1,7 +1,15 @@
 import { useState, useCallback, useMemo } from 'react';
 import { pricingApi } from '../../../../lib/api';
 import { LineChart } from '../../../../components/Charts';
-import type { PriceList, CustomerGroup, SimulationResult, CustomerImpact, ProductImpact } from '../types';
+import type { 
+  PriceList, 
+  CustomerGroup, 
+  SimulationResult, 
+  CustomerImpact, 
+  ProductImpact, 
+  SimulatorForm 
+} from '../../../../types/pricing';
+import { INITIAL_SIMULATOR_FORM as INITIAL_FORM } from '../../../../types/pricing';
 
 // ────────────────────────────────────────────────────────────
 // Props
@@ -11,44 +19,6 @@ interface SimulatorTabProps {
   lists: PriceList[];
   groups: CustomerGroup[];
 }
-
-// ────────────────────────────────────────────────────────────
-// Form state
-// ────────────────────────────────────────────────────────────
-
-interface SimulatorForm {
-  price_list_id: string;
-  scope: 'all' | 'product' | 'category';
-  varekode: string;
-  varegruppe: string;
-  target: 'all' | 'customer' | 'group';
-  kundenr: string;
-  customer_group_id: string;
-  min_quantity: number;
-  discount_type: 'percent' | 'fixed';
-  discount_percent: string;
-  fixed_price: string;
-  start_date: string;
-  end_date: string;
-  sample_size: number;
-}
-
-const INITIAL_FORM: SimulatorForm = {
-  price_list_id: '',
-  scope: 'all',
-  varekode: '',
-  varegruppe: '',
-  target: 'all',
-  kundenr: '',
-  customer_group_id: '',
-  min_quantity: 0,
-  discount_type: 'percent',
-  discount_percent: '',
-  fixed_price: '',
-  start_date: '',
-  end_date: '',
-  sample_size: 1000,
-};
 
 // ────────────────────────────────────────────────────────────
 // Formatting helpers
@@ -165,16 +135,15 @@ export function SimulatorTab({ lists, groups }: SimulatorTabProps) {
   const [error, setError] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(false);
 
-  // Active (non-expired) price lists for the dropdown
   const activeLists = useMemo(
-    () => lists.filter((l) => l.is_active),
+    () => lists.filter((l: PriceList) => l.is_active),
     [lists],
   );
 
   // ── Form handlers ─────────────────────────────────────
   const update = useCallback(
     <K extends keyof SimulatorForm>(key: K, value: SimulatorForm[K]) =>
-      setForm((prev) => ({ ...prev, [key]: value })),
+      setForm((prev: SimulatorForm) => ({ ...prev, [key]: value })),
     [],
   );
 

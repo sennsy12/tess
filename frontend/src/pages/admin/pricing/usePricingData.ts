@@ -12,7 +12,7 @@ import {
   INITIAL_GROUP_FORM,
   INITIAL_LIST_FORM,
   INITIAL_RULE_FORM,
-} from './types';
+} from '../../../types/pricing';
 
 export function usePricingData() {
   const [isLoading, setIsLoading] = useState(true);

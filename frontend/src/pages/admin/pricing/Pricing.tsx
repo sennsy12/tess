@@ -3,7 +3,7 @@ import { Layout } from '../../../components/Layout';
 import { Tabs, TabContent } from '../../../components/Tabs';
 import { usePricingData } from './usePricingData';
 import { GroupsTab, ListsTab, RulesTab, CustomersTab, PreviewTab, SimulatorTab, AuditLogTab } from './components';
-import { Tab, TABS } from './types';
+import { Tab, TABS } from '../../../types/pricing';
 
 export function AdminPricing() {
   const [activeTab, setActiveTab] = useState<Tab>('groups');

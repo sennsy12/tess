@@ -1,17 +1,4 @@
-import { CustomerGroup, GroupFormData, INITIAL_GROUP_FORM } from '../types';
-
-interface Props {
-  groups: CustomerGroup[];
-  showGroupForm: boolean;
-  editingGroup: CustomerGroup | null;
-  groupForm: GroupFormData;
-  setShowGroupForm: (show: boolean) => void;
-  setEditingGroup: (group: CustomerGroup | null) => void;
-  setGroupForm: (form: GroupFormData) => void;
-  handleCreateGroup: (e: React.FormEvent) => void;
-  handleUpdateGroup: (e: React.FormEvent) => void;
-  handleDeleteGroup: (id: number) => void;
-}
+import { INITIAL_GROUP_FORM, GroupsTabProps } from '../../../../types/pricing';
 
 export function GroupsTab({
   groups,
@@ -24,7 +11,7 @@ export function GroupsTab({
   handleCreateGroup,
   handleUpdateGroup,
   handleDeleteGroup,
-}: Props) {
+}: GroupsTabProps) {
   return (
     <div className="card">
       <div className="flex justify-between items-center mb-4">

@@ -3,38 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Layout } from '../../components/Layout';
 import { ordersApi } from '../../lib/api';
 
-interface OrderLine {
-  linjenr: number;
-  varekode: string;
-  varenavn: string;
-  varegruppe: string;
-  antall: number;
-  enhet: string;
-  nettpris: number;
-  linjesum: number;
-  linjestatus: number;
-  henvisning1?: string;
-  henvisning2?: string;
-  henvisning3?: string;
-  henvisning4?: string;
-  henvisning5?: string;
-}
-
-interface OrderDetail {
-  ordrenr: number;
-  dato: string;
-  kundenr: string;
-  kundenavn: string;
-  kundeordreref: string;
-  kunderef: string;
-  firmaid: number;
-  firmanavn: string;
-  lagernavn: string;
-  valutaid: string;
-  sum: number;
-  lines: OrderLine[];
-}
-
+import { OrderDetail } from '../../types/order';
 export function KundeOrderDetail() {
   const { ordrenr } = useParams<{ ordrenr: string }>();
   const navigate = useNavigate();
@@ -215,7 +184,7 @@ export function KundeOrderDetail() {
                   <span className="text-dark-400 text-sm">Linje {line.linjenr}: </span>
                   {[line.henvisning1, line.henvisning2, line.henvisning3, line.henvisning4, line.henvisning5]
                     .filter(Boolean)
-                    .map((ref, i) => (
+                    .map((ref: string | undefined, i: number) => (
                       <span key={i} className="inline-block px-2 py-1 bg-dark-700 rounded text-sm mr-2">
                         {ref}
                       </span>

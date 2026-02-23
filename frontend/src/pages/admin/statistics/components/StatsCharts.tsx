@@ -1,17 +1,6 @@
 import { BarChart, PieChart } from '../../../../components/Charts';
 import { abbreviateCurrencyNok } from '../../../../lib/formatters';
-
-interface StatsChartsProps {
-  data: any[];
-  nameKey: string;
-  title: string;
-  currencyFormatter: (value: number) => string;
-  comparison?: {
-    currentTotal: number;
-    previousTotal: number;
-    deltaPercent: number | null;
-  } | null;
-}
+import { StatsChartsProps } from '../../../../types/statistics';
 
 export function StatsCharts({ data, nameKey, title, currencyFormatter, comparison }: StatsChartsProps) {
   const deltaClass = comparison?.deltaPercent === null

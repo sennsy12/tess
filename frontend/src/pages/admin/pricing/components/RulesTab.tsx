@@ -1,24 +1,6 @@
 import { useState } from 'react';
 import { pricingApi } from '../../../../lib/api';
-import { PriceRule, PriceList, CustomerGroup, RuleFormData, RuleConflict, INITIAL_RULE_FORM } from '../types';
-
-interface Props {
-  rules: PriceRule[];
-  lists: PriceList[];
-  groups: CustomerGroup[];
-  productGroups: string[];
-  selectedListId: number | null;
-  showRuleForm: boolean;
-  ruleForm: RuleFormData;
-  editingRule: PriceRule | null;
-  setShowRuleForm: (show: boolean) => void;
-  setRuleForm: (form: RuleFormData) => void;
-  setEditingRule: (rule: PriceRule | null) => void;
-  loadRules: (listId: number) => void;
-  handleCreateRule: (e: React.FormEvent) => void;
-  handleUpdateRule: (e: React.FormEvent) => void;
-  handleDeleteRule: (id: number) => void;
-}
+import { PriceRule, RuleConflict, INITIAL_RULE_FORM, RulesTabProps } from '../../../../types/pricing';
 
 export function RulesTab({
   rules,
@@ -36,7 +18,7 @@ export function RulesTab({
   handleCreateRule,
   handleUpdateRule,
   handleDeleteRule,
-}: Props) {
+}: RulesTabProps) {
   const [conflicts, setConflicts] = useState<RuleConflict[]>([]);
   const [showConflictWarning, setShowConflictWarning] = useState(false);
   const [pendingSubmitEvent, setPendingSubmitEvent] = useState<React.FormEvent | null>(null);

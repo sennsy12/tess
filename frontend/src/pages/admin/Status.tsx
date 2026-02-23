@@ -3,28 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Layout } from '../../components/Layout';
 import { statusApi } from '../../lib/api';
 
-interface ApiEndpointMetric {
-  path: string;
-  method: string;
-  avgMs: number;
-  minMs: number;
-  maxMs: number;
-  count: number;
-  slowCount: number;
-  lastCalled: string;
-}
-
-interface ApiMetricsData {
-  summary: {
-    totalEndpoints: number;
-    totalRequests: number;
-    totalSlowRequests: number;
-    slowestEndpoint: { path: string; method: string; avgMs: number } | null;
-    mostCalled: { path: string; method: string; count: number } | null;
-    status: string;
-  };
-  endpoints: ApiEndpointMetric[];
-}
+import { ApiEndpointMetric, ApiMetricsData } from '../../types/status';
 
 export function AdminStatus() {
   const { data: systemStatus, refetch: refetchSystem } = useQuery({

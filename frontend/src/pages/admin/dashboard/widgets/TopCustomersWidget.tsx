@@ -1,19 +1,8 @@
 import { useMemo } from 'react';
 
-interface TopCustomer {
-  kundenr: string;
-  kundenavn: string;
-  order_count: number;
-  total_revenue: number;
-  last_order_date: string;
-}
+import { TopCustomersWidgetProps } from '../../../../types/dashboard';
 
-interface Props {
-  data: TopCustomer[];
-  isLoading?: boolean;
-}
-
-export function TopCustomersWidget({ data, isLoading }: Props) {
+export function TopCustomersWidget({ data, isLoading }: TopCustomersWidgetProps) {
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat('nb-NO', { style: 'currency', currency: 'NOK', maximumFractionDigits: 0 }).format(value);
 

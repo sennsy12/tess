@@ -1,29 +1,7 @@
 import api from './client';
+import { UserPublic, CreateUserPayload, UpdateUserPayload } from '../../types/user';
 
-export interface UserPublic {
-  id: number;
-  username: string;
-  role: 'admin' | 'kunde' | 'analyse';
-  kundenr?: string;
-  created_at?: string;
-}
-
-export interface CreateUserPayload {
-  username: string;
-  password: string;
-  role: 'admin' | 'kunde' | 'analyse';
-  kundenr?: string;
-}
-
-export interface UpdateUserPayload {
-  username?: string;
-  password?: string;
-  role?: 'admin' | 'kunde' | 'analyse';
-  kundenr?: string | null;
-  actionKey?: string;
-}
-
-export interface UsersPaginatedResponse {
+export interface PaginatedUsersResponse {
   data: UserPublic[];
   pagination: {
     page: number;
@@ -35,7 +13,7 @@ export interface UsersPaginatedResponse {
 
 export const usersApi = {
   getAll: (params?: { page?: number; limit?: number }) =>
-    api.get<UsersPaginatedResponse>('/users', { params }),
+    api.get<PaginatedUsersResponse>('/users', { params }),
   getById: (id: number) => api.get<UserPublic>(`/users/${id}`),
   create: (data: CreateUserPayload) => api.post<UserPublic>('/users', data),
   update: (id: number, data: UpdateUserPayload) => api.put<UserPublic>(`/users/${id}`, data),

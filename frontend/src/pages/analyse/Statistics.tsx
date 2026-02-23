@@ -1,5 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
+import { motion } from 'framer-motion';
 import { Layout } from '../../components/Layout';
+import { Skeleton } from '../../components/Skeleton';
 import {
   statisticsApi,
   PaginatedResponse,
@@ -178,7 +180,12 @@ export function AnalyseStatistics() {
 
   return (
     <Layout title="Detaljert Statistikk">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="grid grid-cols-1 lg:grid-cols-3 gap-6"
+      >
         {/* Left Column: Filters & Saved Reports */}
         <div className="space-y-6 lg:col-span-1">
           <StatsFilters
@@ -202,8 +209,12 @@ export function AnalyseStatistics() {
         {/* Right Column: Charts & Data */}
         <div className="lg:col-span-2 space-y-6">
           {isLoading ? (
-            <div className="flex items-center justify-center h-64 card">
-              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-500"></div>
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                <Skeleton className="h-[400px] w-full" />
+                <Skeleton className="h-[400px] w-full" />
+              </div>
+              <Skeleton className="h-[600px] w-full" />
             </div>
           ) : (
             <div ref={chartRef} className="space-y-6">
@@ -228,7 +239,7 @@ export function AnalyseStatistics() {
             </div>
           )}
         </div>
-      </div>
+      </motion.div>
     </Layout>
   );
 }

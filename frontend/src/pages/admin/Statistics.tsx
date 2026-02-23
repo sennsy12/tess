@@ -17,15 +17,9 @@ import { SavedReportsList } from '../../components/SavedReportsList';
 import { StatsFilters } from './statistics/components/StatsFilters';
 import { StatsCharts } from './statistics/components/StatsCharts';
 import { StatsTable } from './statistics/components/StatsTable';
+import { StatType, ComparisonData } from '../../types/statistics';
 
-type StatType = 'kunde' | 'varegruppe' | 'vare' | 'lager' | 'firma';
 type StatRow = KundeStats | VaregruppeStats | VareStats | LagerStats | FirmaStats;
-
-interface ComparisonData {
-  currentTotal: number;
-  previousTotal: number;
-  deltaPercent: number | null;
-}
 
 export function AdminStatistics() {
   const [statType, setStatType] = useState<StatType>('kunde');

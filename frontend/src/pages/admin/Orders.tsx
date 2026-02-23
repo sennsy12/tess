@@ -11,23 +11,7 @@ import { ordersApi, suggestionsApi } from '../../lib/api';
 // Types
 // ────────────────────────────────────────────────────────────
 
-interface Order {
-  ordrenr: number;
-  dato: string;
-  kundenr: string;
-  kundenavn: string;
-  firmanavn: string;
-  lagernavn: string;
-  valutaid: string;
-  sum: number;
-  kunderef?: string;
-  kundeordreref?: string;
-}
-
-interface Suggestion {
-  suggestion: string;
-  type: string;
-}
+import { Order, Suggestion } from '../../types/order';
 
 // ────────────────────────────────────────────────────────────
 // Constants

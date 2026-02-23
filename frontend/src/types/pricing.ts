@@ -142,6 +142,23 @@ export interface RuleFormData {
   fixed_price: string;
 }
 
+export interface SimulatorForm {
+  price_list_id: string;
+  scope: 'all' | 'product' | 'category';
+  varekode: string;
+  varegruppe: string;
+  target: 'all' | 'customer' | 'group';
+  kundenr: string;
+  customer_group_id: string;
+  min_quantity: number;
+  discount_type: 'percent' | 'fixed';
+  discount_percent: string;
+  fixed_price: string;
+  start_date: string;
+  end_date: string;
+  sample_size: number;
+}
+
 export const INITIAL_GROUP_FORM: GroupFormData = { name: '', description: '' };
 
 export const INITIAL_LIST_FORM: ListFormData = {
@@ -165,6 +182,23 @@ export const INITIAL_RULE_FORM: RuleFormData = {
   fixed_price: '',
 };
 
+export const INITIAL_SIMULATOR_FORM: SimulatorForm = {
+  price_list_id: '',
+  scope: 'all',
+  varekode: '',
+  varegruppe: '',
+  target: 'all',
+  kundenr: '',
+  customer_group_id: '',
+  min_quantity: 0,
+  discount_type: 'percent',
+  discount_percent: '',
+  fixed_price: '',
+  start_date: '',
+  end_date: '',
+  sample_size: 1000,
+};
+
 export const TABS = [
   { id: 'groups' as Tab, label: 'Kundegrupper', icon: '👥' },
   { id: 'lists' as Tab, label: 'Prislister', icon: '📋' },
@@ -174,3 +208,66 @@ export const TABS = [
   { id: 'simulator' as Tab, label: 'Simulator', icon: '🧪' },
   { id: 'audit' as Tab, label: 'Endringslogg', icon: '📜' },
 ];
+
+// ── Component Prop Interfaces ─────────────────────────
+
+export interface GroupsTabProps {
+  groups: CustomerGroup[];
+  showGroupForm: boolean;
+  editingGroup: CustomerGroup | null;
+  groupForm: GroupFormData;
+  setShowGroupForm: (show: boolean) => void;
+  setEditingGroup: (group: CustomerGroup | null) => void;
+  setGroupForm: (form: GroupFormData) => void;
+  handleCreateGroup: (e: React.FormEvent) => void;
+  handleUpdateGroup: (e: React.FormEvent) => void;
+  handleDeleteGroup: (id: number) => void;
+}
+
+export interface ListsTabProps {
+  lists: PriceList[];
+  showListForm: boolean;
+  editingList: PriceList | null;
+  listForm: ListFormData;
+  setShowListForm: (show: boolean) => void;
+  setEditingList: (list: PriceList | null) => void;
+  setListForm: (form: ListFormData) => void;
+  handleCreateList: (e: React.FormEvent) => void;
+  handleUpdateList: (e: React.FormEvent) => void;
+  handleDeleteList: (id: number) => void;
+  handleToggleListActive: (list: PriceList) => void;
+  loadRules: (listId: number) => void;
+  setActiveTab: (tab: Tab) => void;
+}
+
+export interface RulesTabProps {
+  rules: PriceRule[];
+  lists: PriceList[];
+  groups: CustomerGroup[];
+  productGroups: string[];
+  selectedListId: number | null;
+  showRuleForm: boolean;
+  ruleForm: RuleFormData;
+  editingRule: PriceRule | null;
+  setShowRuleForm: (show: boolean) => void;
+  setRuleForm: (form: RuleFormData) => void;
+  setEditingRule: (rule: PriceRule | null) => void;
+  loadRules: (listId: number) => void;
+  handleCreateRule: (e: React.FormEvent) => void;
+  handleUpdateRule: (e: React.FormEvent) => void;
+  handleDeleteRule: (id: number) => void;
+}
+
+export interface CustomersTabProps {
+  groups: CustomerGroup[];
+  handleAssignCustomer: (kundenr: string, groupId: number | null) => void;
+}
+
+export interface PreviewTabProps {
+  customersWithGroups: CustomerWithGroup[];
+}
+
+export interface AuditLogTabProps {
+  // Add specific props if needed, currently used without props or internal only
+}
+

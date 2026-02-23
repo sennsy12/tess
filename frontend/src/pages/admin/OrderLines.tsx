@@ -8,24 +8,7 @@ import { ordersApi, orderlinesApi, productsApi } from '../../lib/api';
 // ────────────────────────────────────────────────────────────
 // Types
 // ────────────────────────────────────────────────────────────
-
-interface OrderLine {
-  linjenr: number;
-  ordrenr: number;
-  varekode: string;
-  varenavn?: string;
-  antall: number;
-  enhet: string;
-  nettpris: number;
-  linjesum: number;
-  linjestatus: number;
-  henvisning1?: string;
-  henvisning2?: string;
-  henvisning3?: string;
-  henvisning4?: string;
-  henvisning5?: string;
-}
-
+import { OrderLine, Order } from '../../types/order';
 // ────────────────────────────────────────────────────────────
 // Constants
 // ────────────────────────────────────────────────────────────
@@ -46,7 +29,7 @@ const INITIAL_FORM = {
 
 export function AdminOrderLines() {
   const [selectedOrder, setSelectedOrder] = useState<number | null>(null);
-  const [orders, setOrders] = useState<any[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
   const [orderLines, setOrderLines] = useState<OrderLine[]>([]);
   const [products, setProducts] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -139,7 +122,7 @@ export function AdminOrderLines() {
     async (line: OrderLine) => {
       if (!confirm('Er du sikker på at du vil slette denne linjen?')) return;
       try {
-        await orderlinesApi.delete(line.ordrenr, line.linjenr);
+        await orderlinesApi.delete(line.ordrenr!, line.linjenr);
         loadOrderLines(selectedOrder!, currentPage);
       } catch {
         toast.error('Kunne ikke slette ordrelinje');
@@ -153,7 +136,7 @@ export function AdminOrderLines() {
       e.preventDefault();
       try {
         if (editingLine) {
-          await orderlinesApi.update(editingLine.ordrenr, editingLine.linjenr, formData);
+          await orderlinesApi.update(editingLine.ordrenr!, editingLine.linjenr, formData);
         } else {
           await orderlinesApi.create({ ordrenr: selectedOrder, ...formData });
         }

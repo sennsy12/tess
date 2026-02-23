@@ -2,20 +2,7 @@ import { useState, useEffect } from 'react';
 import { ExportButton } from '../../../../components/ExportButton';
 import { productsApi } from '../../../../lib/api';
 import { AutocompleteInput } from '../../../../components/AutocompleteInput';
-
-type StatType = 'kunde' | 'varegruppe' | 'vare' | 'lager' | 'firma';
-
-interface StatsFiltersProps {
-  statType: StatType;
-  setStatType: (type: StatType) => void;
-  dateRange: { startDate: string; endDate: string };
-  setDateRange: (range: { startDate: string; endDate: string }) => void;
-  filters: { kundenr: string; varegruppe: string };
-  setFilters: (filters: { kundenr: string; varegruppe: string }) => void;
-  compareEnabled: boolean;
-  setCompareEnabled: (enabled: boolean) => void;
-  chartRef: React.RefObject<HTMLDivElement>;
-}
+import { StatsFiltersProps, StatType } from '../../../../types/statistics';
 
 export function StatsFilters({
   statType,
@@ -170,8 +157,8 @@ export function StatsFilters({
                   onSelect={handleVaregruppeSelect}
                   fetchSuggestions={fetchVaregruppeSuggestions}
                   placeholder="Søk varegruppe..."
-                  minChars={0}
-                  debounceMs={0}
+                  minChars={2}
+                  debounceMs={200}
                   className="w-full"
                 />
               </div>

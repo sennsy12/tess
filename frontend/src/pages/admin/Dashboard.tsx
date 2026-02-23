@@ -16,6 +16,7 @@ import {
   PriceDeviationsWidget,
   DataStatusWidget,
 } from './dashboard/widgets';
+import { DashboardAnalytics, TimeSeriesPoint, FirmaLagerStat } from '../../types/dashboard';
 
 export function AdminDashboard() {
   const chartRef = useRef<HTMLDivElement>(null);
@@ -32,13 +33,13 @@ export function AdminDashboard() {
 
   const { data: analytics, isLoading } = useQuery({
     queryKey: ['admin', 'analytics'],
-    queryFn: () => dashboardApi.getAnalyticsBatch().then(res => res.data),
+    queryFn: () => dashboardApi.getAnalyticsBatch().then(res => res.data as DashboardAnalytics),
   });
 
   const summary = analytics?.summary ?? null;
   const timeSeries = analytics?.timeSeries ?? [];
-  const firmaStats = (analytics?.firma?.data ?? []).filter((f: any) => f.total_sum > 0);
-  const lagerStats = (analytics?.lager?.data ?? []).filter((l: any) => l.total_sum > 0);
+  const firmaStats = (analytics?.firma?.data ?? []).filter((f: FirmaLagerStat) => f.total_sum > 0);
+  const lagerStats = (analytics?.lager?.data ?? []).filter((l: FirmaLagerStat) => l.total_sum > 0);
 
   return (
     <Layout title="Admin Dashboard">
@@ -93,7 +94,7 @@ export function AdminDashboard() {
               formatter={formatCurrencyNok}
               className="gradient-primary text-white"
               labelClassName="text-white/80"
-              sparkData={timeSeries.map((t: any) => ({ value: t.total_sum }))}
+              sparkData={timeSeries.map((t: TimeSeriesPoint) => ({ value: t.total_sum }))}
               sparkKey="value"
               sparkColor="#ffffff"
             />
@@ -102,7 +103,7 @@ export function AdminDashboard() {
               value={summary?.totalOrders || 0}
               className="gradient-success text-white"
               labelClassName="text-white/80"
-              sparkData={timeSeries.map((t: any) => ({ value: t.order_count }))}
+              sparkData={timeSeries.map((t: TimeSeriesPoint) => ({ value: t.order_count }))}
               sparkKey="value"
               sparkColor="#ffffff"
             />
@@ -152,27 +153,6 @@ export function AdminDashboard() {
           </div>
         ) : (
           <div ref={chartRef} className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <LineChart
-                data={timeSeries}
-                xKey="period"
-                yKey="total_sum"
-                title="📈 Omsetning over tid"
-                color="#10b981"
-                seriesName="Omsetning"
-                valueFormatter={formatCurrencyNok}
-                tickFormatter={abbreviateCurrencyNok}
-              />
-              <BarChart
-                data={timeSeries}
-                xKey="period"
-                yKey="order_count"
-                title="📊 Ordrer per måned"
-                color="#8b5cf6"
-                seriesName="Antall Ordrer"
-              />
-            </div>
-
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <LineChart
                 data={timeSeries}

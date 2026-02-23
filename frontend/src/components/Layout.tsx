@@ -1,5 +1,6 @@
 import { ReactNode, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { IdleTimer } from './IdleTimer';
 
@@ -95,6 +96,7 @@ export function Layout({ children, title }: LayoutProps) {
         <button 
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
           className="p-2 text-dark-300 hover:text-white transition-colors"
+          aria-label={isMobileMenuOpen ? 'Close menu' : 'Open menu'}
         >
           {isMobileMenuOpen ? '✕' : '☰'}
         </button>
@@ -128,6 +130,7 @@ export function Layout({ children, title }: LayoutProps) {
             onClick={toggleSidebar}
             className={`p-2 rounded-lg text-dark-400 hover:text-white hover:bg-dark-800 transition-all duration-200 ${isSidebarCollapsed ? 'mx-auto' : ''}`}
             title={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-label={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
             {isSidebarCollapsed ? <ChevronRightIcon /> : <ChevronLeftIcon />}
           </button>
@@ -211,6 +214,7 @@ export function Layout({ children, title }: LayoutProps) {
               onClick={handleLogout}
               className="w-10 h-10 mx-auto mt-2 flex items-center justify-center rounded-lg text-dark-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
               title="Logg ut"
+              aria-label="Logg ut"
             >
               <LogoutIcon />
             </button>
@@ -231,11 +235,20 @@ export function Layout({ children, title }: LayoutProps) {
             </div>
           </div>
         </header>
-        <div className="p-4 lg:p-8 animate-in-up">
-          {/* Mobile Title */}
-          <h2 className="text-2xl font-bold text-white mb-6 lg:hidden">{title}</h2>
-          {children}
-        </div>
+        <AnimatePresence mode="wait">
+          <motion.div 
+            key={location.pathname}
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -15 }}
+            transition={{ duration: 0.3, ease: 'easeOut' }}
+            className="p-4 lg:p-8"
+          >
+            {/* Mobile Title */}
+            <h2 className="text-2xl font-bold text-white mb-6 lg:hidden font-display">{title}</h2>
+            {children}
+          </motion.div>
+        </AnimatePresence>
       </main>
 
       {/* Idle timer for automatic logout */}

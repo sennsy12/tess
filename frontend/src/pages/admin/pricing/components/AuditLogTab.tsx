@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Pagination } from '../../../../components/admin';
 import { auditApi } from '../../../../lib/api';
-import { AuditEntry } from '../types';
+import { AuditEntry } from '../../../../types/pricing';
 
 // ────────────────────────────────────────────────────────────
 // Label maps

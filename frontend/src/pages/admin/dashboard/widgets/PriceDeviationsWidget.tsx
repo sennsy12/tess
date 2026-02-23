@@ -1,18 +1,6 @@
-interface PriceDeviation {
-  kundenr: string;
-  kundenavn: string;
-  customer_group_name: string | null;
-  rule_count: number;
-  avg_discount: number;
-  max_discount: number;
-}
+import { PriceDeviationsWidgetProps } from '../../../../types/dashboard';
 
-interface Props {
-  data: PriceDeviation[];
-  isLoading?: boolean;
-}
-
-export function PriceDeviationsWidget({ data, isLoading }: Props) {
+export function PriceDeviationsWidget({ data, isLoading }: PriceDeviationsWidgetProps) {
   const formatPercent = (value: number) => `${Number(value).toFixed(1)}%`;
 
   if (isLoading) {

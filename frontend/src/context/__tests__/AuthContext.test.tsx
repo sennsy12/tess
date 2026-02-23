@@ -3,7 +3,7 @@
  *
  * Strategy:
  *  - Mock the `authApi` module so no HTTP calls are made.
- *  - Mock localStorage to observe token persistence.
+ *  - Mock sessionStorage to observe auth persistence.
  *  - Render a tiny consumer component to exercise the hook.
  */
 
@@ -12,6 +12,7 @@ import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from '../AuthContext';
 import { vi, describe, beforeEach, it, expect } from 'vitest';
+import { clearAuthToken } from '../../lib/auth/tokenStore';
 
 // ── Mocks ────────────────────────────────────────────────────────────
 
@@ -65,13 +66,14 @@ function renderWithProviders() {
 
 describe('AuthContext', () => {
   beforeEach(() => {
-    localStorage.clear();
+    sessionStorage.clear();
+    clearAuthToken();
     vi.clearAllMocks();
     // verify should resolve by default (token still valid)
     mockVerify.mockResolvedValue({});
   });
 
-  it('starts with null user and token when localStorage is empty', async () => {
+  it('starts with null user and token when sessionStorage is empty', async () => {
     renderWithProviders();
 
     await waitFor(() => {
@@ -82,10 +84,10 @@ describe('AuthContext', () => {
     expect(screen.getByTestId('token').textContent).toBe('null');
   });
 
-  it('restores user/token from localStorage on mount', async () => {
+  it('restores user and token from sessionStorage on mount', async () => {
     const storedUser = { id: 1, username: 'admin', role: 'admin' };
-    localStorage.setItem('token', 'stored-jwt');
-    localStorage.setItem('user', JSON.stringify(storedUser));
+    sessionStorage.setItem('token', 'stored-jwt');
+    sessionStorage.setItem('user', JSON.stringify(storedUser));
 
     renderWithProviders();
 
@@ -93,8 +95,8 @@ describe('AuthContext', () => {
       expect(screen.getByTestId('loading').textContent).toBe('false');
     });
 
-    expect(screen.getByTestId('token').textContent).toBe('stored-jwt');
     expect(JSON.parse(screen.getByTestId('user').textContent!)).toEqual(storedUser);
+    expect(screen.getByTestId('token').textContent).toBe('stored-jwt');
   });
 
   it('login() stores token and user, updates context', async () => {
@@ -112,7 +114,8 @@ describe('AuthContext', () => {
       expect(screen.getByTestId('token').textContent).toBe('new-jwt');
     });
     expect(JSON.parse(screen.getByTestId('user').textContent!)).toEqual(newUser);
-    expect(localStorage.getItem('token')).toBe('new-jwt');
+    expect(sessionStorage.getItem('token')).toBe('new-jwt');
+    expect(sessionStorage.getItem('user')).toBe(JSON.stringify(newUser));
   });
 
   it('loginKunde() stores token and user, updates context', async () => {
@@ -132,17 +135,17 @@ describe('AuthContext', () => {
     expect(JSON.parse(screen.getByTestId('user').textContent!)).toEqual(newUser);
   });
 
-  it('logout() clears token and user from context and localStorage', async () => {
+  it('logout() clears token and user from context and sessionStorage', async () => {
     const storedUser = { id: 1, username: 'admin', role: 'admin' };
-    localStorage.setItem('token', 'stored-jwt');
-    localStorage.setItem('user', JSON.stringify(storedUser));
+    sessionStorage.setItem('token', 'stored-jwt');
+    sessionStorage.setItem('user', JSON.stringify(storedUser));
 
     renderWithProviders();
     const user = userEvent.setup();
 
     // Wait for initial load
     await waitFor(() => {
-      expect(screen.getByTestId('token').textContent).toBe('stored-jwt');
+      expect(screen.getByTestId('user').textContent).not.toBe('null');
     });
 
     await user.click(screen.getByText('Logout'));
@@ -151,8 +154,8 @@ describe('AuthContext', () => {
       expect(screen.getByTestId('token').textContent).toBe('null');
     });
     expect(screen.getByTestId('user').textContent).toBe('null');
-    expect(localStorage.getItem('token')).toBeNull();
-    expect(localStorage.getItem('user')).toBeNull();
+    expect(sessionStorage.getItem('token')).toBeNull();
+    expect(sessionStorage.getItem('user')).toBeNull();
   });
 
   it('throws when useAuth is used outside AuthProvider', () => {

@@ -99,14 +99,15 @@ export function LineChart({
           <Tooltip
             cursor={{ stroke: '#475569', strokeWidth: 1, strokeDasharray: '4 4' }}
             contentStyle={{
-              backgroundColor: 'rgba(15, 23, 42, 0.9)',
-              backdropFilter: 'blur(8px)',
-              border: '1px solid rgba(51, 65, 85, 0.5)',
-              borderRadius: '12px',
-              boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.2), 0 4px 6px -2px rgba(0, 0, 0, 0.1)',
+              backgroundColor: 'rgba(15, 23, 42, 0.75)',
+              backdropFilter: 'blur(12px)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              borderRadius: '16px',
+              boxShadow: '0 4px 30px rgba(0, 0, 0, 0.5)',
               padding: '12px 16px',
             }}
             itemStyle={{
+              color: '#f8fafc',
               fontSize: '13px',
               fontWeight: '600',
               paddingTop: '4px',
@@ -116,7 +117,7 @@ export function LineChart({
               fontSize: '12px',
               marginBottom: '8px',
               fontWeight: '500',
-              borderBottom: '1px solid rgba(51, 65, 85, 0.5)',
+              borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
               paddingBottom: '8px',
             }}
             formatter={(value: number, name: string) => {

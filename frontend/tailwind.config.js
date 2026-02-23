@@ -7,6 +7,11 @@ export default {
   theme: {
     extend: {
       colors: {
+        accent: {
+          400: '#22d3ee', // Cyan
+          500: '#06b6d4',
+          600: '#0891b2',
+        },
         primary: {
           50: '#eef2ff',
           100: '#e0e7ff',
@@ -36,6 +41,7 @@ export default {
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
+        display: ['Outfit', 'system-ui', 'sans-serif'],
       },
     },
   },

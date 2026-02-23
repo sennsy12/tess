@@ -99,14 +99,15 @@ export function PieChart({
           </Pie>
           <Tooltip
             contentStyle={{
-              backgroundColor: '#0f172a',
-              border: '1px solid #334155',
-              borderRadius: '12px',
-              boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
-              padding: '12px',
+              backgroundColor: 'rgba(15, 23, 42, 0.75)',
+              backdropFilter: 'blur(12px)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              borderRadius: '16px',
+              boxShadow: '0 4px 30px rgba(0, 0, 0, 0.5)',
+              padding: '12px 16px',
             }}
             itemStyle={{
-              color: '#f1f5f9',
+              color: '#f8fafc',
               fontSize: '14px',
               fontWeight: '600',
             }}

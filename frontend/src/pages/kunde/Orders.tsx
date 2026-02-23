@@ -6,23 +6,7 @@ import { AutocompleteInput } from '../../components/AutocompleteInput';
 import { ordersApi, suggestionsApi } from '../../lib/api';
 import { TableSkeleton } from '../../components/admin';
 
-interface Order {
-  ordrenr: number;
-  dato: string;
-  kundenr: string;
-  kundenavn: string;
-  firmanavn: string;
-  lagernavn: string;
-  valutaid: string;
-  sum: number;
-  kunderef?: string;
-  kundeordreref?: string;
-}
-
-interface Suggestion {
-  suggestion: string;
-  type: string;
-}
+import { Order, Suggestion } from '../../types/order';
 
 export function KundeOrders() {
   const [orders, setOrders] = useState<Order[]>([]);

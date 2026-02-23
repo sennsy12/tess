@@ -1,24 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { pricingApi } from '../../../../lib/api';
-import { CustomerWithGroup, CustomerGroup } from '../types';
-
-interface Props {
-  groups: CustomerGroup[];
-  handleAssignCustomer: (kundenr: string, groupId: number | null) => void;
-}
-
-interface Pagination {
-  page: number;
-  limit: number;
-  total: number;
-  totalPages: number;
-}
+import { CustomerWithGroup, CustomersTabProps } from '../../../../types/pricing';
+import { Pagination } from '../../../../components/admin';
+import { PaginationInfo } from '../../../../types/statistics';
 
 const PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
 
-export function CustomersTab({ groups, handleAssignCustomer }: Props) {
+export function CustomersTab({ groups, handleAssignCustomer }: CustomersTabProps) {
   const [customers, setCustomers] = useState<CustomerWithGroup[]>([]);
-  const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 25, total: 0, totalPages: 0 });
+  const [pagination, setPagination] = useState<PaginationInfo>({ page: 1, limit: 25, total: 0, totalPages: 0 });
   const [isLoading, setIsLoading] = useState(true);
 
   // Filters
@@ -72,16 +62,6 @@ export function CustomersTab({ groups, handleAssignCustomer }: Props) {
 
   // Stats summary (from current pagination total + groups)
   const statsAssigned = customers.filter(c => c.customer_group_id !== null).length;
-
-  // Page range for pagination buttons
-  const pageRange = (() => {
-    const delta = 2;
-    const range: number[] = [];
-    const start = Math.max(1, pagination.page - delta);
-    const end = Math.min(pagination.totalPages, pagination.page + delta);
-    for (let i = start; i <= end; i++) range.push(i);
-    return range;
-  })();
 
   return (
     <div className="space-y-4">
@@ -258,74 +238,13 @@ export function CustomersTab({ groups, handleAssignCustomer }: Props) {
         </div>
 
         {/* Pagination */}
-        {pagination.totalPages > 1 && (
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 border-t border-dark-800 bg-dark-900/30">
-            <span className="text-sm text-dark-400">
-              Side {pagination.page} av {pagination.totalPages}
-              <span className="mx-1.5">&middot;</span>
-              {pagination.total.toLocaleString()} kunder totalt
-            </span>
-
-            <div className="flex items-center gap-1">
-              {/* First */}
-              <button
-                onClick={() => goToPage(1)}
-                disabled={pagination.page === 1}
-                className="px-2 py-1.5 rounded-lg text-sm transition-colors disabled:opacity-30 disabled:cursor-not-allowed hover:bg-dark-800 text-dark-300"
-                title="Første side"
-              >
-                ««
-              </button>
-              {/* Prev */}
-              <button
-                onClick={() => goToPage(pagination.page - 1)}
-                disabled={pagination.page === 1}
-                className="px-2.5 py-1.5 rounded-lg text-sm transition-colors disabled:opacity-30 disabled:cursor-not-allowed hover:bg-dark-800 text-dark-300"
-              >
-                «
-              </button>
-
-              {/* Page numbers */}
-              {pageRange[0] > 1 && (
-                <span className="px-1 text-dark-500 text-sm">...</span>
-              )}
-              {pageRange.map(p => (
-                <button
-                  key={p}
-                  onClick={() => goToPage(p)}
-                  className={`min-w-[36px] py-1.5 rounded-lg text-sm font-medium transition-all ${
-                    p === pagination.page
-                      ? 'bg-primary-600 text-white shadow-md shadow-primary-600/20'
-                      : 'text-dark-300 hover:bg-dark-800'
-                  }`}
-                >
-                  {p}
-                </button>
-              ))}
-              {pageRange[pageRange.length - 1] < pagination.totalPages && (
-                <span className="px-1 text-dark-500 text-sm">...</span>
-              )}
-
-              {/* Next */}
-              <button
-                onClick={() => goToPage(pagination.page + 1)}
-                disabled={pagination.page === pagination.totalPages}
-                className="px-2.5 py-1.5 rounded-lg text-sm transition-colors disabled:opacity-30 disabled:cursor-not-allowed hover:bg-dark-800 text-dark-300"
-              >
-                »
-              </button>
-              {/* Last */}
-              <button
-                onClick={() => goToPage(pagination.totalPages)}
-                disabled={pagination.page === pagination.totalPages}
-                className="px-2 py-1.5 rounded-lg text-sm transition-colors disabled:opacity-30 disabled:cursor-not-allowed hover:bg-dark-800 text-dark-300"
-                title="Siste side"
-              >
-                »»
-              </button>
-            </div>
-          </div>
-        )}
+        <div className="bg-dark-900/30 border-t border-dark-800 px-4 py-3">
+          <Pagination
+            pagination={pagination}
+            onPageChange={goToPage}
+            itemLabel="kunder"
+          />
+        </div>
       </div>
     </div>
   );

@@ -4,7 +4,7 @@ import toast from 'react-hot-toast';
 import { Layout } from '../../components/Layout';
 import { PageHeader, Pagination, FormModal, ConfirmModal, ActionKeyModal, TableSkeleton } from '../../components/admin';
 import { usersApi } from '../../lib/api';
-import type { UserPublic, CreateUserPayload, UpdateUserPayload } from '../../lib/api';
+import type { UserPublic, CreateUserPayload, UpdateUserPayload, UserRole } from '../../types/user';
 
 // ────────────────────────────────────────────────────────────
 // Constants
@@ -292,8 +292,8 @@ export function AdminUsers() {
         const optimisticUser: UserPublic = {
           id: Date.now(),
           username: newUser.username,
-          role: newUser.role,
-          kundenr: newUser.kundenr,
+          role: newUser.role as UserRole,
+          kundenr: newUser.kundenr ?? null,
           created_at: new Date().toISOString(),
         };
         return {

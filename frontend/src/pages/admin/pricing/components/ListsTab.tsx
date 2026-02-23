@@ -1,20 +1,4 @@
-import { PriceList, ListFormData, INITIAL_LIST_FORM, Tab } from '../types';
-
-interface Props {
-  lists: PriceList[];
-  showListForm: boolean;
-  editingList: PriceList | null;
-  listForm: ListFormData;
-  setShowListForm: (show: boolean) => void;
-  setEditingList: (list: PriceList | null) => void;
-  setListForm: (form: ListFormData) => void;
-  handleCreateList: (e: React.FormEvent) => void;
-  handleUpdateList: (e: React.FormEvent) => void;
-  handleDeleteList: (id: number) => void;
-  handleToggleListActive: (list: PriceList) => void;
-  loadRules: (listId: number) => void;
-  setActiveTab: (tab: Tab) => void;
-}
+import { INITIAL_LIST_FORM, ListsTabProps } from '../../../../types/pricing';
 
 export function ListsTab({
   lists,
@@ -30,7 +14,7 @@ export function ListsTab({
   handleToggleListActive,
   loadRules,
   setActiveTab,
-}: Props) {
+}: ListsTabProps) {
   return (
     <div className="card">
       <div className="flex justify-between items-center mb-4">

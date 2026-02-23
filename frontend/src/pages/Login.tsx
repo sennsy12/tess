@@ -30,9 +30,8 @@ export function Login() {
         await loginKunde(kundenr, password);
         navigate('/kunde');
       } else {
-        await login(username, password);
+        const user = await login(username, password);
         // Redirect based on role
-        const user = JSON.parse(localStorage.getItem('user') || '{}');
         if (user.role === 'admin') {
           navigate('/admin');
         } else if (user.role === 'analyse') {
@@ -173,13 +172,13 @@ export function Login() {
             <div className="mt-8 pt-6 border-t border-dark-700/50">
               <p className="text-[10px] text-dark-500 text-center mb-4 font-bold uppercase tracking-widest">Demo Tilgang</p>
               <div className="grid grid-cols-2 gap-3">
-                <div className="bg-dark-800/50 p-3 rounded-lg border border-dark-700/50 hover:bg-dark-800 transition-colors cursor-help group" title="Passord: admin123">
+                <div className="bg-dark-800/50 p-3 rounded-lg border border-dark-700/50 hover:bg-dark-800 transition-colors cursor-help group">
                   <div className="text-xs font-semibold text-dark-200 mb-1 flex items-center gap-1">Admin <span className="w-1.5 h-1.5 rounded-full bg-primary-500"></span></div>
-                  <div className="text-[10px] text-dark-400 font-mono group-hover:text-primary-400 transition-colors">admin</div>
+                  <div className="text-[10px] text-dark-400 font-mono group-hover:text-primary-400 transition-colors">admin / admin123</div>
                 </div>
-                <div className="bg-dark-800/50 p-3 rounded-lg border border-dark-700/50 hover:bg-dark-800 transition-colors cursor-help group" title="Passord: admin123">
+                <div className="bg-dark-800/50 p-3 rounded-lg border border-dark-700/50 hover:bg-dark-800 transition-colors cursor-help group">
                   <div className="text-xs font-semibold text-dark-200 mb-1 flex items-center gap-1">Analyse <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span></div>
-                  <div className="text-[10px] text-dark-400 font-mono group-hover:text-blue-400 transition-colors">analyse</div>
+                  <div className="text-[10px] text-dark-400 font-mono group-hover:text-blue-400 transition-colors">analyse / admin123</div>
                 </div>
               </div>
               <div className="mt-3 bg-dark-800/30 p-3 rounded-lg border border-dark-700/30 text-center">

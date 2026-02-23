@@ -5,24 +5,7 @@ import { ActionKeyModal, GridStatSkeleton, ListSkeleton } from '../../components
 import { Tabs, TabContent } from '../../components/Tabs';
 import { etlApi, schedulerApi } from '../../lib/api';
 
-interface ActionResult {
-  action: string;
-  success: boolean;
-  message?: string;
-  data?: any;
-  error?: string;
-  timestamp: Date;
-}
-
-interface Job {
-  id: string;
-  name: string;
-  cronExpression: string;
-  enabled: boolean;
-  status: string;
-  lastRun?: string;
-  lastError?: string;
-}
+import { ActionResult, Job } from '../../types/etl';
 
 export function AdminETL() {
   const queryClient = useQueryClient();

@@ -5,9 +5,7 @@ import { BarChart, LineChart, PieChart } from '../../components/Charts';
 import { ExportButton } from '../../components/ExportButton';
 import { AutocompleteInput } from '../../components/AutocompleteInput';
 
-type Metric = 'sum' | 'count' | 'quantity';
-type Dimension = 'day' | 'month' | 'year' | 'product' | 'category';
-type ChartType = 'bar' | 'line' | 'pie';
+import { Metric, Dimension, ChartType } from '../../types/statistics';
 
 export function AdminAdvancedAnalytics() {
   const [config, setConfig] = useState({

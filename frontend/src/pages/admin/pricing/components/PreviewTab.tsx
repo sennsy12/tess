@@ -1,12 +1,8 @@
 import { useState } from 'react';
-import { CustomerWithGroup, PriceCalculationResult } from '../types';
+import { PriceCalculationResult, PreviewTabProps } from '../../../../types/pricing';
 import { pricingApi } from '../../../../lib/api';
 
-interface Props {
-  customersWithGroups: CustomerWithGroup[];
-}
-
-export function PreviewTab({ customersWithGroups }: Props) {
+export function PreviewTab({ customersWithGroups }: PreviewTabProps) {
   const [kundenr, setKundenr] = useState('');
   const [varekode, setVarekode] = useState('');
   const [basePrice, setBasePrice] = useState('');

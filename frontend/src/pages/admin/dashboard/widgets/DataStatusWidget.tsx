@@ -1,20 +1,6 @@
-interface DataFreshness {
-  lastOrderDate: string | null;
-  daysSinceLastOrder: number | null;
-  totalCustomers: number;
-  totalProducts: number;
-}
+import { DataStatusWidgetProps } from '../../../../types/dashboard';
 
-interface Props {
-  data: {
-    dataFreshness: DataFreshness;
-    status: 'fresh' | 'stale';
-    message: string;
-  } | null;
-  isLoading?: boolean;
-}
-
-export function DataStatusWidget({ data, isLoading }: Props) {
+export function DataStatusWidget({ data, isLoading }: DataStatusWidgetProps) {
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return 'Ukjent';
     return new Date(dateStr).toLocaleDateString('nb-NO', { 

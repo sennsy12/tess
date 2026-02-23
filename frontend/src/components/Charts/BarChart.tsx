@@ -85,6 +85,12 @@ export function BarChart({
           data={data}
           margin={{ top: 10, right: 10, left: 0, bottom: rotateTicks ? 30 : 10 }}
         >
+          <defs>
+            <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor={color} stopOpacity={0.9}/>
+              <stop offset="95%" stopColor={color} stopOpacity={0.2}/>
+            </linearGradient>
+          </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} strokeOpacity={0.4} />
           <XAxis
             dataKey={xKey}
@@ -104,17 +110,17 @@ export function BarChart({
             label={yLabel ? { value: yLabel, angle: -90, position: 'insideLeft', fill: '#94a3b8' } : undefined}
           />
           <Tooltip
-            cursor={{ fill: '#334155', opacity: 0.2 }}
+            cursor={{ fill: '#334155', opacity: 0.15 }}
             contentStyle={{
-              backgroundColor: 'rgba(15, 23, 42, 0.9)',
-              backdropFilter: 'blur(8px)',
-              border: '1px solid rgba(51, 65, 85, 0.5)',
-              borderRadius: '12px',
-              boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.2), 0 4px 6px -2px rgba(0, 0, 0, 0.1)',
+              backgroundColor: 'rgba(15, 23, 42, 0.75)',
+              backdropFilter: 'blur(12px)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              borderRadius: '16px',
+              boxShadow: '0 4px 30px rgba(0, 0, 0, 0.5)',
               padding: '12px 16px',
             }}
             itemStyle={{
-              color: '#f1f5f9',
+              color: '#f8fafc',
               fontSize: '13px',
               fontWeight: '600',
               paddingTop: '4px',
@@ -124,14 +130,14 @@ export function BarChart({
               fontSize: '12px',
               marginBottom: '8px',
               fontWeight: '500',
-              borderBottom: '1px solid rgba(51, 65, 85, 0.5)',
+              borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
               paddingBottom: '8px',
             }}
             formatter={(value: number) => [tooltipFormatter(value), seriesName]}
           />
-          <Bar dataKey={yKey} radius={[4, 4, 0, 0]} maxBarSize={60}>
+          <Bar dataKey={yKey} radius={[6, 6, 0, 0]} maxBarSize={60}>
             {data.map((_entry, index) => (
-              <Cell key={`cell-${index}`} fill={color} fillOpacity={0.9} />
+              <Cell key={`cell-${index}`} fill="url(#barGradient)" />
             ))}
           </Bar>
         </RechartsBarChart>
