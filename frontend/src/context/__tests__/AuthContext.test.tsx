@@ -9,6 +9,7 @@
 
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from '../AuthContext';
 import { vi, describe, beforeEach, it, expect } from 'vitest';
@@ -54,11 +55,13 @@ function renderWithProviders() {
   });
 
   return render(
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <TestConsumer />
-      </AuthProvider>
-    </QueryClientProvider>,
+    <MemoryRouter>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <TestConsumer />
+        </AuthProvider>
+      </QueryClientProvider>
+    </MemoryRouter>,
   );
 }
 
