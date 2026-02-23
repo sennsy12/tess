@@ -1,5 +1,7 @@
 import api from './client';
-import { UserPublic, CreateUserPayload, UpdateUserPayload } from '../../types/user';
+import type { UserPublic, CreateUserPayload, UpdateUserPayload } from '../../types/user';
+
+export type { UserPublic, CreateUserPayload, UpdateUserPayload };
 
 export interface PaginatedUsersResponse {
   data: UserPublic[];
