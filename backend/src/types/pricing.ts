@@ -104,6 +104,8 @@ export interface PriceCalculationInput {
   kundenr: string;
   quantity: number;
   base_price: number;
+  /** When provided, skips the customer group lookup (used by bulk calculations) */
+  customerGroupId?: number | null;
 }
 
 export interface PriceCalculationResult {

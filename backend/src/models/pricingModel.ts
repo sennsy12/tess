@@ -363,7 +363,7 @@ export const priceRuleModel = {
     varekode: string;
     varegruppe?: string;
     kundenr: string;
-    customerGroupId?: number;
+    customerGroupId?: number | null;
     quantity: number;
   }): Promise<PriceRule[]> => {
     const result = await query(

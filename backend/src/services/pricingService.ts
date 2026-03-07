@@ -20,12 +20,17 @@ export const pricingService = {
   calculatePrice: async (input: PriceCalculationInput): Promise<PriceCalculationResult> => {
     const { varekode, varegruppe, kundenr, quantity, base_price } = input;
 
-    // Get customer's group
-    const customerResult = await query(
-      'SELECT customer_group_id FROM kunde WHERE kundenr = $1',
-      [kundenr]
-    );
-    const customerGroupId = customerResult.rows[0]?.customer_group_id || null;
+    // Get customer's group (skip fetch when pre-fetched for bulk)
+    let customerGroupId: number | null;
+    if (input.customerGroupId !== undefined) {
+      customerGroupId = input.customerGroupId;
+    } else {
+      const customerResult = await query(
+        'SELECT customer_group_id FROM kunde WHERE kundenr = $1',
+        [kundenr]
+      );
+      customerGroupId = customerResult.rows[0]?.customer_group_id ?? null;
+    }
 
     // Find applicable rules (already sorted by priority/specificity)
     const applicableRules = await priceRuleModel.findApplicable({
@@ -115,7 +120,7 @@ export const pricingService = {
       'SELECT customer_group_id FROM kunde WHERE kundenr = $1',
       [kundenr]
     );
-    const customerGroupId = customerResult.rows[0]?.customer_group_id || null;
+    const customerGroupId = customerResult.rows[0]?.customer_group_id ?? null;
 
     // Get all active rules for this customer or their group
     const result = await query(
@@ -145,18 +150,26 @@ export const pricingService = {
     items: Array<{ varekode: string; varegruppe?: string; quantity: number; base_price: number }>,
     kundenr: string
   ): Promise<PriceCalculationResult[]> => {
-    const results: PriceCalculationResult[] = [];
+    // Fetch customer group once for all items
+    const customerResult = await query(
+      'SELECT customer_group_id FROM kunde WHERE kundenr = $1',
+      [kundenr]
+    );
+    const customerGroupId = customerResult.rows[0]?.customer_group_id ?? null;
 
-    for (const item of items) {
-      const result = await pricingService.calculatePrice({
-        varekode: item.varekode,
-        varegruppe: item.varegruppe,
-        kundenr,
-        quantity: item.quantity,
-        base_price: item.base_price
-      });
-      results.push(result);
-    }
+    // Parallelize per-item rule lookups and calculations
+    const results = await Promise.all(
+      items.map((item) =>
+        pricingService.calculatePrice({
+          varekode: item.varekode,
+          varegruppe: item.varegruppe,
+          kundenr,
+          quantity: item.quantity,
+          base_price: item.base_price,
+          customerGroupId
+        })
+      )
+    );
 
     return results;
   }

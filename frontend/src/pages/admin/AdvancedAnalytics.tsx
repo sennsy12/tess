@@ -7,6 +7,11 @@ import { AutocompleteInput } from '../../components/AutocompleteInput';
 
 import { Metric, Dimension, ChartType } from '../../types/statistics';
 
+interface AnalyticsDataPoint {
+  label: string;
+  value: number;
+}
+
 export function AdminAdvancedAnalytics() {
   const [config, setConfig] = useState({
     metric: 'sum' as Metric,
@@ -17,31 +22,38 @@ export function AdminAdvancedAnalytics() {
     search: '',
   });
 
-  const [data, setData] = useState<any[]>([]);
+  const [data, setData] = useState<AnalyticsDataPoint[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [debouncedSearch, setDebouncedSearch] = useState(config.search);
   const chartRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    loadData();
-  }, [config.metric, config.dimension, config.startDate, config.endDate, config.search]);
+    const t = setTimeout(() => setDebouncedSearch(config.search), 300);
+    return () => clearTimeout(t);
+  }, [config.search]);
 
-  const loadData = async () => {
-    setIsLoading(true);
-    try {
-      const response = await statisticsApi.getCustom({
-        metric: config.metric,
-        dimension: config.dimension,
-        startDate: config.startDate || undefined,
-        endDate: config.endDate || undefined,
-        search: config.search || undefined,
-      });
-      setData(response.data);
-    } catch (error) {
-      console.error('Failed to load analytics:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  useEffect(() => {
+    let cancelled = false;
+    const fetchData = async () => {
+      setIsLoading(true);
+      try {
+        const response = await statisticsApi.getCustom({
+          metric: config.metric,
+          dimension: config.dimension,
+          startDate: config.startDate || undefined,
+          endDate: config.endDate || undefined,
+          search: debouncedSearch || undefined,
+        });
+        if (!cancelled) setData(response.data);
+      } catch (error) {
+        if (!cancelled) console.error('Failed to load analytics:', error);
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    };
+    fetchData();
+    return () => { cancelled = true; };
+  }, [config.metric, config.dimension, config.startDate, config.endDate, debouncedSearch]);
 
   const getMetricLabel = (m: Metric) => {
     switch (m) {
@@ -126,6 +138,7 @@ export function AdminAdvancedAnalytics() {
                 <label className="label break-words">Graf type</label>
                 <div className="grid grid-cols-3 gap-1">
                   <button
+                    aria-pressed={config.chartType === 'bar'}
                     onClick={() => setConfig({ ...config, chartType: 'bar' })}
                     className={`p-2 rounded border text-xs sm:text-sm truncate ${config.chartType === 'bar' ? 'bg-primary-500/20 border-primary-500 text-primary-400' : 'border-dark-600 hover:bg-dark-700'}`}
                   >
@@ -133,6 +146,7 @@ export function AdminAdvancedAnalytics() {
                     <span className="hidden sm:inline">Bar</span>
                   </button>
                   <button
+                    aria-pressed={config.chartType === 'line'}
                     onClick={() => setConfig({ ...config, chartType: 'line' })}
                     className={`p-2 rounded border text-xs sm:text-sm truncate ${config.chartType === 'line' ? 'bg-primary-500/20 border-primary-500 text-primary-400' : 'border-dark-600 hover:bg-dark-700'}`}
                   >
@@ -140,6 +154,7 @@ export function AdminAdvancedAnalytics() {
                     <span className="hidden sm:inline">Linje</span>
                   </button>
                   <button
+                    aria-pressed={config.chartType === 'pie'}
                     onClick={() => setConfig({ ...config, chartType: 'pie' })}
                     className={`p-2 rounded border text-xs sm:text-sm truncate ${config.chartType === 'pie' ? 'bg-primary-500/20 border-primary-500 text-primary-400' : 'border-dark-600 hover:bg-dark-700'}`}
                   >
@@ -253,15 +268,10 @@ export function AdminAdvancedAnalytics() {
                       </tr>
                     </thead>
                     <tbody>
-                      {data.map((item, i) => (
-                        <tr key={i} className="border-b border-dark-800 hover:bg-dark-700/50">
+                      {data.map((item) => (
+                        <tr key={item.label} className="border-b border-dark-800 hover:bg-dark-700/50">
                           <td className="p-3">{item.label}</td>
-                          <td className="p-3 text-right font-mono">
-                            {config.metric === 'sum' 
-                              ? new Intl.NumberFormat('nb-NO', { style: 'currency', currency: 'NOK' }).format(item.value)
-                              : new Intl.NumberFormat('nb-NO').format(item.value)
-                            }
-                          </td>
+                          <td className="p-3 text-right font-mono">{valueFormatter(item.value)}</td>
                         </tr>
                       ))}
                       {data.length === 0 && (

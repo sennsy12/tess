@@ -9,8 +9,8 @@ const parseFilters = (query: any): StatsFilters => ({
   varegruppe: query.varegruppe,
   kundenr: query.kundenr,
   groupBy: query.groupBy,
-  page: query.page ? parseInt(query.page, 10) : 1,
-  limit: query.limit ? Math.min(parseInt(query.limit, 10), 100) : 25, // Max 100 per page
+  page: Math.max(1, parseInt(String(query.page ?? ''), 10) || 1),
+  limit: Math.min(Math.max(1, parseInt(String(query.limit ?? ''), 10) || 25), 100), // Max 100 per page
 });
 
 /**

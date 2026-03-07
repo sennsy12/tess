@@ -11,7 +11,7 @@ import { ordersApi, suggestionsApi } from '../../lib/api';
 // Types
 // ────────────────────────────────────────────────────────────
 
-import { Order, Suggestion } from '../../types/order';
+import { Suggestion } from '../../types/order';
 
 // ────────────────────────────────────────────────────────────
 // Constants
@@ -81,17 +81,12 @@ export function AdminOrders() {
     queryFn: async () => {
       const queryParams = { ...filters, page, limit: PAGE_LIMIT };
       const response = await ordersApi.getAll(queryParams);
-      if (response.data.data) {
-        return {
-          orders: response.data.data as Order[],
-          total: response.data.total as number,
-        };
-      }
       return {
-        orders: response.data as Order[],
-        total: (response.data as Order[]).length,
+        orders: response.data.data,
+        total: response.data.total,
       };
     },
+    staleTime: 60_000, // 1 minute
   });
 
   const orders = ordersData?.orders ?? [];

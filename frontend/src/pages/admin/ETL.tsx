@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Layout } from '../../components/Layout';
 import { ActionKeyModal, GridStatSkeleton, ListSkeleton } from '../../components/admin';
@@ -26,16 +26,9 @@ export function AdminETL() {
     config: { customers: number; orders: number; linesPerOrder: number };
   } | null>(null);
 
-  useEffect(() => {
-    if (activeTab === 'scheduler') {
-      loadJobs();
-    }
-    if (activeTab === 'bulk') {
-      loadTableCounts();
-    }
-  }, [activeTab]);
+  const csvFileRef = useRef<HTMLInputElement>(null);
 
-  const loadJobs = async () => {
+  const loadJobs = useCallback(async () => {
     setJobsLoading(true);
     try {
       const response = await schedulerApi.getJobs();
@@ -45,9 +38,9 @@ export function AdminETL() {
     } finally {
       setJobsLoading(false);
     }
-  };
+  }, []);
 
-  const loadTableCounts = async () => {
+  const loadTableCounts = useCallback(async () => {
     setCountsLoading(true);
     try {
       const response = await etlApi.tableCounts();
@@ -57,7 +50,16 @@ export function AdminETL() {
     } finally {
       setCountsLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'scheduler') {
+      loadJobs();
+    }
+    if (activeTab === 'bulk') {
+      loadTableCounts();
+    }
+  }, [activeTab, loadJobs, loadTableCounts]);
 
   const runAction = async (action: string, apiCall: () => Promise<any>) => {
     setIsLoading(action);
@@ -92,6 +94,21 @@ export function AdminETL() {
   const estimatedPendingLines = pendingBulkAction
     ? pendingBulkAction.config.orders * pendingBulkAction.config.linesPerOrder
     : 0;
+
+  const triggerBulkAction = (type: 'generate' | 'pipeline') => {
+    const config = { ...bulkConfig };
+    const estimatedLines = config.orders * config.linesPerOrder;
+    if (estimatedLines > 1_000_000) {
+      setPendingBulkAction({ type, config });
+      return;
+    }
+    const labels = { generate: 'Generate Bulk', pipeline: 'Bulk Pipeline' };
+    const apiCalls = {
+      generate: () => etlApi.generateBulkData(config),
+      pipeline: () => etlApi.runBulkPipeline(config),
+    };
+    runAction(labels[type], apiCalls[type]);
+  };
 
   const etlActions = [
     { id: 'createDB', label: '🏗️ Opprett DB', api: etlApi.createDB },
@@ -195,14 +212,7 @@ export function AdminETL() {
                 </p>
                 <div className="flex gap-3">
                   <button
-                    onClick={() => {
-                      const estimatedLines = bulkConfig.orders * bulkConfig.linesPerOrder;
-                      if (estimatedLines > 1_000_000) {
-                        setPendingBulkAction({ type: 'generate', config: { ...bulkConfig } });
-                        return;
-                      }
-                      runAction('Generate Bulk', () => etlApi.generateBulkData({ ...bulkConfig }));
-                    }}
+                    onClick={() => triggerBulkAction('generate')}
                     disabled={isLoading !== null}
                     className="btn-secondary"
                   >
@@ -216,14 +226,7 @@ export function AdminETL() {
                     📥 Sett Inn Data
                   </button>
                   <button
-                    onClick={() => {
-                      const estimatedLines = bulkConfig.orders * bulkConfig.linesPerOrder;
-                      if (estimatedLines > 1_000_000) {
-                        setPendingBulkAction({ type: 'pipeline', config: { ...bulkConfig } });
-                        return;
-                      }
-                      runAction('Bulk Pipeline', () => etlApi.runBulkPipeline({ ...bulkConfig }));
-                    }}
+                    onClick={() => triggerBulkAction('pipeline')}
                     disabled={isLoading !== null}
                     className="btn-primary"
                   >
@@ -241,8 +244,8 @@ export function AdminETL() {
                     <input
                       type="file"
                       accept=".csv"
+                      ref={csvFileRef}
                       className="input"
-                      id="csv-file-input"
                     />
                   </div>
                   
@@ -258,11 +261,17 @@ export function AdminETL() {
 
                   <button
                     onClick={() => {
-                      const fileInput = document.getElementById('csv-file-input') as HTMLInputElement;
-                      const file = fileInput.files?.[0];
-                      if (file) {
-                        runAction(`Last opp CSV`, () => etlApi.uploadCsv('', file));
+                      const file = csvFileRef.current?.files?.[0];
+                      if (!file) {
+                        setResults(prev => [{
+                          action: 'Last opp CSV',
+                          success: false,
+                          error: 'Ingen fil valgt',
+                          timestamp: new Date(),
+                        }, ...prev]);
+                        return;
                       }
+                      runAction(`Last opp CSV`, () => etlApi.uploadCsv('', file));
                     }}
                     disabled={isLoading !== null}
                     className="btn-primary w-full md:w-auto"
@@ -345,9 +354,9 @@ export function AdminETL() {
             <p className="text-dark-400 text-center py-4">Ingen handlinger utført ennå.</p>
           ) : (
             <div className="space-y-2 max-h-64 overflow-y-auto">
-              {results.slice(0, 10).map((result, index) => (
+              {results.slice(0, 10).map((result) => (
                 <div
-                  key={index}
+                  key={result.timestamp.getTime()}
                   className={`p-3 rounded-lg text-sm ${
                     result.success ? 'bg-green-900/20' : 'bg-red-900/20'
                   }`}

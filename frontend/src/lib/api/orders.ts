@@ -1,7 +1,17 @@
 import api from './client';
+import { Order } from '../../types/order';
+
+export interface OrdersListResponse {
+  data: Order[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
 
 export const ordersApi = {
-  getAll: (params?: Record<string, any>) => api.get('/orders', { params }),
+  getAll: (params?: Record<string, any>) =>
+    api.get<OrdersListResponse>('/orders', { params }),
   getOne: (ordrenr: number) => api.get(`/orders/${ordrenr}`),
   searchByReferences: (q: string) => api.get('/orders/search/references', { params: { q } }),
 };
