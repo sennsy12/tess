@@ -1,10 +1,12 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Layout } from '../../components/Layout';
-import { DataTable } from '../../components/DataTable';
+import { DataTable, type DataTableState } from '../../components/DataTable';
 import { AutocompleteInput } from '../../components/AutocompleteInput';
+import { SavedViewsPanel } from '../../components/SavedViewsPanel';
 import { FilterBar, Pagination, TableSkeleton } from '../../components/admin';
+import { useSavedViews } from '../../hooks/useSavedViews';
 import { ordersApi, suggestionsApi } from '../../lib/api';
 
 // ────────────────────────────────────────────────────────────
@@ -61,6 +63,13 @@ const COLUMNS = [
   },
 ];
 
+const isSameTableState = (a: DataTableState, b: DataTableState) =>
+  a.sortKey === b.sortKey &&
+  a.sortDirection === b.sortDirection &&
+  a.currentPage === b.currentPage &&
+  a.visibleColumnKeys.length === b.visibleColumnKeys.length &&
+  a.visibleColumnKeys.every((key, index) => key === b.visibleColumnKeys[index]);
+
 // ────────────────────────────────────────────────────────────
 // Component
 // ────────────────────────────────────────────────────────────
@@ -73,7 +82,47 @@ export function AdminOrders() {
     endDate: '',
     search: '',
   });
+  const [tableState, setTableState] = useState<DataTableState>({
+    sortKey: null,
+    sortDirection: null,
+    currentPage: 1,
+    visibleColumnKeys: COLUMNS.map((column) => String(column.key)),
+  });
   const navigate = useNavigate();
+  const hasAppliedDefaultView = useRef(false);
+
+  const ordersViewState = {
+    filters,
+    page,
+    tableState,
+  };
+
+  const {
+    views,
+    defaultView,
+    canUseShared,
+    isLoading: viewsLoading,
+    saveView,
+    deleteView,
+    setDefaultView,
+  } = useSavedViews({
+    scope: 'admin-orders',
+    state: ordersViewState,
+    enabledShared: true,
+  });
+
+  useEffect(() => {
+    if (!defaultView || hasAppliedDefaultView.current) return;
+    hasAppliedDefaultView.current = true;
+    const viewState = defaultView.state;
+    setFilters(viewState.filters);
+    setPage(viewState.page ?? 1);
+    setTableState(viewState.tableState);
+  }, [defaultView]);
+
+  const handleTableStateChange = useCallback((nextState: DataTableState) => {
+    setTableState((previousState) => (isSameTableState(previousState, nextState) ? previousState : nextState));
+  }, []);
 
   // ── Data fetching ─────────────────────────────────────
   const { data: ordersData, isLoading } = useQuery({
@@ -121,6 +170,22 @@ export function AdminOrders() {
   return (
     <Layout title="Admin Ordrer">
       <div className="space-y-6">
+        <SavedViewsPanel
+          title="Arbeidsflater"
+          description="Lagre filter, sortering og kolonneoppsett. Delte visninger kan brukes av andre administratorer."
+          views={views}
+          isLoading={viewsLoading}
+          canShare={canUseShared}
+          onApply={(view) => {
+            setFilters(view.state.filters);
+            setPage(view.state.page ?? 1);
+            setTableState(view.state.tableState);
+          }}
+          onSave={(name, options) => saveView(name, options)}
+          onDelete={(view) => deleteView(view)}
+          onSetDefault={setDefaultView}
+        />
+
         {/* Search filters */}
         <FilterBar
           title="Søk i ordrer"
@@ -170,6 +235,15 @@ export function AdminOrders() {
               columns={COLUMNS}
               onRowClick={(order) => navigate(`/admin/orders/${order.ordrenr}`)}
               emptyMessage="Ingen ordrer funnet"
+              paginate={false}
+              stickyFirstColumn
+              enableColumnManagement
+              enableCsvExport
+              exportFilename="admin-orders"
+              title="Ordretabell"
+              storageKey="table:admin-orders"
+              state={tableState}
+              onStateChange={handleTableStateChange}
             />
 
             {/* Bottom pagination (full variant) */}

@@ -1,9 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Layout } from '../../components/Layout';
 import { statisticsApi, suggestionsApi } from '../../lib/api';
 import { BarChart, LineChart, PieChart } from '../../components/Charts';
 import { ExportButton } from '../../components/ExportButton';
 import { AutocompleteInput } from '../../components/AutocompleteInput';
+import { SavedViewsPanel } from '../../components/SavedViewsPanel';
+import { ChartSkeleton, TableSkeleton } from '../../components/Skeleton';
+import { useSavedViews } from '../../hooks/useSavedViews';
 
 import { Metric, Dimension, ChartType } from '../../types/statistics';
 
@@ -11,6 +15,82 @@ interface AnalyticsDataPoint {
   label: string;
   value: number;
 }
+
+const TODAY = new Date();
+const toDateInput = (date: Date) => date.toISOString().slice(0, 10);
+const shiftDays = (days: number) => {
+  const date = new Date(TODAY);
+  date.setDate(date.getDate() - days);
+  return toDateInput(date);
+};
+
+const ANALYTICS_PRESETS = [
+  {
+    id: 'monthly-revenue',
+    label: 'Monthly revenue',
+    description: 'Omsetning per måned siste 12 måneder',
+    config: {
+      metric: 'sum' as Metric,
+      dimension: 'month' as Dimension,
+      chartType: 'line' as ChartType,
+      startDate: shiftDays(364),
+      endDate: toDateInput(TODAY),
+      search: '',
+    },
+  },
+  {
+    id: 'quarterly-category-mix',
+    label: 'Quarterly category mix',
+    description: 'Omsetning per varegruppe siste 90 dager',
+    config: {
+      metric: 'sum' as Metric,
+      dimension: 'category' as Dimension,
+      chartType: 'bar' as ChartType,
+      startDate: shiftDays(89),
+      endDate: toDateInput(TODAY),
+      search: '',
+    },
+  },
+  {
+    id: 'products-by-category',
+    label: 'Products by category',
+    description: 'Antall varer per varegruppe siste 30 dager',
+    config: {
+      metric: 'quantity' as Metric,
+      dimension: 'category' as Dimension,
+      chartType: 'bar' as ChartType,
+      startDate: shiftDays(29),
+      endDate: toDateInput(TODAY),
+      search: '',
+    },
+  },
+  {
+    id: 'compare-this-month',
+    label: 'This month day by day',
+    description: 'Daglig omsetning siste 30 dager',
+    config: {
+      metric: 'sum' as Metric,
+      dimension: 'day' as Dimension,
+      chartType: 'line' as ChartType,
+      startDate: shiftDays(29),
+      endDate: toDateInput(TODAY),
+      search: '',
+    },
+  },
+  {
+    id: 'warehouse-revenue-trend',
+    label: 'Warehouse revenue trend',
+    description: 'Bruk produktvisning for å finne lager- og varetrender',
+    config: {
+      metric: 'sum' as Metric,
+      dimension: 'product' as Dimension,
+      chartType: 'bar' as ChartType,
+      startDate: shiftDays(29),
+      endDate: toDateInput(TODAY),
+      search: '',
+    },
+  },
+];
 
 export function AdminAdvancedAnalytics() {
   const [config, setConfig] = useState({
@@ -22,10 +102,23 @@ export function AdminAdvancedAnalytics() {
     search: '',
   });
 
-  const [data, setData] = useState<AnalyticsDataPoint[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
   const [debouncedSearch, setDebouncedSearch] = useState(config.search);
   const chartRef = useRef<HTMLDivElement>(null);
+  const hasAppliedDefaultView = useRef(false);
+
+  const {
+    views,
+    defaultView,
+    canUseShared,
+    isLoading: viewsLoading,
+    saveView,
+    deleteView,
+    setDefaultView,
+  } = useSavedViews({
+    scope: 'admin-advanced-analytics',
+    state: config,
+    enabledShared: true,
+  });
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(config.search), 300);
@@ -33,27 +126,35 @@ export function AdminAdvancedAnalytics() {
   }, [config.search]);
 
   useEffect(() => {
-    let cancelled = false;
-    const fetchData = async () => {
-      setIsLoading(true);
-      try {
-        const response = await statisticsApi.getCustom({
-          metric: config.metric,
-          dimension: config.dimension,
-          startDate: config.startDate || undefined,
-          endDate: config.endDate || undefined,
-          search: debouncedSearch || undefined,
-        });
-        if (!cancelled) setData(response.data);
-      } catch (error) {
-        if (!cancelled) console.error('Failed to load analytics:', error);
-      } finally {
-        if (!cancelled) setIsLoading(false);
-      }
-    };
-    fetchData();
-    return () => { cancelled = true; };
-  }, [config.metric, config.dimension, config.startDate, config.endDate, debouncedSearch]);
+    if (!defaultView || hasAppliedDefaultView.current) return;
+    hasAppliedDefaultView.current = true;
+    setConfig(defaultView.state);
+  }, [defaultView]);
+
+  const {
+    data = [],
+    isLoading,
+    isError,
+  } = useQuery<AnalyticsDataPoint[]>({
+    queryKey: [
+      'admin-advanced-analytics',
+      config.metric,
+      config.dimension,
+      config.startDate,
+      config.endDate,
+      debouncedSearch,
+    ],
+    queryFn: async () => {
+      const response = await statisticsApi.getCustom({
+        metric: config.metric,
+        dimension: config.dimension,
+        startDate: config.startDate || undefined,
+        endDate: config.endDate || undefined,
+        search: debouncedSearch || undefined,
+      });
+      return response.data;
+    },
+  });
 
   const getMetricLabel = (m: Metric) => {
     switch (m) {
@@ -87,6 +188,25 @@ export function AdminAdvancedAnalytics() {
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Configuration Panel */}
         <div className="lg:col-span-1 space-y-6 min-w-0">
+          <div className="card">
+            <div className="mb-4">
+              <h3 className="font-semibold text-lg">Guided presets</h3>
+              <p className="text-sm text-dark-400 mt-1">Start med et ferdig analysemønster og finjuster derfra.</p>
+            </div>
+            <div className="space-y-2">
+              {ANALYTICS_PRESETS.map((preset) => (
+                <button
+                  key={preset.id}
+                  onClick={() => setConfig(preset.config)}
+                  className="w-full rounded-xl border border-dark-700 bg-dark-800/40 px-4 py-3 text-left transition-colors hover:bg-dark-800/80"
+                >
+                  <p className="font-medium text-dark-100">{preset.label}</p>
+                  <p className="text-sm text-dark-400 mt-1">{preset.description}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="card overflow-visible">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold text-lg break-words">⚙️ Konfigurasjon</h3>
@@ -210,13 +330,32 @@ export function AdminAdvancedAnalytics() {
               </div>
             </div>
           </div>
+
+          <SavedViewsPanel
+            title="Lagrede arbeidsflater"
+            description="Lagre dimensjon, måltall, datoer og søk. Del oppsett med andre administratorer."
+            views={views}
+            isLoading={viewsLoading}
+            canShare={canUseShared}
+            onApply={(view) => setConfig(view.state)}
+            onSave={(name, options) => saveView(name, options)}
+            onDelete={(view) => deleteView(view)}
+            onSetDefault={setDefaultView}
+          />
         </div>
 
         {/* Visualization Area */}
         <div className="lg:col-span-3 space-y-6">
           {isLoading ? (
-            <div className="flex items-center justify-center h-96 card">
-              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-500"></div>
+            <div className="space-y-6">
+              <ChartSkeleton height="h-96" />
+              <div className="card">
+                <TableSkeleton rows={6} columns={2} />
+              </div>
+            </div>
+          ) : isError ? (
+            <div className="card text-dark-300">
+              Klarte ikke laste analysevisningen for valgt oppsett.
             </div>
           ) : (
             <div ref={chartRef} className="space-y-6">

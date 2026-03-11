@@ -1,11 +1,13 @@
 import { useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { Layout } from '../../components/Layout';
 import { BarChart, LineChart, PieChart } from '../../components/Charts';
 import { ExportButton } from '../../components/ExportButton';
 import {
   statusApi,
   dashboardApi,
+  ordersApi,
 } from '../../lib/api';
 import { StatCardSkeleton, ChartSkeleton } from '../../components/admin';
 import { formatCurrencyNok, abbreviateCurrencyNok } from '../../lib/formatters';
@@ -20,6 +22,7 @@ import { DashboardAnalytics, TimeSeriesPoint, FirmaLagerStat } from '../../types
 
 export function AdminDashboard() {
   const chartRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
 
   const { data: status } = useQuery({
     queryKey: ['admin', 'status'],
@@ -29,6 +32,20 @@ export function AdminDashboard() {
   const { data: widgets } = useQuery({
     queryKey: ['admin', 'widgets'],
     queryFn: () => dashboardApi.getWidgets().then(res => res.data).catch(() => null),
+  });
+
+  const { data: apiMetrics } = useQuery({
+    queryKey: ['admin', 'dashboard-api-metrics'],
+    queryFn: () => statusApi.getApiMetrics().then((res) => res.data).catch(() => null),
+  });
+
+  const { data: ordersNeedingAttention = 0 } = useQuery({
+    queryKey: ['admin', 'orders-needing-attention'],
+    queryFn: async () => {
+      const response = await ordersApi.getAll({ limit: 100 });
+      const rows = response.data?.data ?? [];
+      return rows.filter((order) => !order.kunderef || !String(order.kunderef).trim()).length;
+    },
   });
 
   const { data: analytics, isLoading } = useQuery({
@@ -122,6 +139,38 @@ export function AdminDashboard() {
           </div>
         )}
 
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+          <ActionCard
+            label="Ordrer trenger oppfølging"
+            value={ordersNeedingAttention}
+            description="Nylige ordrer mangler kunderef og bør kontrolleres."
+            cta="Åpne ordrelisten"
+            onClick={() => navigate('/admin/orders')}
+          />
+          <ActionCard
+            label="Trege endepunkter"
+            value={apiMetrics?.summary?.totalSlowRequests ?? 0}
+            description="Endpoint-kall over 1 sekund trenger oppfølging."
+            cta="Se status og ytelse"
+            onClick={() => navigate('/admin/status')}
+          />
+          <ActionCard
+            label="Prisavvik å gjennomgå"
+            value={widgets?.priceDeviations?.length ?? 0}
+            description="Kunder med avvikende prisnivå eller mange rabatter."
+            cta="Åpne prisstyring"
+            onClick={() => navigate('/admin/pricing')}
+          />
+          <ActionCard
+            label="Datainntak siste døgn"
+            value={widgets?.recentActivity?.dataFreshness?.daysSinceLastOrder ?? 0}
+            suffix="d"
+            description="Hvis dette tallet er høyt, bør import og ETL sjekkes."
+            cta="Åpne ETL"
+            onClick={() => navigate('/admin/etl')}
+          />
+        </div>
+
         {/* Widget row - Top Products and Top Customers */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <TopProductsWidget data={widgets?.topProducts || []} isLoading={!widgets} />
@@ -199,5 +248,36 @@ export function AdminDashboard() {
         )}
       </div>
     </Layout>
+  );
+}
+
+function ActionCard({
+  label,
+  value,
+  description,
+  cta,
+  suffix = '',
+  onClick,
+}: {
+  label: string;
+  value: number;
+  description: string;
+  cta: string;
+  suffix?: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="card text-left transition-all duration-200 hover:border-primary-500/40 hover:bg-dark-800/50"
+    >
+      <p className="text-sm text-dark-400">{label}</p>
+      <p className="mt-2 text-3xl font-bold text-dark-100">
+        {value}
+        {suffix}
+      </p>
+      <p className="mt-3 text-sm text-dark-400">{description}</p>
+      <p className="mt-4 text-sm font-medium text-primary-300">{cta} →</p>
+    </button>
   );
 }

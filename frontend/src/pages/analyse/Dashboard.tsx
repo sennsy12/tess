@@ -1,6 +1,8 @@
-import { useEffect, useState, useRef } from 'react';
+import { useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Layout } from '../../components/Layout';
 import { ExportButton } from '../../components/ExportButton';
+import { ChartSkeleton, StatCardSkeleton } from '../../components/Skeleton';
 import {
   statisticsApi,
   StatisticsSummary,
@@ -13,45 +15,75 @@ import { DashboardStats } from './components/DashboardStats';
 import { TopCustomerCard } from './components/TopCustomerCard';
 import { DashboardCharts } from './components/DashboardCharts';
 
+interface AnalyseDashboardData {
+  summary: StatisticsSummary | null;
+  kundeStats: KundeStats[];
+  varegruppeStats: VaregruppeStats[];
+  timeSeries: TimeSeriesPoint[];
+}
+
 export function AnalyseDashboard() {
-  const [summary, setSummary] = useState<StatisticsSummary | null>(null);
-  const [kundeStats, setKundeStats] = useState<KundeStats[]>([]);
-  const [varegruppeStats, setVaregruppeStats] = useState<VaregruppeStats[]>([]);
-  const [timeSeries, setTimeSeries] = useState<TimeSeriesPoint[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const chartRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
-    try {
+  const { data, isLoading, isError } = useQuery<AnalyseDashboardData>({
+    queryKey: ['analyse-dashboard'],
+    queryFn: async () => {
       const batchRes = await statisticsApi.batch({ groupBy: 'month' });
       const { summary, kunde, varegruppe, timeSeries } = batchRes.data;
-
-      setSummary(summary);
       const kundeData = kunde?.data || [];
       const varegruppeData = varegruppe?.data || [];
-      setKundeStats(kundeData.filter((k) => k.total_sum > 0).slice(0, 10));
-      setVaregruppeStats(varegruppeData.filter((v) => v.total_sum > 0));
-      setTimeSeries(timeSeries || []);
-    } catch (error) {
-      console.error('Failed to load analytics data:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+
+      return {
+        summary: summary ?? null,
+        kundeStats: kundeData.filter((k) => k.total_sum > 0).slice(0, 10),
+        varegruppeStats: varegruppeData.filter((v) => v.total_sum > 0),
+        timeSeries: timeSeries || [],
+      };
+    },
+  });
 
   if (isLoading) {
     return (
       <Layout title="Analyse Dashboard">
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-500"></div>
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <StatCardSkeleton key={index} />
+            ))}
+          </div>
+          <div className="card">
+            <div className="space-y-3">
+              <div className="h-4 w-32 bg-dark-700/60 animate-pulse rounded" />
+              <div className="h-8 w-48 bg-dark-700/60 animate-pulse rounded" />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <ChartSkeleton />
+            <ChartSkeleton />
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <ChartSkeleton />
+            <ChartSkeleton />
+          </div>
         </div>
       </Layout>
     );
   }
+
+  if (isError) {
+    return (
+      <Layout title="Analyse Dashboard">
+        <div className="card text-dark-300">
+          Klarte ikke laste analysedashboard akkurat nå.
+        </div>
+      </Layout>
+    );
+  }
+
+  const summary = data?.summary ?? null;
+  const kundeStats = data?.kundeStats ?? [];
+  const varegruppeStats = data?.varegruppeStats ?? [];
+  const timeSeries = data?.timeSeries ?? [];
 
   return (
     <Layout title="Analyse Dashboard">

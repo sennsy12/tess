@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Layout } from '../../components/Layout';
 import {
@@ -13,13 +13,80 @@ import {
 } from '../../lib/api';
 import { formatCurrencyNok } from '../../lib/formatters';
 import { ChartSkeleton, TableSkeleton } from '../../components/admin';
-import { SavedReportsList } from '../../components/SavedReportsList';
+import { SavedViewsPanel } from '../../components/SavedViewsPanel';
+import { useSavedViews } from '../../hooks/useSavedViews';
 import { StatsFilters } from './statistics/components/StatsFilters';
 import { StatsCharts } from './statistics/components/StatsCharts';
 import { StatsTable } from './statistics/components/StatsTable';
 import { StatType, ComparisonData } from '../../types/statistics';
 
 type StatRow = KundeStats | VaregruppeStats | VareStats | LagerStats | FirmaStats;
+
+const TODAY = new Date();
+const toDateInput = (date: Date) => date.toISOString().slice(0, 10);
+const shiftDays = (days: number) => {
+  const date = new Date(TODAY);
+  date.setDate(date.getDate() - days);
+  return toDateInput(date);
+};
+
+const STATISTICS_PRESETS = [
+  {
+    id: 'monthly-revenue',
+    label: 'Månedlig omsetning',
+    description: 'Vis omsetning per kunde for de siste 30 dagene',
+    apply: () => ({
+      statType: 'kunde' as StatType,
+      dateRange: { startDate: shiftDays(29), endDate: toDateInput(TODAY) },
+      filters: { kundenr: '', varegruppe: '' },
+      compareEnabled: false,
+    }),
+  },
+  {
+    id: 'top-customers-quarter',
+    label: 'Toppkunder dette kvartalet',
+    description: 'Ranger kunder i innevarende kvartal',
+    apply: () => ({
+      statType: 'kunde' as StatType,
+      dateRange: { startDate: shiftDays(89), endDate: toDateInput(TODAY) },
+      filters: { kundenr: '', varegruppe: '' },
+      compareEnabled: false,
+    }),
+  },
+  {
+    id: 'products-by-category',
+    label: 'Produkter per kategori',
+    description: 'Analyser varegrupper siste 30 dager',
+    apply: () => ({
+      statType: 'varegruppe' as StatType,
+      dateRange: { startDate: shiftDays(29), endDate: toDateInput(TODAY) },
+      filters: { kundenr: '', varegruppe: '' },
+      compareEnabled: false,
+    }),
+  },
+  {
+    id: 'compare-periods',
+    label: 'Sammenlign med forrige periode',
+    description: 'Slå på periode-sammenligning for siste 30 dager',
+    apply: () => ({
+      statType: 'kunde' as StatType,
+      dateRange: { startDate: shiftDays(29), endDate: toDateInput(TODAY) },
+      filters: { kundenr: '', varegruppe: '' },
+      compareEnabled: true,
+    }),
+  },
+  {
+    id: 'warehouse-trend',
+    label: 'Lagertrend',
+    description: 'Se omsetning per lager siste 90 dager',
+    apply: () => ({
+      statType: 'lager' as StatType,
+      dateRange: { startDate: shiftDays(89), endDate: toDateInput(TODAY) },
+      filters: { kundenr: '', varegruppe: '' },
+      compareEnabled: false,
+    }),
+  },
+];
 
 export function AdminStatistics() {
   const [statType, setStatType] = useState<StatType>('kunde');
@@ -28,6 +95,7 @@ export function AdminStatistics() {
   const [filters, setFilters] = useState({ kundenr: '', varegruppe: '' });
   const [compareEnabled, setCompareEnabled] = useState(false);
   const chartRef = useRef<HTMLDivElement>(null);
+  const hasAppliedDefaultView = useRef(false);
 
   const formatDate = (date: Date) => date.toISOString().slice(0, 10);
 
@@ -137,15 +205,6 @@ export function AdminStatistics() {
     }
   };
 
-  const handleLoadReport = (config: any) => {
-    if (config.statType) setStatType(config.statType);
-    if (config.startDate !== undefined) setDateRange(prev => ({ ...prev, startDate: config.startDate }));
-    if (config.endDate !== undefined) setDateRange(prev => ({ ...prev, endDate: config.endDate }));
-    if (config.kundenr !== undefined) setFilters(prev => ({ ...prev, kundenr: config.kundenr }));
-    if (config.varegruppe !== undefined) setFilters(prev => ({ ...prev, varegruppe: config.varegruppe }));
-    setPage(1);
-  };
-
   // Reset page to 1 when filters change - handled via setters above
   const handleStatTypeChange = (newType: StatType) => {
     setStatType(newType);
@@ -162,12 +221,46 @@ export function AdminStatistics() {
     setPage(1);
   };
 
-  const currentConfig = {
+  const workspaceState = {
     statType,
-    startDate: dateRange.startDate,
-    endDate: dateRange.endDate,
-    kundenr: filters.kundenr,
-    varegruppe: filters.varegruppe,
+    dateRange,
+    filters,
+    compareEnabled,
+  };
+
+  const {
+    views,
+    defaultView,
+    canUseShared,
+    isLoading: viewsLoading,
+    saveView,
+    deleteView,
+    setDefaultView,
+  } = useSavedViews({
+    scope: 'admin-statistics',
+    state: workspaceState,
+    enabledShared: true,
+  });
+
+  useEffect(() => {
+    if (!defaultView || hasAppliedDefaultView.current) return;
+    hasAppliedDefaultView.current = true;
+    setStatType(defaultView.state.statType);
+    setDateRange(defaultView.state.dateRange);
+    setFilters(defaultView.state.filters);
+    setCompareEnabled(defaultView.state.compareEnabled);
+    setPage(1);
+  }, [defaultView]);
+
+  const applyPreset = (presetId: string) => {
+    const preset = STATISTICS_PRESETS.find((item) => item.id === presetId);
+    if (!preset) return;
+    const next = preset.apply();
+    setStatType(next.statType);
+    setDateRange(next.dateRange);
+    setFilters(next.filters);
+    setCompareEnabled(next.compareEnabled);
+    setPage(1);
   };
 
   return (
@@ -175,6 +268,25 @@ export function AdminStatistics() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column: Filters & Saved Reports */}
         <div className="space-y-6 lg:col-span-1">
+          <div className="card">
+            <div className="mb-4">
+              <h3 className="font-semibold text-lg">Anbefalte analyser</h3>
+              <p className="text-sm text-dark-400 mt-1">Start raskt med ferdige oppsett for de vanligste spørsmålene.</p>
+            </div>
+            <div className="space-y-2">
+              {STATISTICS_PRESETS.map((preset) => (
+                <button
+                  key={preset.id}
+                  onClick={() => applyPreset(preset.id)}
+                  className="w-full rounded-xl border border-dark-700 bg-dark-800/40 px-4 py-3 text-left transition-colors hover:bg-dark-800/80"
+                >
+                  <p className="font-medium text-dark-100">{preset.label}</p>
+                  <p className="text-sm text-dark-400 mt-1">{preset.description}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+
           <StatsFilters
             statType={statType}
             setStatType={handleStatTypeChange}
@@ -187,9 +299,22 @@ export function AdminStatistics() {
             chartRef={chartRef}
           />
 
-          <SavedReportsList 
-            onLoad={handleLoadReport} 
-            currentConfig={currentConfig} 
+          <SavedViewsPanel
+            title="Lagrede arbeidsflater"
+            description="Lagre filtre og sammenligninger, og del visninger med andre administratorer."
+            views={views}
+            isLoading={viewsLoading}
+            canShare={canUseShared}
+            onApply={(view) => {
+              setStatType(view.state.statType);
+              setDateRange(view.state.dateRange);
+              setFilters(view.state.filters);
+              setCompareEnabled(view.state.compareEnabled);
+              setPage(1);
+            }}
+            onSave={(name, options) => saveView(name, options)}
+            onDelete={(view) => deleteView(view)}
+            onSetDefault={setDefaultView}
           />
         </div>
 

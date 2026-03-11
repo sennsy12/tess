@@ -1,5 +1,6 @@
 import { useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { Layout } from '../../components/Layout';
 import { LineChart, PieChart } from '../../components/Charts';
 import { ExportButton } from '../../components/ExportButton';
@@ -10,6 +11,7 @@ import { StatCardSkeleton, ChartSkeleton } from '../../components/admin';
 export function KundeDashboard() {
   const { user } = useAuth();
   const chartRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
 
   const { data: summary } = useQuery({
     queryKey: ['kunde', 'summary'],
@@ -103,6 +105,33 @@ export function KundeDashboard() {
           <ExportButton targetRef={chartRef} filename="kunde-dashboard" />
         </div>
 
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <button
+            onClick={() => navigate('/kunde/orders')}
+            className="card text-left transition-colors hover:bg-dark-800/50"
+          >
+            <p className="text-sm text-dark-400">Handling</p>
+            <p className="mt-2 text-lg font-semibold text-dark-100">Se alle ordrer</p>
+            <p className="mt-2 text-sm text-dark-400">Gå direkte til ordrelisten med søk, filtre og lagrede visninger.</p>
+          </button>
+          <button
+            onClick={() => navigate('/kunde/analytics')}
+            className="card text-left transition-colors hover:bg-dark-800/50"
+          >
+            <p className="text-sm text-dark-400">Analyse</p>
+            <p className="mt-2 text-lg font-semibold text-dark-100">Kjør guidet analyse</p>
+            <p className="mt-2 text-sm text-dark-400">Start med ferdige analyseoppsett for omsetning og varegrupper.</p>
+          </button>
+          <button
+            onClick={() => navigate('/kunde/orders')}
+            className="card text-left transition-colors hover:bg-dark-800/50"
+          >
+            <p className="text-sm text-dark-400">Oppfølging</p>
+            <p className="mt-2 text-lg font-semibold text-dark-100">Sjekk siste kjøp</p>
+            <p className="mt-2 text-sm text-dark-400">Åpne nylige ordrer og gå videre til detaljene med ett klikk.</p>
+          </button>
+        </div>
+
         {/* Charts */}
         <div ref={chartRef} className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="card">
@@ -142,7 +171,11 @@ export function KundeDashboard() {
               </thead>
               <tbody>
                 {recentOrders.map((order: any) => (
-                  <tr key={order.ordrenr} className="hover:bg-dark-800/30">
+                  <tr
+                    key={order.ordrenr}
+                    className="cursor-pointer hover:bg-dark-800/30"
+                    onClick={() => navigate(`/kunde/orders/${order.ordrenr}`)}
+                  >
                     <td className="table-cell font-medium text-primary-400">
                       #{order.ordrenr}
                     </td>

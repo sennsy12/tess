@@ -289,7 +289,7 @@ export function AdminOrderLines() {
           data={orderLines}
           columns={columns}
           emptyMessage="Ingen ordrelinjer funnet"
-          pageSize={9999}
+          paginate={false}
         />
         )}
 

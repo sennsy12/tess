@@ -6,7 +6,12 @@ import { PaginationInfo } from '../../../../types/statistics';
 
 const PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
 
-export function CustomersTab({ groups, handleAssignCustomer }: CustomersTabProps) {
+export function CustomersTab({
+  groups,
+  handleAssignCustomer,
+  initialState,
+  onStateChange,
+}: CustomersTabProps) {
   const [customers, setCustomers] = useState<CustomerWithGroup[]>([]);
   const [pagination, setPagination] = useState<PaginationInfo>({ page: 1, limit: 25, total: 0, totalPages: 0 });
   const [isLoading, setIsLoading] = useState(true);
@@ -26,6 +31,22 @@ export function CustomersTab({ groups, handleAssignCustomer }: CustomersTabProps
     }, 300);
     return () => clearTimeout(debounceTimer.current);
   }, [search]);
+
+  useEffect(() => {
+    if (!initialState) return;
+    setSearch(initialState.search);
+    setDebouncedSearch(initialState.search);
+    setFilterGroup(initialState.filterGroup);
+    setPageSize(initialState.pageSize);
+  }, [initialState]);
+
+  useEffect(() => {
+    onStateChange?.({
+      search,
+      filterGroup,
+      pageSize,
+    });
+  }, [filterGroup, onStateChange, pageSize, search]);
 
   // Fetch data from backend whenever filters/page change
   const fetchCustomers = useCallback(async (page: number) => {

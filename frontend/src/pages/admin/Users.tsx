@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { Layout } from '../../components/Layout';
+import { DataTable, type DataTableState } from '../../components/DataTable';
 import { PageHeader, Pagination, FormModal, ConfirmModal, ActionKeyModal, TableSkeleton } from '../../components/admin';
 import { usersApi } from '../../lib/api';
 import type { UserPublic, CreateUserPayload, UpdateUserPayload, UserRole } from '../../types/user';
@@ -26,121 +27,6 @@ const ROLE_BADGE_STYLES: Record<string, string> = {
   kunde: 'bg-blue-500/15 text-blue-400 border-blue-500/30',
   analyse: 'bg-purple-500/15 text-purple-400 border-purple-500/30',
 };
-
-// ────────────────────────────────────────────────────────────
-// Sub-components
-// ────────────────────────────────────────────────────────────
-
-/** Table row for a single user – extracted to keep the table body clean. */
-function UserRow({
-  user,
-  isEven,
-  onEdit,
-  onDelete,
-}: {
-  user: UserPublic;
-  isEven: boolean;
-  onEdit: (user: UserPublic) => void;
-  onDelete: (user: UserPublic) => void;
-}) {
-  const badgeClass =
-    ROLE_BADGE_STYLES[user.role] ?? 'bg-dark-700 text-dark-300 border-dark-600';
-
-  return (
-    <tr
-      className={`border-t border-dark-800 transition-colors hover:bg-dark-800/40 ${
-        isEven ? '' : 'bg-dark-800/20'
-      }`}
-    >
-      <td className="py-3 px-4 font-mono text-sm text-dark-400">{user.id}</td>
-      <td className="py-3 px-4 text-dark-100 font-medium">{user.username}</td>
-      <td className="py-3 px-4">
-        <span
-          className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${badgeClass}`}
-        >
-          {user.role}
-        </span>
-      </td>
-      <td className="py-3 px-4 font-mono text-sm text-primary-400">
-        {user.kundenr || <span className="text-dark-600">-</span>}
-      </td>
-      <td className="py-3 px-4 text-sm text-dark-400">
-        {user.created_at
-          ? new Date(user.created_at).toLocaleDateString('nb-NO')
-          : '-'}
-      </td>
-      <td className="py-3 px-4 text-right">
-        <div className="flex items-center justify-end gap-2">
-          <button
-            onClick={() => onEdit(user)}
-            className="px-3 py-1.5 rounded-lg text-xs font-medium bg-dark-800 hover:bg-dark-700 text-dark-200 transition-colors"
-          >
-            Rediger
-          </button>
-          <button
-            onClick={() => onDelete(user)}
-            className="px-3 py-1.5 rounded-lg text-xs font-medium bg-red-500/10 hover:bg-red-500/20 text-red-400 transition-colors"
-          >
-            Slett
-          </button>
-        </div>
-      </td>
-    </tr>
-  );
-}
-
-/** The users data table including the thead & empty state. */
-function UserTable({
-  users,
-  onEdit,
-  onDelete,
-}: {
-  users: UserPublic[];
-  onEdit: (user: UserPublic) => void;
-  onDelete: (user: UserPublic) => void;
-}) {
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full">
-        <thead>
-          <tr className="bg-dark-800/50">
-            {['ID', 'Brukernavn', 'Rolle', 'Kundenr', 'Opprettet', 'Handlinger'].map(
-              (header, idx) => (
-                <th
-                  key={header}
-                  className={`${
-                    idx === 5 ? 'text-right' : 'text-left'
-                  } py-3 px-4 text-xs font-semibold text-dark-300 uppercase tracking-wider`}
-                >
-                  {header}
-                </th>
-              ),
-            )}
-          </tr>
-        </thead>
-        <tbody>
-          {users.length === 0 ? (
-            <tr>
-              <td colSpan={6} className="py-12 text-center text-dark-400">
-                Ingen brukere funnet
-              </td>
-            </tr>
-          ) : (
-            users.map((user, idx) => (
-              <UserRow
-                key={user.id}
-                user={user}
-                isEven={idx % 2 === 0}
-                onEdit={onEdit}
-                onDelete={onDelete}
-              />
-            ))
-          )}
-        </tbody>
-      </table>
-    </div>
-  );
-}
 
 /** Form fields rendered inside the create / edit FormModal. */
 function UserFormFields({
@@ -262,6 +148,12 @@ export function AdminUsers() {
   const [formPassword, setFormPassword] = useState('');
   const [formRole, setFormRole] = useState<RoleValue>('kunde');
   const [formKundenr, setFormKundenr] = useState('');
+  const [tableState, setTableState] = useState<DataTableState>({
+    sortKey: null,
+    sortDirection: null,
+    currentPage: 1,
+    visibleColumnKeys: ['id', 'username', 'role', 'kundenr', 'created_at', 'actions'],
+  });
 
   // ── Queries ─────────────────────────────────────────────
   const { data: usersData, isLoading } = useQuery({
@@ -489,6 +381,65 @@ export function AdminUsers() {
       ? deleteMutation.isPending
       : false;
 
+  const userColumns = [
+    { key: 'id', header: 'ID', csvValue: (value: number) => value, hideable: false },
+    { key: 'username', header: 'Brukernavn' },
+    {
+      key: 'role',
+      header: 'Rolle',
+      render: (value: string) => {
+        const badgeClass =
+          ROLE_BADGE_STYLES[value] ?? 'bg-dark-700 text-dark-300 border-dark-600';
+        return (
+          <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${badgeClass}`}>
+            {value}
+          </span>
+        );
+      },
+    },
+    {
+      key: 'kundenr',
+      header: 'Kundenr',
+      render: (value: string | null) => value || <span className="text-dark-600">-</span>,
+    },
+    {
+      key: 'created_at',
+      header: 'Opprettet',
+      render: (value: string) => (value ? new Date(value).toLocaleDateString('nb-NO') : '-'),
+      csvValue: (value: string) => (value ? new Date(value).toLocaleDateString('nb-NO') : '-'),
+    },
+    {
+      key: 'actions',
+      header: 'Handlinger',
+      sortable: false,
+      align: 'right' as const,
+      hideable: false,
+      render: (_value: unknown, user: UserPublic) => (
+        <div className="flex items-center justify-end gap-2">
+          <button
+            onClick={(event) => {
+              event.stopPropagation();
+              openEdit(user);
+            }}
+            className="px-3 py-1.5 rounded-lg text-xs font-medium bg-dark-800 hover:bg-dark-700 text-dark-200 transition-colors"
+          >
+            Rediger
+          </button>
+          <button
+            onClick={(event) => {
+              event.stopPropagation();
+              handleDelete(user);
+            }}
+            className="px-3 py-1.5 rounded-lg text-xs font-medium bg-red-500/10 hover:bg-red-500/20 text-red-400 transition-colors"
+          >
+            Slett
+          </button>
+        </div>
+      ),
+      csvValue: () => '',
+    },
+  ];
+
   // ── Render ──────────────────────────────────────────────
   return (
     <Layout title="Brukere">
@@ -509,7 +460,20 @@ export function AdminUsers() {
           {isLoading ? (
             <TableSkeleton rows={8} columns={6} />
           ) : (
-            <UserTable users={users} onEdit={openEdit} onDelete={handleDelete} />
+            <DataTable
+              data={users}
+              columns={userColumns}
+              emptyMessage="Ingen brukere funnet"
+              paginate={false}
+              stickyFirstColumn
+              enableColumnManagement
+              enableCsvExport
+              exportFilename="admin-users"
+              title="Brukertabell"
+              storageKey="table:admin-users"
+              state={tableState}
+              onStateChange={setTableState}
+            />
           )}
 
           {/* Pagination */}

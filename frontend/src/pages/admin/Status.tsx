@@ -1,11 +1,19 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Layout } from '../../components/Layout';
+import { DataTable, type DataTableState } from '../../components/DataTable';
 import { statusApi } from '../../lib/api';
 
 import { ApiEndpointMetric, ApiMetricsData } from '../../types/status';
 
 export function AdminStatus() {
+  const [tableState, setTableState] = useState<DataTableState>({
+    sortKey: null,
+    sortDirection: null,
+    currentPage: 1,
+    visibleColumnKeys: ['method', 'path', 'avgMs', 'minMs', 'maxMs', 'count', 'slowCount'],
+  });
+
   const { data: systemStatus, refetch: refetchSystem } = useQuery({
     queryKey: ['admin', 'status'],
     queryFn: () => statusApi.getStatus().then(res => res.data),
@@ -43,6 +51,29 @@ export function AdminStatus() {
   };
 
   const isLoading = !systemStatus || !importStatus || !extractionStatus || !healthStatus || !apiMetrics;
+
+  const endpointColumns = [
+    {
+      key: 'method',
+      header: 'Metode',
+      render: (value: string) => (
+        <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+          value === 'GET' ? 'bg-blue-500/20 text-blue-400' :
+          value === 'POST' ? 'bg-green-500/20 text-green-400' :
+          value === 'PUT' ? 'bg-yellow-500/20 text-yellow-400' :
+          'bg-red-500/20 text-red-400'
+        }`}>
+          {value}
+        </span>
+      ),
+    },
+    { key: 'path', header: 'Endepunkt', hideable: false },
+    { key: 'avgMs', header: 'Snitt (ms)', align: 'right' as const },
+    { key: 'minMs', header: 'Min (ms)', align: 'right' as const },
+    { key: 'maxMs', header: 'Maks (ms)', align: 'right' as const },
+    { key: 'count', header: 'Kall', align: 'right' as const },
+    { key: 'slowCount', header: 'Trege', align: 'right' as const },
+  ];
 
   const StatusCard = ({ title, status, children }: { title: string; status: string; children: React.ReactNode }) => (
     <div className={`card ${status === 'ok' || status === 'healthy' ? 'border-green-700/50' : 'border-red-700/50'}`}>
@@ -231,49 +262,21 @@ export function AdminStatus() {
             {apiMetrics.endpoints.length > 0 && (
               <>
                 <h4 className="text-sm font-medium text-dark-300 mb-3">Endepunkter (sortert etter responstid)</h4>
-                <div className="overflow-x-auto rounded-lg border border-dark-700">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="bg-dark-800/50">
-                        <th className="text-left py-2 px-3 text-dark-400">Metode</th>
-                        <th className="text-left py-2 px-3 text-dark-400">Endepunkt</th>
-                        <th className="text-right py-2 px-3 text-dark-400">Snitt</th>
-                        <th className="text-right py-2 px-3 text-dark-400">Min</th>
-                        <th className="text-right py-2 px-3 text-dark-400">Maks</th>
-                        <th className="text-right py-2 px-3 text-dark-400">Kall</th>
-                        <th className="text-right py-2 px-3 text-dark-400">Trege</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                    {apiMetrics.endpoints.slice(0, 15).map((ep: ApiEndpointMetric, i: number) => (
-                        <tr key={i} className="border-t border-dark-800 hover:bg-dark-800/30">
-                          <td className="py-2 px-3">
-                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                              ep.method === 'GET' ? 'bg-blue-500/20 text-blue-400' :
-                              ep.method === 'POST' ? 'bg-green-500/20 text-green-400' :
-                              ep.method === 'PUT' ? 'bg-yellow-500/20 text-yellow-400' :
-                              'bg-red-500/20 text-red-400'
-                            }`}>
-                              {ep.method}
-                            </span>
-                          </td>
-                          <td className="py-2 px-3 font-mono text-dark-300">{ep.path}</td>
-                          <td className={`py-2 px-3 text-right font-mono ${ep.avgMs > 500 ? 'text-yellow-400' : ep.avgMs > 1000 ? 'text-red-400' : ''}`}>
-                            {ep.avgMs}ms
-                          </td>
-                          <td className="py-2 px-3 text-right font-mono text-dark-400">{ep.minMs}ms</td>
-                          <td className={`py-2 px-3 text-right font-mono ${ep.maxMs > 1000 ? 'text-red-400' : ''}`}>
-                            {ep.maxMs}ms
-                          </td>
-                          <td className="py-2 px-3 text-right">{ep.count}</td>
-                          <td className={`py-2 px-3 text-right ${ep.slowCount > 0 ? 'text-yellow-400' : 'text-dark-500'}`}>
-                            {ep.slowCount}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <DataTable
+                  data={apiMetrics.endpoints.slice(0, 15)}
+                  columns={endpointColumns}
+                  emptyMessage="Ingen endepunkter registrert ennå"
+                  paginate={false}
+                  stickyFirstColumn
+                  enableColumnManagement
+                  enableCsvExport
+                  exportFilename="api-endpoint-metrics"
+                  title="API-endepunkter"
+                  storageKey="table:admin-status-api-metrics"
+                  state={tableState}
+                  onStateChange={setTableState}
+                  rowKey={(row: ApiEndpointMetric) => `${row.method}-${row.path}`}
+                />
                 {apiMetrics.endpoints.length > 15 && (
                   <p className="text-xs text-dark-500 mt-2">Viser første 15 av {apiMetrics.endpoints.length} endepunkter</p>
                 )}

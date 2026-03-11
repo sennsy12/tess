@@ -1,8 +1,8 @@
 # TESS - Sales Order Management System
 
-A full-stack web application for managing sales orders with role-based access control.
+A full-stack web application for managing sales orders with role-based access control, pricing management, ETL pipelines, and advanced analytics.
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 
@@ -13,7 +13,7 @@ A full-stack web application for managing sales orders with role-based access co
 
 ```bash
 # Start all services
-docker-compose up --build
+docker compose up --build
 
 # Access the application:
 # - Frontend: http://localhost:3000
@@ -35,7 +35,7 @@ npm install
 npm run dev
 ```
 
-## 🔐 Demo Users
+## Demo Users
 
 | Role    | Username | Password   |
 | ------- | -------- | ---------- |
@@ -43,32 +43,39 @@ npm run dev
 | Analyse | analyse  | analyse123 |
 | Kunde   | K001     | kunde123   |
 
-## 🏗️ Architecture
+## Architecture
 
 ```
-├── backend/          # Node.js + Express API
+├── backend/              # Node.js + Express API
 │   └── src/
-│       ├── routes/   # API endpoints
+│       ├── routes/       # API endpoints
+│       ├── controllers/
 │       ├── middleware/
-│       └── db/       # Database connection
-├── frontend/         # React + Vite + Tailwind
+│       ├── models/
+│       ├── db/           # Database connection
+│       ├── etl/          # ETL pipelines
+│       └── scheduler/
+├── frontend/             # React + Vite + Tailwind
 │   └── src/
 │       ├── components/
 │       ├── pages/
 │       ├── context/
+│       ├── hooks/
 │       └── lib/
 ├── docker-compose.yml
-└── init.sql          # Database schema + seed data
+├── init.sql              # Database schema
+└── seed-dev.sql          # Seed data
 ```
 
-## 📊 Features by Role
+## Features by Role
 
 ### Kunde (Customer)
 
 - Dashboard with order statistics & charts
 - Search orders by ordrenr, date, references
-- Sortable order tables
+- Sortable order tables with saved views
 - View order details with line items
+- Advanced analytics
 - Export charts to PDF/Image
 
 ### Analyse (Analysis)
@@ -81,31 +88,47 @@ npm run dev
 ### Admin (Administrator)
 
 - Full system dashboard with all statistics
-- Order line CRUD operations
+- Order management & order line CRUD
+- Pricing module (customer groups, price lists, rules, simulator)
+- ETL pipelines for data import
+- User management (CRUD)
 - System health monitoring
-- Database status pages
-- Import/extraction status
+- Database status & import/extraction status
+- Advanced analytics
 
-## 🛠️ Tech Stack
+## Tech Stack
 
-- **Backend**: Node.js, Express, TypeScript, pg
-- **Frontend**: React, Vite, TypeScript, Tailwind CSS, Recharts
+- **Backend**: Node.js, Express, TypeScript, pg, pino, zod
+- **Frontend**: React, Vite, TypeScript, Tailwind CSS, Recharts, TanStack Query, Framer Motion, Lucide React
 - **Database**: PostgreSQL
 - **Auth**: JWT + bcrypt
 - **Export**: jsPDF + html2canvas
-- **Container**: Docker + docker-compose
+- **Container**: Docker + docker compose
 
-## 📝 API Endpoints
+## API Endpoints
 
-| Endpoint                   | Description              |
-| -------------------------- | ------------------------ |
-| POST /api/auth/login       | User login               |
+| Endpoint | Description |
+| -------- | ----------- |
+| **Auth** | |
+| POST /api/auth/login | User login |
 | POST /api/auth/login/kunde | Kunde login with kundenr |
-| GET /api/orders            | List orders with filters |
-| GET /api/orders/:ordrenr   | Get order details        |
-| GET /api/statistics/\*     | Statistics endpoints     |
-| GET /api/status            | System status (admin)    |
+| **Orders** | |
+| GET /api/orders | List orders with filters |
+| GET /api/orders/:ordrenr | Get order details |
+| **Statistics** | |
+| GET /api/statistics/* | Statistics endpoints |
+| **Pricing** | |
+| GET/POST/PUT/DELETE /api/pricing/groups | Customer groups |
+| GET/POST/PUT/DELETE /api/pricing/lists | Price lists |
+| GET/POST/PUT/DELETE /api/pricing/rules | Price rules |
+| POST /api/pricing/simulate | Price simulation |
+| POST /api/pricing/calculate | Calculate prices |
+| **Admin** | |
+| GET /api/status | System status |
+| GET /api/users | List users |
+| GET/POST/PUT/DELETE /api/users/:id | User CRUD |
+| GET /api/audit | Audit logs |
 
-## 📄 License
+## License
 
 MIT

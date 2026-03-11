@@ -261,6 +261,12 @@ export interface RulesTabProps {
 export interface CustomersTabProps {
   groups: CustomerGroup[];
   handleAssignCustomer: (kundenr: string, groupId: number | null) => void;
+  initialState?: {
+    search: string;
+    filterGroup: string;
+    pageSize: number;
+  };
+  onStateChange?: (state: { search: string; filterGroup: string; pageSize: number }) => void;
 }
 
 export interface PreviewTabProps {

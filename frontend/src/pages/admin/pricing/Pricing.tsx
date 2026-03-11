@@ -1,13 +1,51 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Layout } from '../../../components/Layout';
+import { SavedViewsPanel } from '../../../components/SavedViewsPanel';
 import { Tabs, TabContent } from '../../../components/Tabs';
+import { useSavedViews } from '../../../hooks/useSavedViews';
 import { usePricingData } from './usePricingData';
 import { GroupsTab, ListsTab, RulesTab, CustomersTab, PreviewTab, SimulatorTab, AuditLogTab } from './components';
 import { Tab, TABS } from '../../../types/pricing';
 
 export function AdminPricing() {
   const [activeTab, setActiveTab] = useState<Tab>('groups');
+  const [customerFilters, setCustomerFilters] = useState({
+    search: '',
+    filterGroup: 'all',
+    pageSize: 25,
+  });
   const pricing = usePricingData();
+  const hasAppliedDefaultView = useRef(false);
+
+  const workspaceState = {
+    activeTab,
+    selectedListId: pricing.selectedListId,
+    customerFilters,
+  };
+
+  const {
+    views,
+    defaultView,
+    canUseShared,
+    isLoading: viewsLoading,
+    saveView,
+    deleteView,
+    setDefaultView,
+  } = useSavedViews({
+    scope: 'admin-pricing',
+    state: workspaceState,
+    enabledShared: true,
+  });
+
+  useEffect(() => {
+    if (!defaultView || hasAppliedDefaultView.current) return;
+    hasAppliedDefaultView.current = true;
+    setActiveTab(defaultView.state.activeTab);
+    setCustomerFilters(defaultView.state.customerFilters);
+    if (defaultView.state.selectedListId) {
+      pricing.loadRules(defaultView.state.selectedListId);
+    }
+  }, [defaultView, pricing]);
 
   if (pricing.isLoading) {
     return (
@@ -22,6 +60,24 @@ export function AdminPricing() {
   return (
     <Layout title="Prisstyring">
       <div className="space-y-6">
+        <SavedViewsPanel
+          title="Pris-arbeidsflater"
+          description="Lagre faner, valgt prisliste og tildelingsfiltre. Del oppsett med andre administratorer."
+          views={views}
+          isLoading={viewsLoading}
+          canShare={canUseShared}
+          onApply={(view) => {
+            setActiveTab(view.state.activeTab);
+            setCustomerFilters(view.state.customerFilters);
+            if (view.state.selectedListId) {
+              pricing.loadRules(view.state.selectedListId);
+            }
+          }}
+          onSave={(name, options) => saveView(name, options)}
+          onDelete={(view) => deleteView(view)}
+          onSetDefault={setDefaultView}
+        />
+
         {/* Tabs */}
         <Tabs
           tabs={TABS}
@@ -95,6 +151,8 @@ export function AdminPricing() {
             <CustomersTab
               groups={pricing.groups}
               handleAssignCustomer={pricing.handleAssignCustomer}
+              initialState={customerFilters}
+              onStateChange={setCustomerFilters}
             />
           </TabContent>
         )}

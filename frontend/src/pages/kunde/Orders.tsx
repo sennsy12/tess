@@ -1,8 +1,10 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Layout } from '../../components/Layout';
-import { DataTable } from '../../components/DataTable';
+import { DataTable, type DataTableState } from '../../components/DataTable';
 import { AutocompleteInput } from '../../components/AutocompleteInput';
+import { SavedViewsPanel } from '../../components/SavedViewsPanel';
+import { useSavedViews } from '../../hooks/useSavedViews';
 import { ordersApi, suggestionsApi } from '../../lib/api';
 import { TableSkeleton } from '../../components/admin';
 
@@ -21,7 +23,14 @@ export function KundeOrders() {
     endDate: '',
     search: '',
   });
+  const [tableState, setTableState] = useState<DataTableState>({
+    sortKey: null,
+    sortDirection: null,
+    currentPage: 1,
+    visibleColumnKeys: ['ordrenr', 'dato', 'kundenavn', 'kunderef', 'firmanavn', 'lagernavn', 'valutaid', 'sum'],
+  });
   const navigate = useNavigate();
+  const hasAppliedDefaultView = useRef(false);
 
   useEffect(() => {
     loadOrders();
@@ -44,14 +53,8 @@ export function KundeOrders() {
 
       const response = await ordersApi.getAll(queryParams);
       
-      if (response.data.data) {
-        setOrders(response.data.data);
-        setTotal(response.data.total);
-      } else {
-        // Fallback for legacy response
-        setOrders(response.data);
-        setTotal(response.data.length);
-      }
+      setOrders(response.data.data ?? []);
+      setTotal(response.data.total ?? 0);
     } catch (error) {
       console.error('Failed to load orders:', error);
     } finally {
@@ -130,11 +133,52 @@ export function KundeOrders() {
     },
   ];
 
+  const currentViewState = {
+    filters,
+    page,
+    tableState,
+  };
+
+  const {
+    views,
+    defaultView,
+    isLoading: viewsLoading,
+    saveView,
+    deleteView,
+    setDefaultView,
+  } = useSavedViews({
+    scope: 'kunde-orders',
+    state: currentViewState,
+  });
+
+  useEffect(() => {
+    if (!defaultView || hasAppliedDefaultView.current) return;
+    hasAppliedDefaultView.current = true;
+    setFilters(defaultView.state.filters);
+    setPage(defaultView.state.page ?? 1);
+    setTableState(defaultView.state.tableState);
+  }, [defaultView]);
+
   const totalPages = Math.ceil(total / limit);
 
   return (
     <Layout title="Ordrer">
       <div className="space-y-6">
+        <SavedViewsPanel
+          title="Mine arbeidsflater"
+          description="Lagre søk, sortering og kolonneoppsett for orderoversikten."
+          views={views}
+          isLoading={viewsLoading}
+          onApply={(view) => {
+            setFilters(view.state.filters);
+            setPage(view.state.page ?? 1);
+            setTableState(view.state.tableState);
+          }}
+          onSave={(name, options) => saveView(name, options)}
+          onDelete={(view) => deleteView(view)}
+          onSetDefault={setDefaultView}
+        />
+
         {/* Search filters */}
         <form onSubmit={handleSearch} className="card">
           <h3 className="text-lg font-semibold mb-4">Søk i ordrer</h3>
@@ -227,6 +271,15 @@ export function KundeOrders() {
               columns={columns}
               onRowClick={(order) => navigate(`/kunde/orders/${order.ordrenr}`)}
               emptyMessage="Ingen ordrer funnet"
+              paginate={false}
+              stickyFirstColumn
+              enableColumnManagement
+              enableCsvExport
+              exportFilename="kunde-orders"
+              title="Ordretabell"
+              storageKey="table:kunde-orders"
+              state={tableState}
+              onStateChange={setTableState}
             />
             
             {/* Bottom Pagination */}
