@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Layout } from '../../components/Layout';
+import { Breadcrumb } from '../../components/Breadcrumb';
 import {
   statisticsApi,
   PaginatedResponse,
@@ -88,7 +89,17 @@ const STATISTICS_PRESETS = [
   },
 ];
 
-export function AdminStatistics() {
+export interface StatisticsPageProps {
+  pageTitle?: string;
+  savedViewsScope?: string;
+  enableSharedViews?: boolean;
+}
+
+export function StatisticsPage({
+  pageTitle = 'Statistikk',
+  savedViewsScope = 'admin-statistics',
+  enableSharedViews = true,
+}: StatisticsPageProps) {
   const [statType, setStatType] = useState<StatType>('kunde');
   const [page, setPage] = useState(1);
   const [dateRange, setDateRange] = useState({ startDate: '', endDate: '' });
@@ -237,9 +248,9 @@ export function AdminStatistics() {
     deleteView,
     setDefaultView,
   } = useSavedViews({
-    scope: 'admin-statistics',
+    scope: savedViewsScope,
     state: workspaceState,
-    enabledShared: true,
+    enabledShared: enableSharedViews,
   });
 
   useEffect(() => {
@@ -263,8 +274,16 @@ export function AdminStatistics() {
     setPage(1);
   };
 
+  const isKundeScope = savedViewsScope.startsWith('kunde');
+
   return (
-    <Layout title="Admin Statistikk">
+    <Layout title={pageTitle}>
+      <Breadcrumb
+        items={[
+          { label: isKundeScope ? 'Hjem' : 'Dashboard', to: isKundeScope ? '/kunde' : '/admin' },
+          { label: 'Statistikk' },
+        ]}
+      />
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column: Filters & Saved Reports */}
         <div className="space-y-6 lg:col-span-1">
@@ -352,5 +371,15 @@ export function AdminStatistics() {
         </div>
       </div>
     </Layout>
+  );
+}
+
+export function AdminStatistics() {
+  return (
+    <StatisticsPage
+      pageTitle="Admin Statistikk"
+      savedViewsScope="admin-statistics"
+      enableSharedViews
+    />
   );
 }

@@ -18,6 +18,7 @@ interface PieChartProps {
   seriesName?: string;
   valueFormatter?: (value: number) => string;
   height?: number;
+  summary?: string;
 }
 
 export function PieChart({
@@ -27,6 +28,7 @@ export function PieChart({
   title,
   valueFormatter,
   height = 340,
+  summary,
 }: PieChartProps) {
   const defaultFormatter = (value: number) => 
     new Intl.NumberFormat('nb-NO').format(value);
@@ -119,6 +121,11 @@ export function PieChart({
           <Legend content={renderLegend} />
         </RechartsPieChart>
       </ResponsiveContainer>
+      {summary && (
+        <p className="mt-3 text-sm text-dark-400 border-t border-dark-800/50 pt-3" role="note">
+          {summary}
+        </p>
+      )}
     </div>
   );
 }

@@ -42,7 +42,7 @@ export function PreviewTab({ customersWithGroups }: PreviewTabProps) {
     <div className="space-y-6">
       {/* Input Form */}
       <div className="card">
-        <h3 className="text-lg font-semibold mb-4">🔍 Test prisberegning</h3>
+        <h3 className="text-lg font-semibold mb-4">Test prisberegning</h3>
         <p className="text-dark-400 text-sm mb-6">
           Test hvordan priser beregnes for en kunde basert på prisregler og kundegrupper.
         </p>
@@ -123,7 +123,7 @@ export function PreviewTab({ customersWithGroups }: PreviewTabProps) {
           disabled={isCalculating}
           className="btn btn-primary mt-6"
         >
-          {isCalculating ? 'Beregner...' : '🧮 Beregn pris'}
+          {isCalculating ? 'Beregner...' : 'Beregn pris'}
         </button>
 
         {error && (
@@ -136,7 +136,7 @@ export function PreviewTab({ customersWithGroups }: PreviewTabProps) {
       {/* Results */}
       {result && (
         <div className="card">
-          <h3 className="text-lg font-semibold mb-4">📊 Resultat</h3>
+          <h3 className="text-lg font-semibold mb-4">Resultat</h3>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* Original Price */}

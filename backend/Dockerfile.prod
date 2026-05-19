@@ -20,9 +20,9 @@ RUN npm install --omit=dev
 
 # Copy the pre-built code from the builder stage
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/src/db/migrations ./dist/db/migrations
 
-# Change ownership to the non-root 'node' user
-RUN chown -R node:node /app
+RUN mkdir -p /app/uploads && chown -R node:node /app
 
 # Switch to the non-root user
 USER node

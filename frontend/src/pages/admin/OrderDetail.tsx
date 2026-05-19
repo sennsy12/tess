@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Layout } from '../../components/Layout';
+import { Breadcrumb } from '../../components/Breadcrumb';
+import { QueryErrorBanner } from '../../components/QueryErrorBanner';
 import { ordersApi } from '../../lib/api';
 
 import { OrderDetail } from '../../types/order';
@@ -42,9 +44,16 @@ export function AdminOrderDetail() {
   if (error || !order) {
     return (
       <Layout title="Ordre detaljer">
-        <div className="card text-center py-12">
-          <p className="text-red-400">{error || 'Ordre ikke funnet'}</p>
-          <button onClick={() => navigate('/admin/orders')} className="btn-secondary mt-4">
+        <div className="space-y-4">
+          <Breadcrumb
+            items={[
+              { label: 'Dashboard', to: '/admin' },
+              { label: 'Ordrer', to: '/admin/orders' },
+              { label: 'Detaljer' },
+            ]}
+          />
+          <QueryErrorBanner message={error || 'Ordre ikke funnet'} onRetry={() => ordrenr && loadOrder(parseInt(ordrenr, 10))} />
+          <button type="button" onClick={() => navigate('/admin/orders')} className="btn-secondary">
             ← Tilbake til ordrer
           </button>
         </div>
@@ -55,8 +64,14 @@ export function AdminOrderDetail() {
   return (
     <Layout title={`Ordre #${order.ordrenr}`}>
       <div className="space-y-6">
-        {/* Back button */}
-        <button onClick={() => navigate('/admin/orders')} className="btn-secondary">
+        <Breadcrumb
+          items={[
+            { label: 'Dashboard', to: '/admin' },
+            { label: 'Ordrer', to: '/admin/orders' },
+            { label: `#${order.ordrenr}` },
+          ]}
+        />
+        <button type="button" onClick={() => navigate('/admin/orders')} className="btn-secondary">
           ← Tilbake til ordrer
         </button>
 

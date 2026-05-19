@@ -2,6 +2,8 @@ import cron from 'node-cron';
 import { generateTestData, insertTestData } from '../etl/testDataController.js';
 import { generateRealData, insertRealData } from '../etl/realDataController.js';
 import { query } from '../db/index.js';
+import { isSchedulerJobsEnabled } from '../middleware/productionSafety.js';
+import { logger } from '../lib/logger.js';
 
 export interface ScheduledJob {
   id: string;
@@ -166,46 +168,58 @@ function getJobTask(id: string): (() => Promise<any>) | undefined {
 }
 
 /**
- * Initialize default scheduled jobs
+ * Stop all scheduled cron tasks (for graceful shutdown).
+ */
+export function stopAllJobs(): void {
+  for (const [id, entry] of scheduledJobs) {
+    entry.job.stop();
+    entry.config.enabled = false;
+    logJob(id, 'info', 'Job stopped (shutdown)');
+  }
+}
+
+/**
+ * Initialize default scheduled jobs.
+ * Destructive jobs (test data, cleanup) are only registered when ENABLE_SCHEDULER_JOBS=true
+ * or outside production.
  */
 export function initializeDefaultJobs() {
-  // Test data refresh - every day at 2 AM
-  const testDataTask = async () => {
-    await generateTestData();
-    await insertTestData();
-  };
-  taskRegistry.set('refresh-test-data', testDataTask);
-  createJob('refresh-test-data', 'Refresh Test Data', '0 2 * * *', testDataTask);
+  const allowDestructiveJobs = isSchedulerJobsEnabled();
 
-  // Real data sync - every 6 hours
-  const realDataTask = async () => {
-    await generateRealData();
-    await insertRealData();
-  };
-  taskRegistry.set('sync-real-data', realDataTask);
-  createJob('sync-real-data', 'Sync Real Data', '0 */6 * * *', realDataTask);
+  if (allowDestructiveJobs) {
+    const testDataTask = async () => {
+      await generateTestData();
+      await insertTestData();
+    };
+    taskRegistry.set('refresh-test-data', testDataTask);
+    createJob('refresh-test-data', 'Refresh Test Data', '0 2 * * *', testDataTask);
 
-  // Database cleanup - every Sunday at 3 AM
-  const cleanupTask = async () => {
-    // Example: Clean up old order references or logs
-    await query(`
-      DELETE FROM ordre_henvisning 
-      WHERE ordrenr IN (
-        SELECT ordrenr FROM ordre WHERE dato < CURRENT_DATE - INTERVAL '2 years'
-      )
-    `);
-  };
-  taskRegistry.set('db-cleanup', cleanupTask);
-  createJob('db-cleanup', 'Database Cleanup', '0 3 * * 0', cleanupTask);
+    const realDataTask = async () => {
+      await generateRealData();
+      await insertRealData();
+    };
+    taskRegistry.set('sync-real-data', realDataTask);
+    createJob('sync-real-data', 'Sync Real Data', '0 */6 * * *', realDataTask);
 
-  // Statistics aggregation - every hour
+    const cleanupTask = async () => {
+      await query(`
+        DELETE FROM ordre_henvisning 
+        WHERE ordrenr IN (
+          SELECT ordrenr FROM ordre WHERE dato < CURRENT_DATE - INTERVAL '2 years'
+        )
+      `);
+    };
+    taskRegistry.set('db-cleanup', cleanupTask);
+    createJob('db-cleanup', 'Database Cleanup', '0 3 * * 0', cleanupTask);
+  } else {
+    logger.info('Destructive scheduler jobs skipped (production default)');
+  }
+
   const statsTask = async () => {
-    // Pre-compute common statistics
-    console.log('Aggregating statistics...');
-    // Could store cached results in a separate table
+    logger.debug('Statistics aggregation placeholder');
   };
   taskRegistry.set('aggregate-stats', statsTask);
   createJob('aggregate-stats', 'Aggregate Statistics', '0 * * * *', statsTask);
 
-  console.log('📅 Scheduler initialized with default jobs');
+  logger.info({ destructiveJobs: allowDestructiveJobs }, 'Scheduler initialized');
 }

@@ -322,12 +322,20 @@ export function RulesTab({
           </div>
         ) : (
           <div className="text-center py-8 text-dark-400">
-            Ingen regler i denne prislisten. Klikk "Ny Regel" for å legge til.
+            <p>Ingen regler i denne prislisten ennå.</p>
+            <p className="text-sm mt-2">Regler matcher produkter og kunder — f.eks. «10 % rabatt på varegruppe X for grossister».</p>
           </div>
         )
       ) : (
         <div className="text-center py-8 text-dark-400">
-          Velg en prisliste for å se og administrere regler
+          {lists.length === 0 ? (
+            <div className="space-y-2">
+              <p>Du trenger minst én prisliste før du kan legge til regler.</p>
+              <p className="text-sm">Gå til fanen <span className="text-primary-400">Prislister</span> og opprett en liste først.</p>
+            </div>
+          ) : (
+            <p>Velg en prisliste for å se og administrere regler</p>
+          )}
         </div>
       )}
     </div>

@@ -6,4 +6,6 @@ export const authApi = {
   loginKunde: (kundenr: string, password: string) =>
     api.post('/auth/login-kunde', { kundenr, password }),
   verify: () => api.get('/auth/verify'),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    api.post('/auth/change-password', { currentPassword, newPassword }),
 };

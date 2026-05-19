@@ -2,6 +2,8 @@ node_modules/
 dist/
 .env
 .env.local
+.env.prod
+.env.prod.test
 *.log
 .DS_Store
 uploads/

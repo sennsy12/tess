@@ -2,7 +2,8 @@ import { Router } from 'express';
 import { authController } from '../controllers/authController.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { authLimiter } from '../middleware/rateLimit.js';
-import { validate, loginSchema, loginKundeSchema } from '../middleware/validation.js';
+import { authMiddleware } from '../middleware/auth.js';
+import { validate, loginSchema, loginKundeSchema, changePasswordSchema } from '../middleware/validation.js';
 
 export const authRouter = Router();
 
@@ -22,3 +23,11 @@ authRouter.post('/login-kunde',
 
 // Verify token
 authRouter.get('/verify', asyncHandler(authController.verify));
+
+// Change own password (authenticated)
+authRouter.post(
+  '/change-password',
+  authMiddleware,
+  validate(changePasswordSchema),
+  asyncHandler(authController.changePassword),
+);

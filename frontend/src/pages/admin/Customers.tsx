@@ -1,7 +1,9 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Layout } from '../../components/Layout';
+import { QueryErrorBanner } from '../../components/QueryErrorBanner';
+import { EmptyState } from '../../components/EmptyState';
 import { DataTable, type DataTableState } from '../../components/DataTable';
 import { PageHeader, FilterBar, TableSkeleton, Pagination } from '../../components/admin';
 import { customersApi, pricingApi, ordersApi } from '../../lib/api';
@@ -241,7 +243,13 @@ export function AdminCustomers() {
     visibleColumnKeys: ['kundenr', 'kundenavn', 'group', 'orders'],
   });
 
-  const { data: customersRaw, isLoading } = useQuery({
+  const {
+    data: customersRaw,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
     queryKey: ['admin', 'customers'],
     queryFn: () => customersApi.getAll().then((r) => r.data as Customer[]),
     staleTime: 5 * 60 * 1000,
@@ -308,11 +316,25 @@ export function AdminCustomers() {
 
   const assignedCount = customers.filter((c) => c.customer_group_id).length;
 
+  const hasActiveFilters = Boolean(search.trim() || groupFilter);
+  const errorMessage =
+    (error as { response?: { data?: { error?: string } } })?.response?.data?.error ||
+    'Kunne ikke laste kunder.';
+
   const columns = [
     {
       key: 'kundenr',
       header: 'Kundenr',
       hideable: false,
+      render: (value: string) => (
+        <Link
+          to={`/admin/orders?kundenr=${encodeURIComponent(value)}`}
+          className="font-medium text-primary-400 hover:underline"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {value}
+        </Link>
+      ),
     },
     {
       key: 'kundenavn',
@@ -395,9 +417,28 @@ export function AdminCustomers() {
           gridCols="lg:grid-cols-3"
         />
 
+        {isError && <QueryErrorBanner message={errorMessage} onRetry={() => refetch()} />}
+
         <div className="card p-0 lg:p-0 overflow-hidden">
           {isLoading ? (
             <TableSkeleton rows={10} columns={4} />
+          ) : isError ? null : filtered.length === 0 && hasActiveFilters ? (
+            <EmptyState
+              title="Ingen kunder matcher søket"
+              description="Prøv et annet kundenr, navn eller prisgruppe."
+              action={
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => {
+                    setSearch('');
+                    setGroupFilter('');
+                  }}
+                >
+                  Nullstill filtre
+                </button>
+              }
+            />
           ) : (
             <DataTable
               data={filtered}

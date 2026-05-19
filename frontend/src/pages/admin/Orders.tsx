@@ -1,13 +1,17 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Layout } from '../../components/Layout';
 import { DataTable, type DataTableState } from '../../components/DataTable';
 import { AutocompleteInput } from '../../components/AutocompleteInput';
 import { SavedViewsPanel } from '../../components/SavedViewsPanel';
 import { FilterBar, Pagination, TableSkeleton } from '../../components/admin';
+import { QueryErrorBanner } from '../../components/QueryErrorBanner';
+import { ActiveFilterChips } from '../../components/ActiveFilterChips';
+import { EmptyState } from '../../components/EmptyState';
 import { useSavedViews } from '../../hooks/useSavedViews';
 import { ordersApi, suggestionsApi } from '../../lib/api';
+import { buildOrderFilterChips, clearOrderFilter } from '../../lib/orderFilterChips';
 
 // ────────────────────────────────────────────────────────────
 // Types
@@ -89,7 +93,17 @@ export function AdminOrders() {
     visibleColumnKeys: COLUMNS.map((column) => String(column.key)),
   });
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const hasAppliedDefaultView = useRef(false);
+  const hasAppliedUrlKundenr = useRef(false);
+
+  useEffect(() => {
+    const kundenr = searchParams.get('kundenr');
+    if (!kundenr || hasAppliedUrlKundenr.current) return;
+    hasAppliedUrlKundenr.current = true;
+    setFilters((prev) => ({ ...prev, search: kundenr }));
+    setPage(1);
+  }, [searchParams]);
 
   const ordersViewState = {
     filters,
@@ -125,7 +139,7 @@ export function AdminOrders() {
   }, []);
 
   // ── Data fetching ─────────────────────────────────────
-  const { data: ordersData, isLoading } = useQuery({
+  const { data: ordersData, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['admin', 'orders', page, filters],
     queryFn: async () => {
       const queryParams = { ...filters, page, limit: PAGE_LIMIT };
@@ -165,6 +179,11 @@ export function AdminOrders() {
     setFilters({ ordrenr: '', startDate: '', endDate: '', search: '' });
     setPage(1);
   }, []);
+
+  const filterChips = buildOrderFilterChips(filters);
+  const errorMessage =
+    (error as { response?: { data?: { error?: string } } })?.response?.data?.error ||
+    'Kunne ikke laste ordrer.';
 
   // ── Render ────────────────────────────────────────────
   return (
@@ -209,14 +228,34 @@ export function AdminOrders() {
           </div>
         </FilterBar>
 
+        <ActiveFilterChips
+          chips={filterChips}
+          onRemove={(id) => {
+            setFilters((prev) => clearOrderFilter(prev, id));
+            setPage(1);
+          }}
+          onClearAll={handleReset}
+        />
+
+        {isError && <QueryErrorBanner message={errorMessage} onRetry={() => refetch()} />}
+
         {/* Results */}
         {isLoading ? (
           <div className="card p-0 lg:p-0 overflow-hidden">
             <TableSkeleton rows={10} columns={8} />
           </div>
+        ) : isError ? null : orders.length === 0 && filterChips.length > 0 ? (
+          <EmptyState
+            title="Ingen ordrer matcher filtrene"
+            description="Prøv å justere søk eller datoperiode."
+            action={
+              <button type="button" className="btn-secondary" onClick={handleReset}>
+                Nullstill filtre
+              </button>
+            }
+          />
         ) : (
           <>
-            {/* Top summary + pagination */}
             <div className="flex justify-between items-center text-sm text-dark-400">
               <div>
                 Viser{' '}

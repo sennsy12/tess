@@ -1,6 +1,15 @@
 import { DataStatusWidgetProps } from '../../../../types/dashboard';
+import { WidgetError } from './WidgetError';
 
-export function DataStatusWidget({ data, isLoading }: DataStatusWidgetProps) {
+export function DataStatusWidget({ data, isLoading, isError, onRetry }: DataStatusWidgetProps) {
+  if (isError) {
+    return (
+      <div className="card">
+        <h3 className="text-lg font-semibold mb-4">📊 Datastatus</h3>
+        <WidgetError onRetry={onRetry} />
+      </div>
+    );
+  }
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return 'Ukjent';
     return new Date(dateStr).toLocaleDateString('nb-NO', { 

@@ -1,22 +1,72 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Layout } from '../../components/Layout';
 import { DataTable, type DataTableState } from '../../components/DataTable';
 import { AutocompleteInput } from '../../components/AutocompleteInput';
 import { SavedViewsPanel } from '../../components/SavedViewsPanel';
+import { QueryErrorBanner } from '../../components/QueryErrorBanner';
+import { ActiveFilterChips } from '../../components/ActiveFilterChips';
+import { EmptyState } from '../../components/EmptyState';
+import { FilterBar, Pagination, TableSkeleton } from '../../components/admin';
+import { buildOrderFilterChips, clearOrderFilter } from '../../lib/orderFilterChips';
 import { useSavedViews } from '../../hooks/useSavedViews';
 import { ordersApi, suggestionsApi } from '../../lib/api';
-import { TableSkeleton } from '../../components/admin';
+import { Suggestion } from '../../types/order';
 
-import { Order, Suggestion } from '../../types/order';
+const PAGE_LIMIT = 50;
+
+const FILTER_FIELDS = [
+  { key: 'ordrenr', label: 'Ordrenummer', placeholder: 'F.eks. 1001' },
+  { key: 'startDate', label: 'Fra dato', type: 'date' as const },
+  { key: 'endDate', label: 'Til dato', type: 'date' as const },
+] as const;
+
+const COLUMNS = [
+  {
+    key: 'ordrenr',
+    header: 'Ordrenr',
+    render: (value: number) => (
+      <span className="font-medium text-primary-400">#{value}</span>
+    ),
+  },
+  {
+    key: 'dato',
+    header: 'Dato',
+    render: (value: string) => new Date(value).toLocaleDateString('nb-NO'),
+  },
+  { key: 'kundenavn', header: 'Kunde' },
+  {
+    key: 'kunderef',
+    header: 'Kunderef',
+    render: (value: string) => value || '-',
+  },
+  { key: 'firmanavn', header: 'Firma' },
+  { key: 'lagernavn', header: 'Lager' },
+  { key: 'valutaid', header: 'Valuta' },
+  {
+    key: 'sum',
+    header: 'Sum',
+    render: (value: number) => (
+      <span className="font-semibold">
+        {new Intl.NumberFormat('nb-NO', {
+          style: 'currency',
+          currency: 'NOK',
+        }).format(value)}
+      </span>
+    ),
+  },
+];
+
+const isSameTableState = (a: DataTableState, b: DataTableState) =>
+  a.sortKey === b.sortKey &&
+  a.sortDirection === b.sortDirection &&
+  a.currentPage === b.currentPage &&
+  a.visibleColumnKeys.length === b.visibleColumnKeys.length &&
+  a.visibleColumnKeys.every((key, index) => key === b.visibleColumnKeys[index]);
 
 export function KundeOrders() {
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [page, setPage] = useState(1);
-  const [limit] = useState(50);
-  const [total, setTotal] = useState(0);
-  
   const [filters, setFilters] = useState({
     ordrenr: '',
     startDate: '',
@@ -27,117 +77,12 @@ export function KundeOrders() {
     sortKey: null,
     sortDirection: null,
     currentPage: 1,
-    visibleColumnKeys: ['ordrenr', 'dato', 'kundenavn', 'kunderef', 'firmanavn', 'lagernavn', 'valutaid', 'sum'],
+    visibleColumnKeys: COLUMNS.map((column) => String(column.key)),
   });
   const navigate = useNavigate();
   const hasAppliedDefaultView = useRef(false);
 
-  useEffect(() => {
-    loadOrders();
-  }, [page]);
-
-  const loadOrders = async (params?: Record<string, any>) => {
-    setIsLoading(true);
-    try {
-      // Merge current filters with new params and pagination
-      const queryParams = { 
-        ...filters, 
-        ...params,
-        page, 
-        limit 
-      };
-      
-      // If we are searching (params provided), we might want to reset page to 1
-      // But since this function is also called by useEffect[page], we need to be careful.
-      // For now, handleSearch will handle page reset.
-
-      const response = await ordersApi.getAll(queryParams);
-      
-      setOrders(response.data.data ?? []);
-      setTotal(response.data.total ?? 0);
-    } catch (error) {
-      console.error('Failed to load orders:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Memoized fetch function for autocomplete
-  const fetchSuggestions = useCallback(async (query: string): Promise<Suggestion[]> => {
-    try {
-      const response = await suggestionsApi.search(query);
-      return response.data;
-    } catch (error) {
-      console.error('Failed to fetch suggestions:', error);
-      return [];
-    }
-  }, []);
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    setPage(1); // Reset to first page on new search
-    loadOrders({ page: 1 }); // Force load with page 1
-  };
-
-  const handleReset = () => {
-    setFilters({ ordrenr: '', startDate: '', endDate: '', search: '' });
-    setPage(1);
-    loadOrders({ ordrenr: '', startDate: '', endDate: '', search: '', page: 1 });
-  };
-
-  const handleSuggestionSelect = (suggestion: Suggestion) => {
-    // When a suggestion is selected, trigger search automatically
-    const params: Record<string, any> = { search: suggestion.suggestion };
-    setFilters(prev => ({ ...prev, search: suggestion.suggestion }));
-    setPage(1);
-    loadOrders({ ...params, page: 1 });
-  };
-
-  const handlePageChange = (newPage: number) => {
-    if (newPage >= 1 && newPage <= Math.ceil(total / limit)) {
-      setPage(newPage);
-      // useEffect will trigger loadOrders
-    }
-  };
-
-  const columns = [
-    {
-      key: 'ordrenr',
-      header: 'Ordrenr',
-      render: (value: number) => (
-        <span className="font-medium text-primary-400">#{value}</span>
-      ),
-    },
-    {
-      key: 'dato',
-      header: 'Dato',
-      render: (value: string) => new Date(value).toLocaleDateString('nb-NO'),
-    },
-    { key: 'kundenavn', header: 'Kunde' },
-    {
-      key: 'kunderef',
-      header: 'Kunderef',
-      render: (value: string) => value || '-',
-    },
-    { key: 'firmanavn', header: 'Firma' },
-    { key: 'lagernavn', header: 'Lager' },
-    { key: 'valutaid', header: 'Valuta' },
-    {
-      key: 'sum',
-      header: 'Sum',
-      render: (value: number) => (
-        <span className="font-semibold">
-          {new Intl.NumberFormat('nb-NO', { style: 'currency', currency: 'NOK' }).format(value)}
-        </span>
-      ),
-    },
-  ];
-
-  const currentViewState = {
-    filters,
-    page,
-    tableState,
-  };
+  const ordersViewState = { filters, page, tableState };
 
   const {
     views,
@@ -148,18 +93,70 @@ export function KundeOrders() {
     setDefaultView,
   } = useSavedViews({
     scope: 'kunde-orders',
-    state: currentViewState,
+    state: ordersViewState,
   });
 
   useEffect(() => {
     if (!defaultView || hasAppliedDefaultView.current) return;
     hasAppliedDefaultView.current = true;
-    setFilters(defaultView.state.filters);
-    setPage(defaultView.state.page ?? 1);
-    setTableState(defaultView.state.tableState);
+    const viewState = defaultView.state;
+    setFilters(viewState.filters);
+    setPage(viewState.page ?? 1);
+    setTableState(viewState.tableState);
   }, [defaultView]);
 
-  const totalPages = Math.ceil(total / limit);
+  const handleTableStateChange = useCallback((nextState: DataTableState) => {
+    setTableState((previousState) =>
+      isSameTableState(previousState, nextState) ? previousState : nextState,
+    );
+  }, []);
+
+  const {
+    data: ordersData,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: ['kunde', 'orders', page, filters],
+    queryFn: async () => {
+      const response = await ordersApi.getAll({ ...filters, page, limit: PAGE_LIMIT });
+      return {
+        orders: response.data.data ?? [],
+        total: response.data.total ?? 0,
+      };
+    },
+    staleTime: 60_000,
+  });
+
+  const orders = ordersData?.orders ?? [];
+  const total = ordersData?.total ?? 0;
+  const totalPages = Math.ceil(total / PAGE_LIMIT);
+
+  const fetchSuggestions = useCallback(async (query: string): Promise<Suggestion[]> => {
+    try {
+      const response = await suggestionsApi.search(query);
+      return response.data;
+    } catch {
+      return [];
+    }
+  }, []);
+
+  const handleSuggestionSelect = useCallback((suggestion: Suggestion) => {
+    setFilters((prev) => ({ ...prev, search: suggestion.suggestion }));
+    setPage(1);
+  }, []);
+
+  const handleReset = useCallback(() => {
+    setFilters({ ordrenr: '', startDate: '', endDate: '', search: '' });
+    setPage(1);
+  }, []);
+
+  const errorMessage =
+    (error as { response?: { data?: { error?: string } } })?.response?.data?.error ||
+    'Kunne ikke laste ordrer.';
+
+  const filterChips = buildOrderFilterChips(filters);
 
   return (
     <Layout title="Ordrer">
@@ -179,133 +176,118 @@ export function KundeOrders() {
           onSetDefault={setDefaultView}
         />
 
-        {/* Search filters */}
-        <form onSubmit={handleSearch} className="card">
-          <h3 className="text-lg font-semibold mb-4">Søk i ordrer</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div>
-              <label className="label">Ordrenummer</label>
-              <input
-                type="text"
-                value={filters.ordrenr}
-                onChange={(e) => setFilters({ ...filters, ordrenr: e.target.value })}
-                className="input"
-                placeholder="F.eks. 1001"
-              />
-            </div>
-            <div>
-              <label className="label">Fra dato</label>
-              <input
-                type="date"
-                value={filters.startDate}
-                onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
-                className="input"
-              />
-            </div>
-            <div>
-              <label className="label">Til dato</label>
-              <input
-                type="date"
-                value={filters.endDate}
-                onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
-                className="input"
-              />
-            </div>
-            <div>
-              <label className="label">Fritekst søk</label>
-              <AutocompleteInput
-                value={filters.search}
-                onChange={(value) => setFilters({ ...filters, search: value })}
-                onSelect={handleSuggestionSelect}
-                fetchSuggestions={fetchSuggestions}
-                placeholder="Søk kundenr, henvisning, ref, kunde..."
-                minChars={3}
-              />
-            </div>
+        <FilterBar
+          title="Søk i ordrer"
+          filters={filters}
+          onFilterChange={setFilters}
+          onSubmit={() => setPage(1)}
+          onReset={handleReset}
+          fields={[...FILTER_FIELDS]}
+        >
+          <div>
+            <label className="label">Fritekst søk</label>
+            <AutocompleteInput
+              value={filters.search}
+              onChange={(value) => setFilters((prev) => ({ ...prev, search: value }))}
+              onSelect={handleSuggestionSelect}
+              fetchSuggestions={fetchSuggestions}
+              placeholder="Søk kundenr, henvisning, ref, kunde..."
+              minChars={3}
+            />
           </div>
-          <div className="flex gap-3 mt-4">
-            <button type="submit" className="btn-primary">
-              🔍 Søk
-            </button>
-            <button type="button" onClick={handleReset} className="btn-secondary">
-              ↻ Nullstill
-            </button>
-          </div>
-        </form>
+        </FilterBar>
 
-        {/* Results */}
+        <ActiveFilterChips
+          chips={filterChips}
+          onRemove={(id) => {
+            setFilters((prev) => clearOrderFilter(prev, id));
+            setPage(1);
+          }}
+          onClearAll={handleReset}
+        />
+
+        {isError && (
+          <QueryErrorBanner message={errorMessage} onRetry={() => refetch()} />
+        )}
+
         {isLoading ? (
           <div className="card p-0 lg:p-0 overflow-hidden">
             <TableSkeleton rows={10} columns={8} />
           </div>
-        ) : (
+        ) : !isError && orders.length === 0 && filterChips.length > 0 ? (
+          <EmptyState
+            title="Ingen ordrer matcher filtrene"
+            description="Prøv å justere søk eller datoperiode."
+            action={
+              <button type="button" className="btn-secondary" onClick={handleReset}>
+                Nullstill filtre
+              </button>
+            }
+          />
+        ) : !isError ? (
           <>
             <div className="flex justify-between items-center text-sm text-dark-400">
               <div>
-                Viser {orders.length > 0 ? (page - 1) * limit + 1 : 0} - {Math.min(page * limit, total)} av {total} ordrer
+                Viser {orders.length > 0 ? (page - 1) * PAGE_LIMIT + 1 : 0} -{' '}
+                {Math.min(page * PAGE_LIMIT, total)} av {total} ordrer
               </div>
-              {totalPages > 1 && (
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => handlePageChange(page - 1)}
-                    disabled={page === 1}
-                    className="px-3 py-1 rounded bg-dark-800 hover:bg-dark-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Forrige
-                  </button>
-                  <span className="px-3 py-1">
-                    Side {page} av {totalPages}
-                  </span>
-                  <button
-                    onClick={() => handlePageChange(page + 1)}
-                    disabled={page === totalPages}
-                    className="px-3 py-1 rounded bg-dark-800 hover:bg-dark-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Neste
-                  </button>
-                </div>
-              )}
+              <Pagination
+                pagination={{ page, total, limit: PAGE_LIMIT, totalPages }}
+                onPageChange={setPage}
+                variant="minimal"
+              />
             </div>
-            <DataTable
-              data={orders}
-              columns={columns}
-              onRowClick={(order) => navigate(`/kunde/orders/${order.ordrenr}`)}
-              emptyMessage="Ingen ordrer funnet"
-              paginate={false}
-              stickyFirstColumn
-              enableColumnManagement
-              enableCsvExport
-              exportFilename="kunde-orders"
-              title="Ordretabell"
-              storageKey="table:kunde-orders"
-              state={tableState}
-              onStateChange={setTableState}
+
+            {/* Mobile card list */}
+            <div className="space-y-3 lg:hidden">
+              {orders.map((order) => (
+                <button
+                  key={order.ordrenr}
+                  type="button"
+                  onClick={() => navigate(`/kunde/orders/${order.ordrenr}`)}
+                  className="card w-full text-left transition-colors hover:bg-dark-800/50"
+                >
+                  <div className="flex justify-between gap-2">
+                    <span className="font-medium text-primary-400">#{order.ordrenr}</span>
+                    <span className="font-semibold text-sm">
+                      {new Intl.NumberFormat('nb-NO', { style: 'currency', currency: 'NOK' }).format(
+                        order.sum,
+                      )}
+                    </span>
+                  </div>
+                  <p className="text-sm text-dark-300 mt-1">
+                    {new Date(order.dato).toLocaleDateString('nb-NO')} · {order.firmanavn || '-'}
+                  </p>
+                </button>
+              ))}
+            </div>
+
+            <div className="hidden lg:block">
+              <DataTable
+                data={orders}
+                columns={COLUMNS}
+                onRowClick={(order) => navigate(`/kunde/orders/${order.ordrenr}`)}
+                emptyMessage="Ingen ordrer funnet"
+                paginate={false}
+                stickyFirstColumn
+                enableColumnManagement
+                enableCsvExport
+                exportFilename="kunde-orders"
+                title="Ordretabell"
+                storageKey="table:kunde-orders"
+                state={tableState}
+                onStateChange={handleTableStateChange}
+              />
+            </div>
+
+            <Pagination
+              pagination={{ page, total, limit: PAGE_LIMIT, totalPages }}
+              onPageChange={setPage}
+              variant="simple"
+              className="justify-center"
             />
-            
-            {/* Bottom Pagination */}
-            {totalPages > 1 && (
-              <div className="flex justify-center gap-2 mt-4">
-                <button
-                  onClick={() => handlePageChange(page - 1)}
-                  disabled={page === 1}
-                  className="px-4 py-2 rounded bg-dark-800 hover:bg-dark-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Forrige
-                </button>
-                <span className="px-4 py-2">
-                  Side {page} av {totalPages}
-                </span>
-                <button
-                  onClick={() => handlePageChange(page + 1)}
-                  disabled={page === totalPages}
-                  className="px-4 py-2 rounded bg-dark-800 hover:bg-dark-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Neste
-                </button>
-              </div>
-            )}
           </>
-        )}
+        ) : null}
       </div>
     </Layout>
   );

@@ -1,8 +1,11 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Layout } from '../../components/Layout';
+import { QueryErrorBanner } from '../../components/QueryErrorBanner';
+import { EmptyState } from '../../components/EmptyState';
 import { Pagination } from '../../components/admin';
 import { auditApi, usersApi } from '../../lib/api';
+import { downloadCsv } from '../../lib/csv';
 import type { AuditEntry } from '../../types/pricing';
 
 // ────────────────────────────────────────────────────────────
@@ -132,7 +135,7 @@ export function AdminAudit() {
 
   const users = usersRes?.data?.data ?? [];
 
-  const { data: auditRes, isLoading } = useQuery({
+  const { data: auditRes, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['admin', 'audit', page, filterType, filterAction, filterUser, startDate, endDate],
     queryFn: async () => {
       const params: Record<string, string | number> = { page, limit: LIMIT };
@@ -153,6 +156,22 @@ export function AdminAudit() {
   const toggleExpand = useCallback((id: number) => {
     setExpandedId((prev) => (prev === id ? null : id));
   }, []);
+
+  const hasActiveFilters = Boolean(filterType || filterAction || filterUser || startDate || endDate);
+  const errorMessage =
+    (error as { response?: { data?: { error?: string } } })?.response?.data?.error ||
+    'Kunne ikke laste endringslogg.';
+
+  const exportAuditCsv = useCallback(() => {
+    const rows = entries.map((entry) => ({
+      Tidspunkt: formatTimestamp(entry.timestamp),
+      Handling: ACTION_LABELS[entry.action]?.label ?? entry.action,
+      Entitet: ENTITY_LABELS[entry.entity_type] ?? entry.entity_type,
+      Navn: entry.entity_name || `#${entry.entity_id}`,
+      Bruker: entry.username,
+    }));
+    downloadCsv('endringslogg', rows);
+  }, [entries]);
 
   const handleReset = useCallback(() => {
     setFilterType('');
@@ -259,8 +278,16 @@ export function AdminAudit() {
                 className="input text-sm"
               />
             </div>
-            <button onClick={handleReset} className="btn-secondary text-sm">
+            <button type="button" onClick={handleReset} className="btn-secondary text-sm">
               Nullstill
+            </button>
+            <button
+              type="button"
+              onClick={exportAuditCsv}
+              disabled={entries.length === 0}
+              className="btn-secondary text-sm"
+            >
+              Eksporter CSV
             </button>
           </div>
           <p className="text-xs text-dark-500 mt-3">
@@ -268,15 +295,29 @@ export function AdminAudit() {
           </p>
         </div>
 
+        {isError && <QueryErrorBanner message={errorMessage} onRetry={() => refetch()} />}
+
         {/* Results */}
         {isLoading ? (
           <div className="card flex justify-center py-16">
             <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-primary-500" />
           </div>
-        ) : entries.length === 0 ? (
-          <div className="card text-center py-12 text-dark-400">
-            Ingen endringslogg-oppføringer funnet for valgte filtre.
-          </div>
+        ) : isError ? null : entries.length === 0 ? (
+          <EmptyState
+            title={hasActiveFilters ? 'Ingen oppføringer matcher filtrene' : 'Ingen endringslogg ennå'}
+            description={
+              hasActiveFilters
+                ? 'Prøv å utvide datoperiode eller fjerne filtre.'
+                : 'Endringer i prisstyring vises her når de skjer.'
+            }
+            action={
+              hasActiveFilters ? (
+                <button type="button" className="btn-secondary" onClick={handleReset}>
+                  Nullstill filtre
+                </button>
+              ) : undefined
+            }
+          />
         ) : (
           <div className="card">
             <div className="space-y-2">

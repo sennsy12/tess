@@ -139,6 +139,22 @@ export function DataTable<T extends Record<string, any>>({
   const externalState = useMemo(() => normalizeState(state, defaultState), [state, defaultState]);
   const tableState = isControlled ? externalState : internalState;
   const [isColumnMenuOpen, setIsColumnMenuOpen] = useState(false);
+  const [columnSearch, setColumnSearch] = useState('');
+  const densityKey = storageKey ? `${storageKey}:density` : null;
+  const [density, setDensity] = useState<'comfortable' | 'compact'>(() => {
+    if (!densityKey || typeof window === 'undefined') return 'comfortable';
+    return localStorage.getItem(densityKey) === 'compact' ? 'compact' : 'comfortable';
+  });
+
+  const setDensityAndPersist = (next: 'comfortable' | 'compact') => {
+    setDensity(next);
+    if (densityKey && typeof window !== 'undefined') {
+      localStorage.setItem(densityKey, next);
+    }
+  };
+
+  const cellClass = density === 'compact' ? 'table-cell !py-1.5 !px-2 text-xs' : 'table-cell';
+  const headerClass = density === 'compact' ? 'table-header !py-2 !px-2 text-xs' : 'table-header';
 
   useEffect(() => {
     if (isControlled) return;
@@ -319,8 +335,23 @@ export function DataTable<T extends Record<string, any>>({
                     <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-dark-500">
                       Synlige kolonner
                     </p>
-                    <div className="space-y-2">
-                      {columns.map((column) => {
+                    {columns.length >= 8 && (
+                      <input
+                        type="search"
+                        value={columnSearch}
+                        onChange={(e) => setColumnSearch(e.target.value)}
+                        placeholder="Søk kolonner…"
+                        className="input w-full text-sm mb-2"
+                      />
+                    )}
+                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                      {columns
+                        .filter((column) => {
+                          if (!columnSearch.trim()) return true;
+                          const q = columnSearch.toLowerCase();
+                          return column.header.toLowerCase().includes(q);
+                        })
+                        .map((column) => {
                         const columnKey = getColumnKey(column);
                         return (
                           <label key={columnKey} className="flex items-center gap-2 text-sm text-dark-200">
@@ -339,6 +370,24 @@ export function DataTable<T extends Record<string, any>>({
                 )}
               </div>
             )}
+            {enableColumnManagement && storageKey && (
+              <div className="flex rounded-lg border border-dark-700 overflow-hidden text-xs">
+                <button
+                  type="button"
+                  onClick={() => setDensityAndPersist('comfortable')}
+                  className={`px-2 py-1 ${density === 'comfortable' ? 'bg-primary-600/30 text-primary-300' : 'text-dark-400'}`}
+                >
+                  Normal
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDensityAndPersist('compact')}
+                  className={`px-2 py-1 ${density === 'compact' ? 'bg-primary-600/30 text-primary-300' : 'text-dark-400'}`}
+                >
+                  Kompakt
+                </button>
+              </div>
+            )}
             {enableCsvExport && (
               <button onClick={exportRows} className="btn-secondary text-sm">
                 Eksporter CSV
@@ -349,12 +398,14 @@ export function DataTable<T extends Record<string, any>>({
       )}
       <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-dark-700 scrollbar-track-transparent">
         <table className="w-full border-collapse">
+          {title && <caption className="sr-only">{title}</caption>}
           <thead>
             <tr>
               {visibleColumns.map((column, columnIndex) => (
                 <th
                   key={getColumnKey(column)}
-                  className={`table-header whitespace-nowrap group ${
+                  scope="col"
+                  className={`${headerClass} whitespace-nowrap group ${
                     column.sortable !== false ? 'cursor-pointer hover:bg-dark-700/60 transition-colors' : ''
                   } ${getCellAlignment(column.align)} ${getStickyClasses(columnIndex)}`}
                   onClick={() => column.sortable !== false && handleSort(String(column.key))}
@@ -390,7 +441,7 @@ export function DataTable<T extends Record<string, any>>({
                 {visibleColumns.map((column, columnIndex) => (
                   <td
                     key={getColumnKey(column)}
-                    className={`table-cell whitespace-nowrap ${getCellAlignment(column.align)} ${getStickyClasses(columnIndex)}`}
+                    className={`${cellClass} whitespace-nowrap ${getCellAlignment(column.align)} ${getStickyClasses(columnIndex)}`}
                   >
                     {column.render
                       ? column.render(row[column.key as keyof T], row)

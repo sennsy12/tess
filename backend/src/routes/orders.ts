@@ -9,8 +9,8 @@ export const ordersRouter = Router();
 // Get all orders (filtered by user role) with validated query params
 ordersRouter.get('/', authMiddleware, validate(orderQuerySchema, 'query'), asyncHandler(orderController.getAll));
 
+// Search order references (must be registered before /:ordrenr)
+ordersRouter.get('/search/references', authMiddleware, asyncHandler(orderController.searchReferences));
+
 // Get a single order with lines
 ordersRouter.get('/:ordrenr', authMiddleware, asyncHandler(orderController.getOne));
-
-// Search order references
-ordersRouter.get('/search/references', authMiddleware, asyncHandler(orderController.searchReferences));

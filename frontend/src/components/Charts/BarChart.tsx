@@ -23,6 +23,7 @@ interface BarChartProps {
   /** Formatter for Y-axis ticks (defaults to abbreviateNumber) */
   tickFormatter?: (value: number) => string;
   height?: number;
+  summary?: string;
 }
 
 export function BarChart({
@@ -37,6 +38,7 @@ export function BarChart({
   valueFormatter,
   tickFormatter: tickFormatterProp,
   height = 300,
+  summary,
 }: BarChartProps) {
   const defaultFormatter = (value: number) => 
     new Intl.NumberFormat('nb-NO').format(value);
@@ -142,6 +144,11 @@ export function BarChart({
           </Bar>
         </RechartsBarChart>
       </ResponsiveContainer>
+      {summary && (
+        <p className="mt-3 text-sm text-dark-400 border-t border-dark-800/50 pt-3" role="note">
+          {summary}
+        </p>
+      )}
     </div>
   );
 }

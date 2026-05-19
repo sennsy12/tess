@@ -5,29 +5,32 @@ import { Layout } from '../../components/Layout';
 import { LineChart, PieChart } from '../../components/Charts';
 import { ExportButton } from '../../components/ExportButton';
 import { statisticsApi, ordersApi } from '../../lib/api';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../context/useAuth';
 import { AnimatedStatCard } from '../../components/dashboard/AnimatedStatCard';
 import { StatCardSkeleton, ChartSkeleton } from '../../components/admin';
+import { QueryErrorBanner } from '../../components/QueryErrorBanner';
+import { revenueTrendSummary } from '../../lib/chartSummary';
+
 export function KundeDashboard() {
   const { user } = useAuth();
   const chartRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
-  const { data: summary } = useQuery({
+  const summaryQuery = useQuery({
     queryKey: ['kunde', 'summary'],
-    queryFn: () => statisticsApi.summary().then(res => res.data),
+    queryFn: () => statisticsApi.summary().then((res) => res.data),
   });
 
-  const { data: recentOrders = [] } = useQuery({
+  const recentOrdersQuery = useQuery({
     queryKey: ['kunde', 'recentOrders'],
     queryFn: async () => {
-      const res = await ordersApi.getAll();
+      const res = await ordersApi.getAll({ limit: 5, page: 1 });
       const ordersData = res.data?.data || res.data || [];
       return ordersData.slice(0, 5);
     },
   });
 
-  const { data: varegruppeStats = [] } = useQuery({
+  const varegruppeQuery = useQuery({
     queryKey: ['kunde', 'varegruppeStats'],
     queryFn: async () => {
       const res = await statisticsApi.byVaregruppe();
@@ -35,12 +38,25 @@ export function KundeDashboard() {
     },
   });
 
-  const { data: timeSeries = [], isLoading } = useQuery({
+  const timeSeriesQuery = useQuery({
     queryKey: ['kunde', 'timeSeries'],
-    queryFn: () => statisticsApi.timeSeries({ groupBy: 'month' }).then(res => res.data),
+    queryFn: () => statisticsApi.timeSeries({ groupBy: 'month' }).then((res) => res.data),
   });
 
-  if (isLoading) {
+  const summary = summaryQuery.data;
+  const recentOrders = recentOrdersQuery.data ?? [];
+  const varegruppeStats = varegruppeQuery.data ?? [];
+  const timeSeries = timeSeriesQuery.data ?? [];
+
+  const isLoading =
+    summaryQuery.isLoading ||
+    timeSeriesQuery.isLoading ||
+    varegruppeQuery.isLoading;
+
+  const hasCriticalError =
+    summaryQuery.isError && timeSeriesQuery.isError;
+
+  if (isLoading && !hasCriticalError) {
     return (
       <Layout title="Dashboard">
         <div className="space-y-6">
@@ -62,6 +78,17 @@ export function KundeDashboard() {
   return (
     <Layout title="Kunde Dashboard">
       <div className="space-y-6">
+        {(summaryQuery.isError || timeSeriesQuery.isError) && (
+          <QueryErrorBanner
+            message="Noe av dashboard-data kunne ikke lastes."
+            onRetry={() => {
+              void summaryQuery.refetch();
+              void timeSeriesQuery.refetch();
+              void varegruppeQuery.refetch();
+              void recentOrdersQuery.refetch();
+            }}
+          />
+        )}
         {/* Welcome message */}
         <div className="card bg-gradient-to-r from-primary-600/20 to-primary-800/20 border-primary-700/50 animate-fade-in">
           <h3 className="text-xl font-semibold text-dark-50">
@@ -142,6 +169,7 @@ export function KundeDashboard() {
               title="Omsetning over tid"
               seriesName="Omsetning"
               valueFormatter={currencyFormatter}
+              summary={revenueTrendSummary(timeSeries)}
             />
           </div>
           <div className="card">
@@ -152,6 +180,11 @@ export function KundeDashboard() {
               title="Fordeling per varegruppe"
               seriesName="Omsetning"
               valueFormatter={currencyFormatter}
+              summary={
+                varegruppeStats.length > 0
+                  ? `Fordeling på ${varegruppeStats.filter((v: { total_sum: number }) => v.total_sum > 0).length} varegrupper med omsetning.`
+                  : undefined
+              }
             />
           </div>
         </div>
@@ -173,8 +206,16 @@ export function KundeDashboard() {
                 {recentOrders.map((order: any) => (
                   <tr
                     key={order.ordrenr}
+                    role="link"
+                    tabIndex={0}
                     className="cursor-pointer hover:bg-dark-800/30"
                     onClick={() => navigate(`/kunde/orders/${order.ordrenr}`)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        navigate(`/kunde/orders/${order.ordrenr}`);
+                      }
+                    }}
                   >
                     <td className="table-cell font-medium text-primary-400">
                       #{order.ordrenr}

@@ -7,8 +7,8 @@ import { z } from 'zod';
 
 export const auditRouter = Router();
 
-// Audit routes require authentication
-auditRouter.use(authMiddleware);
+// Audit routes require admin role
+auditRouter.use(authMiddleware, roleGuard('admin'));
 
 // Schema for audit log filtering
 const auditQuerySchema = paginationSchema.extend({

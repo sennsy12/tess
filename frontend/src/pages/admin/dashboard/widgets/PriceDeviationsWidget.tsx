@@ -1,6 +1,15 @@
 import { PriceDeviationsWidgetProps } from '../../../../types/dashboard';
+import { WidgetError } from './WidgetError';
 
-export function PriceDeviationsWidget({ data, isLoading }: PriceDeviationsWidgetProps) {
+export function PriceDeviationsWidget({ data, isLoading, isError, onRetry }: PriceDeviationsWidgetProps) {
+  if (isError) {
+    return (
+      <div className="card">
+        <h3 className="text-lg font-semibold mb-4">💰 Største Prisavvik</h3>
+        <WidgetError onRetry={onRetry} />
+      </div>
+    );
+  }
   const formatPercent = (value: number) => `${Number(value).toFixed(1)}%`;
 
   if (isLoading) {

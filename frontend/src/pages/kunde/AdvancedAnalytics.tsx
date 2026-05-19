@@ -32,6 +32,7 @@ const ANALYTICS_PRESETS = [
   {
     id: 'monthly-revenue',
     label: 'Månedlig omsetning',
+    bestFor: 'Se total omsetning over tid',
     description: 'Omsetning per måned siste 12 måneder',
     config: {
       metric: 'sum' as Metric,
@@ -45,6 +46,7 @@ const ANALYTICS_PRESETS = [
   {
     id: 'products-by-category',
     label: 'Produkter per kategori',
+    bestFor: 'Finn hvilke varegrupper som selger mest',
     description: 'Antall varer per varegruppe siste 30 dager',
     config: {
       metric: 'quantity' as Metric,
@@ -58,6 +60,7 @@ const ANALYTICS_PRESETS = [
   {
     id: 'compare-this-month',
     label: 'Denne måneden dag for dag',
+    bestFor: 'Oppdage daglige topper og daler',
     description: 'Følg omsetning daglig for siste 30 dager',
     config: {
       metric: 'sum' as Metric,
@@ -176,6 +179,7 @@ export function AdvancedAnalytics() {
                   className="w-full rounded-xl border border-dark-700 bg-dark-800/40 px-4 py-3 text-left transition-colors hover:bg-dark-800/80"
                 >
                   <p className="font-medium text-dark-100">{preset.label}</p>
+                  <p className="text-xs text-primary-400/90 mt-1">{preset.bestFor}</p>
                   <p className="text-sm text-dark-400 mt-1">{preset.description}</p>
                 </button>
               ))}

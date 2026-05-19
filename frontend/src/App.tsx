@@ -1,43 +1,61 @@
+import { Suspense, lazy } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'react-hot-toast'
-import { AuthProvider } from './context/AuthContext'
+import { AuthProvider } from './context/AuthContext.tsx'
 import { ProtectedRoute } from './components/ProtectedRoute'
-import { Login } from './pages/Login'
-import { KundeDashboard } from './pages/kunde/Dashboard'
-import { KundeOrders } from './pages/kunde/Orders'
-import { KundeOrderDetail } from './pages/kunde/OrderDetail'
-import { AdvancedAnalytics } from './pages/kunde/AdvancedAnalytics'
-import { AnalyseDashboard } from './pages/analyse/Dashboard'
-import { AnalyseStatistics } from './pages/analyse/Statistics'
-import { AdminDashboard } from './pages/admin/Dashboard'
-import { AdminOrderLines } from './pages/admin/OrderLines'
-import { AdminStatus } from './pages/admin/Status'
-import { AdminETL } from './pages/admin/ETL'
-import { AdminPricing } from './pages/admin/pricing'
-import { AdminStatistics } from './pages/admin/Statistics'
-import { AdminOrders } from './pages/admin/Orders'
-import { AdminOrderDetail } from './pages/admin/OrderDetail'
-import { AdminAdvancedAnalytics } from './pages/admin/AdvancedAnalytics'
-import { AdminUsers } from './pages/admin/Users'
-import { AdminCustomers } from './pages/admin/Customers'
-import { AdminProducts } from './pages/admin/Products'
+import { RouteErrorBoundary } from './components/RouteErrorBoundary'
+
+const Login = lazy(() => import('./pages/Login').then((m) => ({ default: m.Login })))
+const Settings = lazy(() => import('./pages/Settings').then((m) => ({ default: m.Settings })))
+
+const KundeDashboard = lazy(() => import('./pages/kunde/Dashboard').then((m) => ({ default: m.KundeDashboard })))
+const KundeOrders = lazy(() => import('./pages/kunde/Orders').then((m) => ({ default: m.KundeOrders })))
+const KundeOrderDetail = lazy(() => import('./pages/kunde/OrderDetail').then((m) => ({ default: m.KundeOrderDetail })))
+const AdvancedAnalytics = lazy(() => import('./pages/kunde/AdvancedAnalytics').then((m) => ({ default: m.AdvancedAnalytics })))
+const KundeStatistics = lazy(() => import('./pages/kunde/Statistics').then((m) => ({ default: m.KundeStatistics })))
+
+const AnalyseDashboard = lazy(() => import('./pages/analyse/Dashboard').then((m) => ({ default: m.AnalyseDashboard })))
+const AnalyseStatistics = lazy(() => import('./pages/analyse/Statistics').then((m) => ({ default: m.AnalyseStatistics })))
+
+const AdminDashboard = lazy(() => import('./pages/admin/Dashboard').then((m) => ({ default: m.AdminDashboard })))
+const AdminOrderLines = lazy(() => import('./pages/admin/OrderLines').then((m) => ({ default: m.AdminOrderLines })))
+const AdminStatus = lazy(() => import('./pages/admin/Status').then((m) => ({ default: m.AdminStatus })))
+const AdminETL = lazy(() => import('./pages/admin/ETL').then((m) => ({ default: m.AdminETL })))
+const AdminPricing = lazy(() => import('./pages/admin/pricing').then((m) => ({ default: m.AdminPricing })))
+const AdminStatistics = lazy(() => import('./pages/admin/Statistics').then((m) => ({ default: m.AdminStatistics })))
+const AdminOrders = lazy(() => import('./pages/admin/Orders').then((m) => ({ default: m.AdminOrders })))
+const AdminOrderDetail = lazy(() => import('./pages/admin/OrderDetail').then((m) => ({ default: m.AdminOrderDetail })))
+const AdminAdvancedAnalytics = lazy(() => import('./pages/admin/AdvancedAnalytics').then((m) => ({ default: m.AdminAdvancedAnalytics })))
+const AdminUsers = lazy(() => import('./pages/admin/Users').then((m) => ({ default: m.AdminUsers })))
+const AdminCustomers = lazy(() => import('./pages/admin/Customers').then((m) => ({ default: m.AdminCustomers })))
+const AdminProducts = lazy(() => import('./pages/admin/Products').then((m) => ({ default: m.AdminProducts })))
+const AdminAudit = lazy(() => import('./pages/admin/Audit').then((m) => ({ default: m.AdminAudit })))
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 5 * 60 * 1000, // 5 minutes
+      staleTime: 5 * 60 * 1000,
       retry: 1,
       refetchOnWindowFocus: false,
     },
   },
 })
 
+function PageLoader() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-dark-950">
+      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-500" />
+    </div>
+  )
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <AuthProvider>
+          <RouteErrorBoundary>
           <Toaster
             position="bottom-right"
             toastOptions={{
@@ -57,10 +75,10 @@ function App() {
               },
             }}
           />
+          <Suspense fallback={<PageLoader />}>
           <Routes>
           <Route path="/login" element={<Login />} />
           
-          {/* Kunde routes */}
           <Route path="/kunde" element={
             <ProtectedRoute allowedRoles={['kunde', 'admin']}>
               <KundeDashboard />
@@ -81,8 +99,17 @@ function App() {
               <AdvancedAnalytics />
             </ProtectedRoute>
           } />
+          <Route path="/kunde/statistics" element={
+            <ProtectedRoute allowedRoles={['kunde', 'admin']}>
+              <KundeStatistics />
+            </ProtectedRoute>
+          } />
+          <Route path="/kunde/settings" element={
+            <ProtectedRoute allowedRoles={['kunde', 'admin']}>
+              <Settings />
+            </ProtectedRoute>
+          } />
           
-          {/* Analyse routes */}
           <Route path="/analyse" element={
             <ProtectedRoute allowedRoles={['analyse', 'admin']}>
               <AnalyseDashboard />
@@ -93,8 +120,12 @@ function App() {
               <AnalyseStatistics />
             </ProtectedRoute>
           } />
+          <Route path="/analyse/settings" element={
+            <ProtectedRoute allowedRoles={['analyse', 'admin']}>
+              <Settings />
+            </ProtectedRoute>
+          } />
           
-          {/* Admin routes */}
           <Route path="/admin" element={
             <ProtectedRoute allowedRoles={['admin']}>
               <AdminDashboard />
@@ -155,11 +186,22 @@ function App() {
               <AdminProducts />
             </ProtectedRoute>
           } />
+          <Route path="/admin/audit" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <AdminAudit />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/settings" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <Settings />
+            </ProtectedRoute>
+          } />
           
-          {/* Default redirect */}
           <Route path="/" element={<Navigate to="/login" replace />} />
           <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
+          </Suspense>
+          </RouteErrorBoundary>
         </AuthProvider>
       </BrowserRouter>
     </QueryClientProvider>

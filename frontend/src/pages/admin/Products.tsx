@@ -1,6 +1,8 @@
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Layout } from '../../components/Layout';
+import { QueryErrorBanner } from '../../components/QueryErrorBanner';
+import { EmptyState } from '../../components/EmptyState';
 import { DataTable, type DataTableState } from '../../components/DataTable';
 import { PageHeader, FilterBar, TableSkeleton } from '../../components/admin';
 import { productsApi } from '../../lib/api';
@@ -23,7 +25,13 @@ export function AdminProducts() {
     visibleColumnKeys: ['varekode', 'varenavn', 'varegruppe'],
   });
 
-  const { data: productsRaw, isLoading } = useQuery({
+  const {
+    data: productsRaw,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
     queryKey: ['admin', 'products'],
     queryFn: () => productsApi.getAll().then((r) => r.data as Product[]),
     staleTime: 5 * 60 * 1000,
@@ -99,6 +107,11 @@ export function AdminProducts() {
     return map;
   }, [groups]);
 
+  const hasActiveFilters = Boolean(search.trim() || groupFilter);
+  const errorMessage =
+    (error as { response?: { data?: { error?: string } } })?.response?.data?.error ||
+    'Kunne ikke laste produkter.';
+
   const columns = [
     {
       key: 'varekode',
@@ -165,9 +178,28 @@ export function AdminProducts() {
           gridCols="lg:grid-cols-3"
         />
 
+        {isError && <QueryErrorBanner message={errorMessage} onRetry={() => refetch()} />}
+
         <div className="card p-0 lg:p-0 overflow-hidden">
           {isLoading ? (
             <TableSkeleton rows={10} columns={3} />
+          ) : isError ? null : filtered.length === 0 && hasActiveFilters ? (
+            <EmptyState
+              title="Ingen produkter matcher søket"
+              description="Prøv et annet varekode, navn eller varegruppe."
+              action={
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => {
+                    setSearch('');
+                    setGroupFilter('');
+                  }}
+                >
+                  Nullstill filtre
+                </button>
+              }
+            />
           ) : (
             <DataTable
               data={filtered}

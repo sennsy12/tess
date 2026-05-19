@@ -90,6 +90,39 @@ describe('authMiddleware', () => {
     expect(req.user).toEqual(decodedUser);
     expect(res.status).not.toHaveBeenCalled();
   });
+
+  it('calls next() when kundenr is null (admin users without customer number)', () => {
+    mockVerify.mockReturnValue({
+      id: 1,
+      username: 'admin',
+      role: 'admin',
+      kundenr: null,
+    });
+
+    const { req, res, next } = mockReqResNext({
+      headers: { authorization: 'Bearer valid-token' } as any,
+    });
+
+    authMiddleware(req, res, next);
+
+    expect(next).toHaveBeenCalled();
+    expect(req.user).toEqual({ id: 1, username: 'admin', role: 'admin' });
+    expect(res.status).not.toHaveBeenCalled();
+  });
+
+  it('returns 401 when token payload fails schema validation', () => {
+    mockVerify.mockReturnValue({ id: 1, username: 'x', role: 'superuser' });
+
+    const { req, res, next } = mockReqResNext({
+      headers: { authorization: 'Bearer bad-payload' } as any,
+    });
+
+    authMiddleware(req, res, next);
+
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.json).toHaveBeenCalledWith({ error: 'Invalid token payload' });
+    expect(next).not.toHaveBeenCalled();
+  });
 });
 
 describe('roleGuard', () => {

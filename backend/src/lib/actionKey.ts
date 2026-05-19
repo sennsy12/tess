@@ -1,4 +1,5 @@
 import { ForbiddenError } from '../middleware/errorHandler.js';
+import { assertAdminActionKeyStrength } from '../middleware/productionSafety.js';
 
 /**
  * Get admin action key - fails fast in production if not configured
@@ -10,7 +11,10 @@ export function getAdminActionKey(): string {
       throw new Error('CRITICAL: ADMIN_ACTION_KEY is not defined in production environment!');
     }
     console.warn('⚠️ WARNING: ADMIN_ACTION_KEY not set. Using dev-only fallback. Set ADMIN_ACTION_KEY in .env for security.');
-    return '123';
+    return 'dev-only-action-key-not-for-production';
+  }
+  if (process.env.NODE_ENV === 'production') {
+    assertAdminActionKeyStrength(key);
   }
   return key;
 }

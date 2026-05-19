@@ -3,6 +3,32 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { userModel } from '../models/userModel.js';
 import { ValidationError, UnauthorizedError } from '../middleware/errorHandler.js';
+import type { AuthRequest } from '../middleware/auth.js';
+
+const SALT_ROUNDS = 10;
+
+function jwtClaimsFromUser(user: {
+  id: number;
+  username: string;
+  role: string;
+  kundenr?: string | null;
+}) {
+  return {
+    id: user.id,
+    username: user.username,
+    role: user.role,
+    ...(user.kundenr != null ? { kundenr: user.kundenr } : {}),
+  };
+}
+
+function publicUserFromRecord(user: {
+  id: number;
+  username: string;
+  role: string;
+  kundenr?: string | null;
+}) {
+  return jwtClaimsFromUser(user);
+}
 
 /**
  * Get JWT secret - fails fast in production if not configured
@@ -39,26 +65,15 @@ export const authController = {
       throw new UnauthorizedError('Invalid credentials');
     }
 
-    // Generate JWT
     const token = jwt.sign(
-      {
-        id: user.id,
-        username: user.username,
-        role: user.role,
-        kundenr: user.kundenr,
-      },
+      jwtClaimsFromUser(user),
       getJwtSecret(),
       { expiresIn: '24h' }
     );
 
     res.json({
       token,
-      user: {
-        id: user.id,
-        username: user.username,
-        role: user.role,
-        kundenr: user.kundenr,
-      },
+      user: publicUserFromRecord(user),
     });
   },
 
@@ -81,30 +96,46 @@ export const authController = {
       throw new UnauthorizedError('Invalid credentials');
     }
 
-    // Generate JWT
     const token = jwt.sign(
-      {
-        id: user.id,
-        username: user.username,
-        role: user.role,
-        kundenr: user.kundenr,
-      },
+      jwtClaimsFromUser(user),
       getJwtSecret(),
       { expiresIn: '24h' }
     );
 
     res.json({
       token,
-      user: {
-        id: user.id,
-        username: user.username,
-        role: user.role,
-        kundenr: user.kundenr,
-      },
+      user: publicUserFromRecord(user),
     });
   },
 
-  verify: async (req: Request, res: Response) => {
+  changePassword: async (req: AuthRequest, res: Response) => {
+    const userId = req.user?.id;
+    if (!userId) {
+      throw new UnauthorizedError('Not authenticated');
+    }
+
+    const { currentPassword, newPassword } = req.body as {
+      currentPassword: string;
+      newPassword: string;
+    };
+
+    const user = await userModel.findByIdWithHash(userId);
+    if (!user) {
+      throw new UnauthorizedError('User not found');
+    }
+
+    const isValid = await bcrypt.compare(currentPassword, user.password_hash);
+    if (!isValid) {
+      throw new UnauthorizedError('Current password is incorrect');
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
+    await userModel.update(userId, { passwordHash });
+
+    res.json({ success: true, message: 'Password updated' });
+  },
+
+  verify: async (req: AuthRequest, res: Response) => {
     const authHeader = req.headers.authorization;
     
     if (!authHeader || !authHeader.startsWith('Bearer ')) {

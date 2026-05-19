@@ -199,15 +199,37 @@ export const INITIAL_SIMULATOR_FORM: SimulatorForm = {
   sample_size: 1000,
 };
 
-export const TABS = [
-  { id: 'groups' as Tab, label: 'Kundegrupper', icon: '👥' },
-  { id: 'lists' as Tab, label: 'Prislister', icon: '📋' },
-  { id: 'rules' as Tab, label: 'Prisregler', icon: '💰' },
-  { id: 'customers' as Tab, label: 'Tildeling', icon: '🔗' },
-  { id: 'preview' as Tab, label: 'Test priser', icon: '🔍' },
-  { id: 'simulator' as Tab, label: 'Simulator', icon: '🧪' },
-  { id: 'audit' as Tab, label: 'Endringslogg', icon: '📜' },
+export type PricingSection = 'setup' | 'tools';
+
+export const SETUP_TABS = [
+  { id: 'groups' as Tab, label: 'Kundegrupper' },
+  { id: 'lists' as Tab, label: 'Prislister' },
+  { id: 'rules' as Tab, label: 'Prisregler' },
+  { id: 'customers' as Tab, label: 'Tildeling' },
 ];
+
+export const TOOL_TABS = [
+  { id: 'preview' as Tab, label: 'Test priser' },
+  { id: 'simulator' as Tab, label: 'Simulator' },
+  { id: 'audit' as Tab, label: 'Endringslogg' },
+];
+
+/** @deprecated Use SETUP_TABS + TOOL_TABS */
+export const TABS = [...SETUP_TABS, ...TOOL_TABS];
+
+export const TAB_DESCRIPTIONS: Record<Tab, string> = {
+  groups: 'Opprett kundegrupper for å gruppere kunder med like prisvilkår.',
+  lists: 'Prislister samler regler og styrer hvilke priser som gjelder og når.',
+  rules: 'Regler definerer rabatter og faste priser for produkter og kunder.',
+  customers: 'Tildel kunder til kundegrupper slik at riktige prisregler brukes.',
+  preview: 'Test en enkelt prisberegning for en kunde og vare — uten å endre data.',
+  simulator: 'Se hvordan en ny prisregel ville påvirket historisk omsetning.',
+  audit: 'Logg over alle endringer i kundegrupper, prislister og regler.',
+};
+
+export function getPricingSection(tab: Tab): PricingSection {
+  return SETUP_TABS.some((t) => t.id === tab) ? 'setup' : 'tools';
+}
 
 // ── Component Prop Interfaces ─────────────────────────
 

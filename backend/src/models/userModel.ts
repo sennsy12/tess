@@ -71,6 +71,15 @@ export const userModel = {
     return result.rows[0] || null;
   },
 
+  /** Full record including password hash (auth only). */
+  findByIdWithHash: async (id: number): Promise<User | null> => {
+    const result = await query(
+      'SELECT id, username, password_hash, role, kundenr FROM users WHERE id = $1',
+      [id]
+    );
+    return result.rows[0] || null;
+  },
+
   /**
    * List all users with server-side pagination.
    *

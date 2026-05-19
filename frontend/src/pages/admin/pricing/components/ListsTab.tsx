@@ -1,4 +1,6 @@
 import { INITIAL_LIST_FORM, ListsTabProps } from '../../../../types/pricing';
+import { EmptyState } from '../../../../components/EmptyState';
+import { List } from 'lucide-react';
 
 export function ListsTab({
   lists,
@@ -65,6 +67,7 @@ export function ListsTab({
                 onChange={(e) => setListForm({ ...listForm, priority: parseInt(e.target.value) || 0 })}
                 className="input w-full"
               />
+              <p className="mt-1 text-xs text-dark-500">Høyere tall = brukes først når flere lister overlapper</p>
             </div>
             <div>
               <label className="block text-sm font-medium text-dark-300 mb-1">Gyldig fra</label>
@@ -114,6 +117,26 @@ export function ListsTab({
       )}
 
       {/* Lists Table */}
+      {lists.length === 0 && !showListForm && !editingList ? (
+        <EmptyState
+          icon={<List className="h-8 w-8" />}
+          title="Ingen prislister ennå"
+          description="En prisliste samler regler og styrer når prisene gjelder. Opprett minst én aktiv liste før du legger til regler."
+          action={
+            <button
+              type="button"
+              onClick={() => {
+                setShowListForm(true);
+                setEditingList(null);
+                setListForm(INITIAL_LIST_FORM);
+              }}
+              className="btn-primary"
+            >
+              Opprett første prisliste
+            </button>
+          }
+        />
+      ) : (
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead>
@@ -194,6 +217,7 @@ export function ListsTab({
           </tbody>
         </table>
       </div>
+      )}
     </div>
   );
 }

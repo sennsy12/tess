@@ -145,6 +145,10 @@ CREATE INDEX IF NOT EXISTS idx_ordre_dato ON public.ordre(dato DESC);
 CREATE INDEX IF NOT EXISTS idx_ordre_firmaid ON public.ordre(firmaid);
 CREATE INDEX IF NOT EXISTS idx_ordre_lagernavn ON public.ordre(lagernavn);
 CREATE INDEX IF NOT EXISTS idx_ordre_kundenr_dato ON public.ordre(kundenr, dato DESC);
+-- Analytics composite indexes (from migration 002_statistics_indexes.sql)
+CREATE INDEX IF NOT EXISTS idx_ordre_dato_kundenr ON public.ordre (dato, kundenr);
+CREATE INDEX IF NOT EXISTS idx_ordre_dato_sum ON public.ordre (dato DESC) INCLUDE (sum, kundenr);
+CREATE INDEX IF NOT EXISTS idx_ordrelinje_varekode_ordrenr ON public.ordrelinje (varekode, ordrenr) INCLUDE (linjesum, antall);
 
 -- Ordrelinje indexes
 CREATE INDEX IF NOT EXISTS idx_ordrelinje_ordrenr ON public.ordrelinje(ordrenr);

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/useAuth';
 import { reportsApi } from '../lib/api';
 import type { SaveViewOptions, SavedViewRecord } from '../types/workspace';
 

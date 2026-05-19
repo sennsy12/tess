@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/useAuth';
+import { PasswordInput } from '../components/PasswordInput';
+import { supportMailto } from '../lib/appConfig';
 
 type LoginMode = 'standard' | 'kunde';
 
@@ -13,12 +15,19 @@ export function Login() {
   const [isLoading, setIsLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
 
-  const { login, loginKunde } = useAuth();
+  const { login, loginKunde, user, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (authLoading || !user) return;
+    if (user.role === 'admin') navigate('/admin', { replace: true });
+    else if (user.role === 'analyse') navigate('/analyse', { replace: true });
+    else navigate('/kunde', { replace: true });
+  }, [user, authLoading, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,9 +78,16 @@ export function Login() {
         <div className="glass-panel rounded-2xl p-1 overflow-hidden">
           <div className="bg-dark-900/40 p-6 sm:p-8 rounded-xl backdrop-blur-sm">
             {/* Mode Tabs */}
-            <div className="flex mb-8 bg-dark-800/60 rounded-xl p-1.5 backdrop-blur-sm border border-dark-700/50">
+            <div
+              role="tablist"
+              aria-label="Innloggingstype"
+              className="flex mb-8 bg-dark-800/60 rounded-xl p-1.5 backdrop-blur-sm border border-dark-700/50"
+            >
               <button
                 type="button"
+                role="tab"
+                aria-selected={mode === 'standard'}
+                aria-controls="login-panel"
                 onClick={() => setMode('standard')}
                 className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-semibold transition-all duration-300 ${
                   mode === 'standard'
@@ -83,6 +99,9 @@ export function Login() {
               </button>
               <button
                 type="button"
+                role="tab"
+                aria-selected={mode === 'kunde'}
+                aria-controls="login-panel"
                 onClick={() => setMode('kunde')}
                 className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-semibold transition-all duration-300 ${
                   mode === 'kunde'
@@ -94,7 +113,13 @@ export function Login() {
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-5">
+            <form
+              id="login-panel"
+              role="tabpanel"
+              onSubmit={handleSubmit}
+              className="space-y-5"
+              aria-busy={isLoading}
+            >
               <div className="space-y-4">
                 {mode === 'standard' ? (
                   <div className="space-y-1.5 animate-in-up">
@@ -129,18 +154,19 @@ export function Login() {
                 )}
 
                 <div className="space-y-1.5 animate-in-up" style={{ animationDelay: '100ms' }}>
-                  <label className="label text-xs uppercase tracking-wider font-semibold text-dark-400">Passord</label>
-                  <div className="relative group">
-                    <input
-                      type="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="input pl-10 transition-all group-hover:border-dark-600"
-                      placeholder="Skriv inn passord"
-                      required
-                    />
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-dark-500 group-focus-within:text-primary-400 transition-colors">🔒</span>
-                  </div>
+                  <label htmlFor="login-password" className="label text-xs uppercase tracking-wider font-semibold text-dark-400">
+                    Passord
+                  </label>
+                  <PasswordInput
+                    id="login-password"
+                    value={password}
+                    onChange={setPassword}
+                    placeholder="Skriv inn passord"
+                    autoComplete="current-password"
+                    required
+                    disabled={isLoading}
+                    className="input w-full"
+                  />
                 </div>
               </div>
 
@@ -166,11 +192,19 @@ export function Login() {
                   </div>
                 )}
               </button>
+
+              <p className="text-center text-sm text-dark-400">
+                <a href={supportMailto} className="text-primary-400 hover:underline">
+                  Glemt passord?
+                </a>
+                <span className="mx-1">·</span>
+                Kontakt support for hjelp med innlogging.
+              </p>
             </form>
 
-            {/* Demo credentials */}
+            {import.meta.env.DEV && (
             <div className="mt-8 pt-6 border-t border-dark-700/50">
-              <p className="text-[10px] text-dark-500 text-center mb-4 font-bold uppercase tracking-widest">Demo Tilgang</p>
+              <p className="text-[10px] text-dark-500 text-center mb-4 font-bold uppercase tracking-widest">Demo Tilgang (kun dev)</p>
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-dark-800/50 p-3 rounded-lg border border-dark-700/50 hover:bg-dark-800 transition-colors cursor-help group">
                   <div className="text-xs font-semibold text-dark-200 mb-1 flex items-center gap-1">Admin <span className="w-1.5 h-1.5 rounded-full bg-primary-500"></span></div>
@@ -185,6 +219,7 @@ export function Login() {
                  <p className="text-[10px] text-dark-400">Kunde: <strong className="text-dark-300">K000001</strong> / <strong className="text-dark-300">admin123</strong></p>
               </div>
             </div>
+            )}
           </div>
         </div>
         

@@ -1,3 +1,4 @@
+export { PricingGuide } from './PricingGuide';
 export { GroupsTab } from './GroupsTab';
 export { ListsTab } from './ListsTab';
 export { RulesTab } from './RulesTab';

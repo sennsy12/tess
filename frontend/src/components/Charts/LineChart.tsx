@@ -34,6 +34,8 @@ interface LineChartProps {
   valueFormatter?: (value: number) => string;
   tickFormatter?: (value: number) => string;
   height?: number;
+  /** Accessible summary shown below chart (also read by screen readers). */
+  summary?: string;
 }
 
 export function LineChart({
@@ -49,6 +51,7 @@ export function LineChart({
   valueFormatter,
   tickFormatter: tickFormatterProp,
   height = 300,
+  summary,
 }: LineChartProps) {
   const defaultFormatter = (value: number) => 
     new Intl.NumberFormat('nb-NO').format(value);
@@ -152,6 +155,11 @@ export function LineChart({
           ))}
         </RechartsLineChart>
       </ResponsiveContainer>
+      {summary && (
+        <p className="mt-3 text-sm text-dark-400 border-t border-dark-800/50 pt-3" role="note">
+          {summary}
+        </p>
+      )}
     </div>
   );
 }

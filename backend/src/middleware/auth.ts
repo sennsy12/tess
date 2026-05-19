@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import { z } from 'zod';
 
 export interface AuthRequest extends Request {
   user?: {
@@ -9,6 +10,21 @@ export interface AuthRequest extends Request {
     kundenr?: string;
   };
 }
+
+/** JWT claims from login; DB may store null kundenr for non-customer roles. */
+const jwtPayloadSchema = z
+  .object({
+    id: z.coerce.number(),
+    username: z.string().min(1),
+    role: z.enum(['admin', 'kunde', 'analyse']),
+    kundenr: z.string().nullish(),
+  })
+  .transform(({ id, username, role, kundenr }) => ({
+    id,
+    username,
+    role,
+    ...(kundenr != null ? { kundenr } : {}),
+  }));
 
 /**
  * Get JWT secret - fails fast in production if not configured
@@ -27,7 +43,7 @@ function getJwtSecret(): string {
 
 export const authMiddleware = (req: AuthRequest, res: Response, next: NextFunction) => {
   const authHeader = req.headers.authorization;
-  
+
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'No token provided' });
   }
@@ -35,10 +51,14 @@ export const authMiddleware = (req: AuthRequest, res: Response, next: NextFuncti
   const token = authHeader.split(' ')[1];
 
   try {
-    const decoded = jwt.verify(token, getJwtSecret()) as any;
-    req.user = decoded;
+    const decoded = jwt.verify(token, getJwtSecret());
+    const parsed = jwtPayloadSchema.safeParse(decoded);
+    if (!parsed.success) {
+      return res.status(401).json({ error: 'Invalid token payload' });
+    }
+    req.user = parsed.data;
     next();
-  } catch (error) {
+  } catch {
     return res.status(401).json({ error: 'Invalid token' });
   }
 };

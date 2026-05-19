@@ -1,49 +1,47 @@
-import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { Layout } from '../../components/Layout';
+import { Breadcrumb } from '../../components/Breadcrumb';
+import { OrderTimeline } from '../../components/OrderTimeline';
+import { QueryErrorBanner } from '../../components/QueryErrorBanner';
 import { ordersApi } from '../../lib/api';
+import { downloadOrderCsv } from '../../lib/orderExport';
+import type { OrderDetail } from '../../types/order';
 
-import { OrderDetail } from '../../types/order';
 export function KundeOrderDetail() {
   const { ordrenr } = useParams<{ ordrenr: string }>();
   const navigate = useNavigate();
-  const [order, setOrder] = useState<OrderDetail | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState('');
+  const orderId = ordrenr ? parseInt(ordrenr, 10) : NaN;
 
-  useEffect(() => {
-    if (ordrenr) {
-      loadOrder(parseInt(ordrenr));
-    }
-  }, [ordrenr]);
+  const { data: order, isLoading, isError, error, refetch } = useQuery({
+    queryKey: ['kunde', 'order', orderId],
+    queryFn: async () => {
+      const response = await ordersApi.getOne(orderId);
+      return response.data as OrderDetail;
+    },
+    enabled: Number.isFinite(orderId),
+  });
 
-  const loadOrder = async (id: number) => {
-    try {
-      const response = await ordersApi.getOne(id);
-      setOrder(response.data);
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Kunne ikke laste ordre');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const errorMessage =
+    (error as { response?: { data?: { error?: string } } })?.response?.data?.error ||
+    'Kunne ikke laste ordre';
 
   if (isLoading) {
     return (
       <Layout title="Ordre detaljer">
         <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-500"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-500" />
         </div>
       </Layout>
     );
   }
 
-  if (error || !order) {
+  if (isError || !order) {
     return (
       <Layout title="Ordre detaljer">
-        <div className="card text-center py-12">
-          <p className="text-red-400">{error || 'Ordre ikke funnet'}</p>
-          <button onClick={() => navigate('/kunde/orders')} className="btn-secondary mt-4">
+        <div className="space-y-4">
+          <QueryErrorBanner message={errorMessage} onRetry={() => refetch()} />
+          <button type="button" onClick={() => navigate('/kunde/orders')} className="btn-secondary">
             ← Tilbake til ordrer
           </button>
         </div>
@@ -54,12 +52,27 @@ export function KundeOrderDetail() {
   return (
     <Layout title={`Ordre #${order.ordrenr}`}>
       <div className="space-y-6">
-        {/* Back button */}
-        <button onClick={() => navigate('/kunde/orders')} className="btn-secondary">
-          ← Tilbake til ordrer
-        </button>
+        <Breadcrumb
+          items={[
+            { label: 'Hjem', to: '/kunde' },
+            { label: 'Ordrer', to: '/kunde/orders' },
+            { label: `#${order.ordrenr}` },
+          ]}
+        />
+        <div className="flex flex-wrap gap-3">
+          <button type="button" onClick={() => navigate('/kunde/orders')} className="btn-secondary">
+            ← Tilbake til ordrer
+          </button>
+          <button type="button" onClick={() => downloadOrderCsv(order)} className="btn-primary">
+            Last ned CSV
+          </button>
+        </div>
 
-        {/* Order header */}
+        <div className="card">
+          <h3 className="text-lg font-semibold mb-4">Ordrestatus</h3>
+          <OrderTimeline order={order} />
+        </div>
+
         <div className="card">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <div>
@@ -77,12 +90,14 @@ export function KundeOrderDetail() {
             <div>
               <span className="text-sm text-dark-400">Total sum</span>
               <p className="text-xl font-bold text-green-400">
-                {new Intl.NumberFormat('nb-NO', { style: 'currency', currency: order.valutaid || 'NOK' })
-                  .format(order.sum)}
+                {new Intl.NumberFormat('nb-NO', {
+                  style: 'currency',
+                  currency: order.valutaid || 'NOK',
+                }).format(order.sum)}
               </p>
             </div>
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6 pt-6 border-t border-dark-800">
             <div>
               <span className="text-sm text-dark-400">Firma</span>
@@ -99,8 +114,29 @@ export function KundeOrderDetail() {
           </div>
         </div>
 
-        {/* Order lines */}
-        <div className="card">
+        {/* Mobile line cards */}
+        <div className="space-y-3 lg:hidden">
+          <h3 className="text-lg font-semibold">Ordrelinjer ({order.lines.length})</h3>
+          {order.lines.map((line) => (
+            <div key={line.linjenr} className="card text-sm">
+              <div className="flex justify-between font-medium">
+                <span>
+                  #{line.linjenr} {line.varenavn || line.varekode}
+                </span>
+                <span>
+                  {new Intl.NumberFormat('nb-NO', { style: 'currency', currency: 'NOK' }).format(
+                    line.linjesum,
+                  )}
+                </span>
+              </div>
+              <p className="text-dark-400 mt-1">
+                {line.antall} {line.enhet} · {line.varegruppe || '-'}
+              </p>
+            </div>
+          ))}
+        </div>
+
+        <div className="card hidden lg:block">
           <h3 className="text-lg font-semibold mb-4">Ordrelinjer ({order.lines.length})</h3>
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -115,85 +151,48 @@ export function KundeOrderDetail() {
                   <th className="table-header text-right">Pris</th>
                   <th className="table-header text-right">Sum</th>
                   <th className="table-header">Status</th>
-                  <th className="table-header">Henvisninger</th>
                 </tr>
               </thead>
               <tbody>
-                {order.lines.map((line) => {
-                  const refs = [line.henvisning1, line.henvisning2, line.henvisning3, line.henvisning4, line.henvisning5].filter(Boolean);
-                  return (
-                    <tr key={line.linjenr} className="hover:bg-dark-800/30">
-                      <td className="table-cell text-dark-400">{line.linjenr}</td>
-                      <td className="table-cell font-mono text-sm">{line.varekode}</td>
-                      <td className="table-cell font-medium">{line.varenavn || '-'}</td>
-                      <td className="table-cell">
-                        <span className="px-2 py-1 bg-primary-600/20 text-primary-300 rounded text-xs">
-                          {line.varegruppe || '-'}
-                        </span>
-                      </td>
-                      <td className="table-cell text-right">{line.antall}</td>
-                      <td className="table-cell">{line.enhet}</td>
-                      <td className="table-cell text-right">
-                        {new Intl.NumberFormat('nb-NO', { minimumFractionDigits: 2 }).format(line.nettpris)}
-                      </td>
-                      <td className="table-cell text-right font-semibold">
-                        {new Intl.NumberFormat('nb-NO', { minimumFractionDigits: 2 }).format(line.linjesum)}
-                      </td>
-                      <td className="table-cell">
-                        <span className={`px-2 py-1 rounded text-xs font-medium ${line.linjestatus === 1 ? 'bg-green-600/20 text-green-300' : 'bg-dark-600/40 text-dark-300'}`}>
-                          {line.linjestatus === 1 ? 'Aktiv' : 'Inaktiv'}
-                        </span>
-                      </td>
-                      <td className="table-cell">
-                        {refs.length > 0 ? (
-                          <div className="flex flex-wrap gap-1">
-                            {refs.map((ref, i) => (
-                              <span key={i} className="inline-block px-2 py-0.5 bg-dark-700 rounded text-xs">
-                                {ref}
-                              </span>
-                            ))}
-                          </div>
-                        ) : (
-                          <span className="text-dark-500">-</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-                <tr className="bg-dark-800/50">
-                  <td colSpan={9} className="table-cell text-right font-semibold">
-                    Totalt:
-                  </td>
-                  <td className="table-cell text-right font-bold text-lg text-green-400">
-                    {new Intl.NumberFormat('nb-NO', { style: 'currency', currency: order.valutaid || 'NOK' })
-                      .format(order.sum)}
-                  </td>
-                </tr>
+                {order.lines.map((line) => (
+                  <tr key={line.linjenr} className="hover:bg-dark-800/30">
+                    <td className="table-cell text-dark-400">{line.linjenr}</td>
+                    <td className="table-cell font-mono text-sm">{line.varekode}</td>
+                    <td className="table-cell font-medium">{line.varenavn || '-'}</td>
+                    <td className="table-cell">
+                      <span className="px-2 py-1 bg-primary-600/20 text-primary-300 rounded text-xs">
+                        {line.varegruppe || '-'}
+                      </span>
+                    </td>
+                    <td className="table-cell text-right">{line.antall}</td>
+                    <td className="table-cell">{line.enhet}</td>
+                    <td className="table-cell text-right">
+                      {new Intl.NumberFormat('nb-NO', { minimumFractionDigits: 2 }).format(
+                        line.nettpris,
+                      )}
+                    </td>
+                    <td className="table-cell text-right font-semibold">
+                      {new Intl.NumberFormat('nb-NO', { minimumFractionDigits: 2 }).format(
+                        line.linjesum,
+                      )}
+                    </td>
+                    <td className="table-cell">
+                      <span
+                        className={`px-2 py-1 rounded text-xs font-medium ${
+                          line.linjestatus === 1
+                            ? 'bg-green-600/20 text-green-300'
+                            : 'bg-dark-600/40 text-dark-300'
+                        }`}
+                      >
+                        {line.linjestatus === 1 ? 'Aktiv' : 'Inaktiv'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
         </div>
-
-        {/* References */}
-        {order.lines.some(l => l.henvisning1 || l.henvisning2 || l.henvisning3) && (
-          <div className="card">
-            <h3 className="text-lg font-semibold mb-4">Henvisninger</h3>
-            <div className="space-y-2">
-              {order.lines.filter(l => l.henvisning1 || l.henvisning2).map((line) => (
-                <div key={line.linjenr} className="p-3 bg-dark-800/50 rounded-lg">
-                  <span className="text-dark-400 text-sm">Linje {line.linjenr}: </span>
-                  {[line.henvisning1, line.henvisning2, line.henvisning3, line.henvisning4, line.henvisning5]
-                    .filter(Boolean)
-                    .map((ref: string | undefined, i: number) => (
-                      <span key={i} className="inline-block px-2 py-1 bg-dark-700 rounded text-sm mr-2">
-                        {ref}
-                      </span>
-                    ))}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
     </Layout>
   );

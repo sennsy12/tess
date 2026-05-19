@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { notifyApiError } from '../apiErrors';
 import { emitAuthUnauthorized } from '../auth/authEvents';
-import { getAuthToken } from '../auth/tokenStore';
+import { AUTH_TOKEN_KEY } from '../auth/tokenStore';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -12,11 +12,13 @@ const api = axios.create({
   },
 });
 
-// Add auth token to requests
+// Read token from sessionStorage on every request (avoids stale module state after Vite HMR).
 api.interceptors.request.use((config) => {
-  const token = getAuthToken();
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+  if (typeof sessionStorage !== 'undefined') {
+    const token = sessionStorage.getItem(AUTH_TOKEN_KEY);
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
   }
   return config;
 });
@@ -26,8 +28,12 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     const status = error.response?.status;
-    const url = error.config?.url;
-    if (error.response?.status === 401) {
+    const url = error.config?.url ?? '';
+    const isAuthRoute =
+      url.includes('/auth/login') ||
+      url.includes('/auth/login-kunde') ||
+      url.includes('/auth/verify');
+    if (error.response?.status === 401 && !isAuthRoute) {
       emitAuthUnauthorized();
     }
     if (!status || status >= 500) {

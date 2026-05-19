@@ -6,4 +6,5 @@ export const statusApi = {
   getExtractionStatus: () => api.get('/status/extraction'),
   getHealth: () => api.get('/status/health'),
   getApiMetrics: () => api.get('/status/api-metrics'),
+  getEtlMetrics: () => api.get('/status/etl-metrics'),
 };

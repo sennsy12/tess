@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Layout } from '../../components/Layout';
-import { ActionKeyModal, GridStatSkeleton, ListSkeleton } from '../../components/admin';
+import { ActionKeyModal, ConfirmModal, GridStatSkeleton, ListSkeleton } from '../../components/admin';
+import { allowDestructiveEtl } from '../../lib/appConfig';
 import { Tabs, TabContent } from '../../components/Tabs';
 import { etlApi, schedulerApi } from '../../lib/api';
 
@@ -24,6 +25,11 @@ export function AdminETL() {
   const [pendingBulkAction, setPendingBulkAction] = useState<{
     type: 'generate' | 'pipeline';
     config: { customers: number; orders: number; linesPerOrder: number };
+  } | null>(null);
+  const [pendingDestructive, setPendingDestructive] = useState<{
+    id: string;
+    label: string;
+    api: () => Promise<unknown>;
   } | null>(null);
 
   const csvFileRef = useRef<HTMLInputElement>(null);
@@ -111,12 +117,20 @@ export function AdminETL() {
   };
 
   const etlActions = [
-    { id: 'createDB', label: '🏗️ Opprett DB', api: etlApi.createDB },
-    { id: 'truncateDB', label: '🗑️ Tøm DB', api: etlApi.truncateDB },
-    { id: 'generateTestData', label: '🎲 Generer Test', api: etlApi.generateTestData },
-    { id: 'insertTestData', label: '📥 Sett Inn Test', api: etlApi.insertTestData },
-    { id: 'runFullTestPipeline', label: '🚀 Full Pipeline', api: etlApi.runFullTestPipeline },
+    { id: 'createDB', label: '🏗️ Opprett DB', api: etlApi.createDB, destructive: true },
+    { id: 'truncateDB', label: '🗑️ Tøm DB', api: etlApi.truncateDB, destructive: true },
+    { id: 'generateTestData', label: '🎲 Generer Test', api: etlApi.generateTestData, destructive: false },
+    { id: 'insertTestData', label: '📥 Sett Inn Test', api: etlApi.insertTestData, destructive: false },
+    { id: 'runFullTestPipeline', label: '🚀 Full Pipeline', api: etlApi.runFullTestPipeline, destructive: true },
   ];
+
+  const handleEtlAction = (action: (typeof etlActions)[number]) => {
+    if (action.destructive) {
+      setPendingDestructive({ id: action.id, label: action.label, api: action.api });
+      return;
+    }
+    void runAction(action.id, action.api);
+  };
 
   return (
     <Layout title="ETL / Database Management">
@@ -136,15 +150,21 @@ export function AdminETL() {
         {/* ETL Tab */}
         {activeTab === 'etl' && (
           <TabContent tabKey="etl">
+            {!allowDestructiveEtl && (
+              <div className="mb-4 rounded-lg border border-amber-700/50 bg-amber-900/20 px-4 py-3 text-sm text-amber-100">
+                Destruktive ETL-handlinger er deaktivert i produksjon.
+              </div>
+            )}
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4 stagger-fade-in">
               {etlActions.map((action) => (
                 <button
                   key={action.id}
-                  onClick={() => runAction(action.id, action.api)}
-                  disabled={isLoading !== null}
+                  type="button"
+                  onClick={() => handleEtlAction(action)}
+                  disabled={isLoading !== null || (action.destructive && !allowDestructiveEtl)}
                   className={`card-interactive text-center py-6 cursor-pointer ${
                     isLoading === action.id ? 'opacity-50' : ''
-                  }`}
+                  } ${action.destructive && !allowDestructiveEtl ? 'opacity-40 cursor-not-allowed' : ''}`}
                 >
                   <span className="text-2xl block mb-2">{action.label.split(' ')[0]}</span>
                   <span className="text-sm">{action.label.split(' ').slice(1).join(' ')}</span>
@@ -380,6 +400,25 @@ export function AdminETL() {
       </div>
 
       {/* Action key modal for large bulk operations */}
+      <ConfirmModal
+        open={!!pendingDestructive}
+        onClose={() => setPendingDestructive(null)}
+        onConfirm={() => {
+          if (!pendingDestructive) return;
+          void runAction(pendingDestructive.id, pendingDestructive.api);
+          setPendingDestructive(null);
+        }}
+        title="Bekreft destruktiv handling"
+        confirmLabel="Utfør"
+        intent="danger"
+        loading={isLoading !== null}
+      >
+        <p>
+          Er du sikker på at du vil kjøre <strong>{pendingDestructive?.label}</strong>? Denne handlingen
+          kan ikke angres.
+        </p>
+      </ConfirmModal>
+
       <ActionKeyModal
         open={!!pendingBulkAction}
         onClose={() => setPendingBulkAction(null)}

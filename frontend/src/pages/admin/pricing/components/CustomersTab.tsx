@@ -86,6 +86,11 @@ export function CustomersTab({
 
   return (
     <div className="space-y-4">
+      {groups.length === 0 && (
+        <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-200">
+          Opprett kundegrupper først under fanen <span className="font-medium">Kundegrupper</span>, deretter kan du tildele kunder her.
+        </div>
+      )}
       {/* Summary stats */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 stagger-fade-in">
         <div className="card-interactive text-center">

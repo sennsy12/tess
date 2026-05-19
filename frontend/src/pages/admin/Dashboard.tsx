@@ -1,6 +1,7 @@
 import { useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/useAuth';
 import { Layout } from '../../components/Layout';
 import { BarChart, LineChart, PieChart } from '../../components/Charts';
 import { ExportButton } from '../../components/ExportButton';
@@ -23,24 +24,34 @@ import { DashboardAnalytics, TimeSeriesPoint, FirmaLagerStat } from '../../types
 export function AdminDashboard() {
   const chartRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const queriesEnabled = isAuthenticated && !authLoading;
 
   const { data: status } = useQuery({
     queryKey: ['admin', 'status'],
     queryFn: () => statusApi.getStatus().then(res => res.data).catch(() => null),
+    enabled: queriesEnabled,
   });
 
-  const { data: widgets } = useQuery({
+  const {
+    data: widgets,
+    isError: widgetsError,
+    refetch: refetchWidgets,
+  } = useQuery({
     queryKey: ['admin', 'widgets'],
-    queryFn: () => dashboardApi.getWidgets().then(res => res.data).catch(() => null),
+    queryFn: () => dashboardApi.getWidgets().then((res) => res.data),
+    enabled: queriesEnabled,
   });
 
   const { data: apiMetrics } = useQuery({
     queryKey: ['admin', 'dashboard-api-metrics'],
     queryFn: () => statusApi.getApiMetrics().then((res) => res.data).catch(() => null),
+    enabled: queriesEnabled,
   });
 
   const { data: ordersNeedingAttention = 0 } = useQuery({
     queryKey: ['admin', 'orders-needing-attention'],
+    enabled: queriesEnabled,
     queryFn: async () => {
       const response = await ordersApi.getAll({ limit: 100 });
       const rows = response.data?.data ?? [];
@@ -51,6 +62,7 @@ export function AdminDashboard() {
   const { data: analytics, isLoading } = useQuery({
     queryKey: ['admin', 'analytics'],
     queryFn: () => dashboardApi.getAnalyticsBatch().then(res => res.data as DashboardAnalytics),
+    enabled: queriesEnabled,
   });
 
   const summary = analytics?.summary ?? null;
@@ -173,14 +185,34 @@ export function AdminDashboard() {
 
         {/* Widget row - Top Products and Top Customers */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <TopProductsWidget data={widgets?.topProducts || []} isLoading={!widgets} />
-          <TopCustomersWidget data={widgets?.topCustomers || []} isLoading={!widgets} />
+          <TopProductsWidget
+            data={widgets?.topProducts || []}
+            isLoading={!widgets && !widgetsError}
+            isError={widgetsError}
+            onRetry={() => refetchWidgets()}
+          />
+          <TopCustomersWidget
+            data={widgets?.topCustomers || []}
+            isLoading={!widgets && !widgetsError}
+            isError={widgetsError}
+            onRetry={() => refetchWidgets()}
+          />
         </div>
 
         {/* Widget row - Price Deviations and Data Status */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <PriceDeviationsWidget data={widgets?.priceDeviations || []} isLoading={!widgets} />
-          <DataStatusWidget data={widgets?.recentActivity || null} isLoading={!widgets} />
+          <PriceDeviationsWidget
+            data={widgets?.priceDeviations || []}
+            isLoading={!widgets && !widgetsError}
+            isError={widgetsError}
+            onRetry={() => refetchWidgets()}
+          />
+          <DataStatusWidget
+            data={widgets?.recentActivity || null}
+            isLoading={!widgets && !widgetsError}
+            isError={widgetsError}
+            onRetry={() => refetchWidgets()}
+          />
         </div>
 
         {/* Export button */}

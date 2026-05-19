@@ -1,8 +1,17 @@
 import { useMemo } from 'react';
 
 import { TopProductsWidgetProps } from '../../../../types/dashboard';
+import { WidgetError } from './WidgetError';
 
-export function TopProductsWidget({ data, isLoading }: TopProductsWidgetProps) {
+export function TopProductsWidget({ data, isLoading, isError, onRetry }: TopProductsWidgetProps) {
+  if (isError) {
+    return (
+      <div className="card">
+        <h3 className="text-lg font-semibold mb-4">🏆 Topp 10 Produkter</h3>
+        <WidgetError onRetry={onRetry} />
+      </div>
+    );
+  }
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat('nb-NO', { style: 'currency', currency: 'NOK', maximumFractionDigits: 0 }).format(value);
 

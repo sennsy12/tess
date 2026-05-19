@@ -91,6 +91,11 @@ export const loginKundeSchema = z.object({
   password: z.string().min(1, 'Password is required').max(200),
 });
 
+export const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1, 'Current password is required').max(200),
+  newPassword: z.string().min(4, 'New password must be at least 4 characters').max(200),
+});
+
 // ============================================================
 // ETL validation schemas
 // ============================================================

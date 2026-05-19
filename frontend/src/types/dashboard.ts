@@ -10,6 +10,8 @@ export interface TopProduct {
 export interface TopProductsWidgetProps {
   data: TopProduct[];
   isLoading?: boolean;
+  isError?: boolean;
+  onRetry?: () => void;
 }
 
 export interface TopCustomer {
@@ -23,6 +25,8 @@ export interface TopCustomer {
 export interface TopCustomersWidgetProps {
   data: TopCustomer[];
   isLoading?: boolean;
+  isError?: boolean;
+  onRetry?: () => void;
 }
 
 export interface PriceDeviation {
@@ -37,6 +41,8 @@ export interface PriceDeviation {
 export interface PriceDeviationsWidgetProps {
   data: PriceDeviation[];
   isLoading?: boolean;
+  isError?: boolean;
+  onRetry?: () => void;
 }
 
 export interface DataFreshness {
@@ -53,6 +59,8 @@ export interface DataStatusWidgetProps {
     message: string;
   } | null;
   isLoading?: boolean;
+  isError?: boolean;
+  onRetry?: () => void;
 }
 
 export interface DashboardSummary {

@@ -1,12 +1,69 @@
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Layout } from '../../components/Layout';
 import { DataTable, type DataTableState } from '../../components/DataTable';
+import { QueryErrorBanner } from '../../components/QueryErrorBanner';
 import { statusApi } from '../../lib/api';
-
 import { ApiEndpointMetric, ApiMetricsData } from '../../types/status';
 
+function StatusCard({
+  title,
+  status,
+  isLoading,
+  isError,
+  onRetry,
+  children,
+}: {
+  title: string;
+  status?: string;
+  isLoading: boolean;
+  isError: boolean;
+  onRetry: () => void;
+  children: React.ReactNode;
+}) {
+  if (isLoading) {
+    return (
+      <div className="card animate-pulse">
+        <div className="h-6 w-32 bg-dark-700/50 rounded mb-4" />
+        <div className="space-y-2">
+          <div className="h-4 bg-dark-700/40 rounded" />
+          <div className="h-4 bg-dark-700/40 rounded w-2/3" />
+        </div>
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="card border-red-800/50">
+        <h3 className="text-lg font-semibold mb-3">{title}</h3>
+        <QueryErrorBanner message={`Kunne ikke laste ${title.toLowerCase()}.`} onRetry={onRetry} />
+      </div>
+    );
+  }
+
+  const ok = status === 'ok' || status === 'healthy';
+
+  return (
+    <div className={`card ${ok ? 'border-green-700/50' : 'border-red-700/50'}`}>
+      <div className="flex items-center gap-3 mb-4">
+        <div className={`w-3 h-3 rounded-full ${ok ? 'bg-green-500' : 'bg-red-500'}`} />
+        <h3 className="text-lg font-semibold">{title}</h3>
+        <span
+          className={`ml-auto px-2 py-1 rounded text-xs font-medium ${
+            ok ? 'bg-green-600/20 text-green-400' : 'bg-red-600/20 text-red-400'
+          }`}
+        >
+          {status?.toUpperCase() ?? '—'}
+        </span>
+      </div>
+      {children}
+    </div>
+  );
+}
+
 export function AdminStatus() {
+  const queryClient = useQueryClient();
   const [tableState, setTableState] = useState<DataTableState>({
     sortKey: null,
     sortDirection: null,
@@ -14,55 +71,68 @@ export function AdminStatus() {
     visibleColumnKeys: ['method', 'path', 'avgMs', 'minMs', 'maxMs', 'count', 'slowCount'],
   });
 
-  const { data: systemStatus, refetch: refetchSystem } = useQuery({
+  const systemQuery = useQuery({
     queryKey: ['admin', 'status'],
-    queryFn: () => statusApi.getStatus().then(res => res.data),
+    queryFn: () => statusApi.getStatus().then((res) => res.data),
   });
 
-  const { data: importStatus, refetch: refetchImport } = useQuery({
+  const importQuery = useQuery({
     queryKey: ['admin', 'import-status'],
-    queryFn: () => statusApi.getImportStatus().then(res => res.data),
+    queryFn: () => statusApi.getImportStatus().then((res) => res.data),
   });
 
-  const { data: extractionStatus, refetch: refetchExtraction } = useQuery({
+  const extractionQuery = useQuery({
     queryKey: ['admin', 'extraction-status'],
-    queryFn: () => statusApi.getExtractionStatus().then(res => res.data),
+    queryFn: () => statusApi.getExtractionStatus().then((res) => res.data),
   });
 
-  const { data: healthStatus, refetch: refetchHealth } = useQuery({
+  const healthQuery = useQuery({
     queryKey: ['admin', 'health'],
-    queryFn: () => statusApi.getHealth().then(res => res.data),
+    queryFn: () => statusApi.getHealth().then((res) => res.data),
   });
 
-  const { data: apiMetrics, refetch: refetchMetrics } = useQuery<ApiMetricsData>({
+  const apiMetricsQuery = useQuery<ApiMetricsData>({
     queryKey: ['admin', 'api-metrics'],
-    queryFn: () => statusApi.getApiMetrics().then(res => res.data),
+    queryFn: () => statusApi.getApiMetrics().then((res) => res.data),
   });
-  
 
-  const loadAllStatus = async () => {
-    await Promise.all([
-      refetchSystem(),
-      refetchImport(),
-      refetchExtraction(),
-      refetchHealth(),
-      refetchMetrics(),
-    ]);
+  const etlMetricsQuery = useQuery({
+    queryKey: ['admin', 'etl-metrics'],
+    queryFn: () => statusApi.getEtlMetrics().then((res) => res.data),
+  });
+
+  const loadAllStatus = () => {
+    void queryClient.invalidateQueries({ queryKey: ['admin', 'status'] });
+    void queryClient.invalidateQueries({ queryKey: ['admin', 'import-status'] });
+    void queryClient.invalidateQueries({ queryKey: ['admin', 'extraction-status'] });
+    void queryClient.invalidateQueries({ queryKey: ['admin', 'health'] });
+    void queryClient.invalidateQueries({ queryKey: ['admin', 'api-metrics'] });
+    void queryClient.invalidateQueries({ queryKey: ['admin', 'etl-metrics'] });
   };
 
-  const isLoading = !systemStatus || !importStatus || !extractionStatus || !healthStatus || !apiMetrics;
+  const systemStatus = systemQuery.data;
+  const importStatus = importQuery.data;
+  const extractionStatus = extractionQuery.data;
+  const healthStatus = healthQuery.data;
+  const apiMetrics = apiMetricsQuery.data;
+  const etlMetrics = etlMetricsQuery.data;
 
   const endpointColumns = [
     {
       key: 'method',
       header: 'Metode',
       render: (value: string) => (
-        <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-          value === 'GET' ? 'bg-blue-500/20 text-blue-400' :
-          value === 'POST' ? 'bg-green-500/20 text-green-400' :
-          value === 'PUT' ? 'bg-yellow-500/20 text-yellow-400' :
-          'bg-red-500/20 text-red-400'
-        }`}>
+        <span
+          className={`px-2 py-0.5 rounded text-xs font-medium ${
+            value === 'GET'
+              ? 'bg-blue-500/20 text-blue-400'
+              : value === 'POST'
+                ? 'bg-green-500/20 text-green-400'
+                : value === 'PUT'
+                  ? 'bg-yellow-500/20 text-yellow-400'
+                  : 'bg-red-500/20 text-red-400'
+          }`}
+        >
           {value}
         </span>
       ),
@@ -75,73 +145,59 @@ export function AdminStatus() {
     { key: 'slowCount', header: 'Trege', align: 'right' as const },
   ];
 
-  const StatusCard = ({ title, status, children }: { title: string; status: string; children: React.ReactNode }) => (
-    <div className={`card ${status === 'ok' || status === 'healthy' ? 'border-green-700/50' : 'border-red-700/50'}`}>
-      <div className="flex items-center gap-3 mb-4">
-        <div className={`w-3 h-3 rounded-full ${status === 'ok' || status === 'healthy' ? 'bg-green-500' : 'bg-red-500'}`}></div>
-        <h3 className="text-lg font-semibold">{title}</h3>
-        <span className={`ml-auto px-2 py-1 rounded text-xs font-medium ${
-          status === 'ok' || status === 'healthy' 
-            ? 'bg-green-600/20 text-green-400' 
-            : 'bg-red-600/20 text-red-400'
-        }`}>
-          {status?.toUpperCase()}
-        </span>
-      </div>
-      {children}
-    </div>
-  );
-
-  if (isLoading) {
-    return (
-      <Layout title="System Status">
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-500"></div>
-        </div>
-      </Layout>
-    );
-  }
-
   return (
     <Layout title="System Status">
       <div className="space-y-6">
-        {/* Refresh button */}
         <div className="flex justify-end">
-          <button onClick={loadAllStatus} className="btn-secondary">
-            🔄 Oppdater Status
+          <button type="button" onClick={loadAllStatus} className="btn-secondary">
+            Oppdater status
           </button>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* System Status */}
-          <StatusCard title="System Status" status={systemStatus?.status}>
+          <StatusCard
+            title="System Status"
+            status={systemStatus?.status}
+            isLoading={systemQuery.isLoading}
+            isError={systemQuery.isError}
+            onRetry={() => systemQuery.refetch()}
+          >
             <div className="space-y-3">
               <div className="flex justify-between">
                 <span className="text-dark-400">Database</span>
                 <span className={systemStatus?.database?.connected ? 'text-green-400' : 'text-red-400'}>
-                  {systemStatus?.database?.connected ? '✅ Tilkoblet' : '❌ Frakoblet'}
+                  {systemStatus?.database?.connected ? 'Tilkoblet' : 'Frakoblet'}
                 </span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-dark-400">Tidsstempel</span>
-                <span>{new Date(systemStatus?.timestamp).toLocaleString('nb-NO')}</span>
-              </div>
-              <div className="pt-3 border-t border-dark-800">
-                <span className="text-sm text-dark-400">Tabeller i database:</span>
-                <div className="grid grid-cols-2 gap-2 mt-2">
-                  {systemStatus?.tables && Object.entries(systemStatus.tables).map(([key, value]) => (
-                    <div key={key} className="flex justify-between bg-dark-800/50 p-2 rounded">
-                      <span className="text-dark-300 capitalize">{key}</span>
-                      <span className="font-mono">{String(value)}</span>
-                    </div>
-                  ))}
+              {systemStatus?.timestamp && (
+                <div className="flex justify-between">
+                  <span className="text-dark-400">Tidsstempel</span>
+                  <span>{new Date(systemStatus.timestamp).toLocaleString('nb-NO')}</span>
                 </div>
-              </div>
+              )}
+              {systemStatus?.tables && (
+                <div className="pt-3 border-t border-dark-800">
+                  <span className="text-sm text-dark-400">Tabeller i database:</span>
+                  <div className="grid grid-cols-2 gap-2 mt-2">
+                    {Object.entries(systemStatus.tables).map(([key, value]) => (
+                      <div key={key} className="flex justify-between bg-dark-800/50 p-2 rounded">
+                        <span className="text-dark-300 capitalize">{key}</span>
+                        <span className="font-mono">{String(value)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </StatusCard>
 
-          {/* Health Status */}
-          <StatusCard title="Backend Helse" status={healthStatus?.status}>
+          <StatusCard
+            title="Backend Helse"
+            status={healthStatus?.status}
+            isLoading={healthQuery.isLoading}
+            isError={healthQuery.isError}
+            onRetry={() => healthQuery.refetch()}
+          >
             <div className="space-y-3">
               <div className="flex justify-between">
                 <span className="text-dark-400">Kjøretid</span>
@@ -155,139 +211,129 @@ export function AdminStatus() {
                 <span className="text-dark-400">Heap brukt</span>
                 <span className="font-mono">{healthStatus?.backend?.memory?.heapUsed}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-dark-400">Heap totalt</span>
-                <span className="font-mono">{healthStatus?.backend?.memory?.heapTotal}</span>
-              </div>
             </div>
           </StatusCard>
 
-          {/* Import Status */}
-          <StatusCard title="Data Import Status" status={importStatus?.status}>
+          <StatusCard
+            title="Data Import Status"
+            status={importStatus?.status}
+            isLoading={importQuery.isLoading}
+            isError={importQuery.isError}
+            onRetry={() => importQuery.refetch()}
+          >
             <div className="space-y-3">
               <div className="flex justify-between">
                 <span className="text-dark-400">Siste import</span>
-                <span>{importStatus?.lastImport ? new Date(importStatus.lastImport).toLocaleString('nb-NO') : '-'}</span>
+                <span>
+                  {importStatus?.lastImport
+                    ? new Date(importStatus.lastImport).toLocaleString('nb-NO')
+                    : '-'}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-dark-400">Totale ordrer</span>
                 <span className="font-mono">{importStatus?.totalOrders}</span>
               </div>
-              {importStatus?.latestOrder && (
-                <div className="flex justify-between">
-                  <span className="text-dark-400">Nyeste ordre</span>
-                  <span>#{importStatus.latestOrder.ordrenr} ({new Date(importStatus.latestOrder.dato).toLocaleDateString('nb-NO')})</span>
-                </div>
+              {importStatus?.message && (
+                <p className="text-sm text-dark-400 pt-3 border-t border-dark-800">{importStatus.message}</p>
               )}
-              <div className="pt-3 border-t border-dark-800">
-                <span className="text-sm text-dark-400">{importStatus?.message}</span>
-              </div>
             </div>
           </StatusCard>
 
-          {/* Extraction Status */}
-          <StatusCard title="Data Extraction Status" status={extractionStatus?.status}>
+          <StatusCard
+            title="Data Extraction Status"
+            status={extractionStatus?.status}
+            isLoading={extractionQuery.isLoading}
+            isError={extractionQuery.isError}
+            onRetry={() => extractionQuery.refetch()}
+          >
             <div className="space-y-3">
-              <div className="flex justify-between">
-                <span className="text-dark-400">Siste uttrekk</span>
-                <span>{extractionStatus?.lastExtraction ? new Date(extractionStatus.lastExtraction).toLocaleString('nb-NO') : '-'}</span>
-              </div>
-              {extractionStatus?.details && (
-                <>
-                  <div className="flex justify-between">
-                    <span className="text-dark-400">Kilde</span>
-                    <span>{extractionStatus.details.source}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-dark-400">Destinasjon</span>
-                    <span>{extractionStatus.details.destination}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-dark-400">Status</span>
-                    <span className={extractionStatus.details.healthy ? 'text-green-400' : 'text-red-400'}>
-                      {extractionStatus.details.healthy ? '✅ Sunn' : '❌ Problemer'}
-                    </span>
-                  </div>
-                </>
+              {extractionStatus?.message && (
+                <p className="text-sm text-dark-400">{extractionStatus.message}</p>
               )}
-              <div className="pt-3 border-t border-dark-800">
-                <span className="text-sm text-dark-400">{extractionStatus?.message}</span>
-              </div>
             </div>
           </StatusCard>
         </div>
 
-        {/* API Performance Metrics - Full Width */}
-        {apiMetrics && (
+        {etlMetricsQuery.isError ? (
+          <QueryErrorBanner
+            message="Kunne ikke laste ETL-kjøringshistorikk."
+            onRetry={() => etlMetricsQuery.refetch()}
+          />
+        ) : etlMetrics && etlMetrics.recentRuns?.length > 0 ? (
+          <div className="card">
+            <h3 className="text-lg font-semibold mb-4">ETL kjøringshistorikk</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr>
+                    <th className="table-header">Tid</th>
+                    <th className="table-header text-right">Innsatt</th>
+                    <th className="table-header text-right">Avvist</th>
+                    <th className="table-header text-right">Rader/s</th>
+                    <th className="table-header text-right">Varighet (ms)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {etlMetrics.recentRuns.slice(0, 10).map((run: {
+                    finishedAt: string;
+                    insertedRows: number;
+                    rejectedRows: number;
+                    rowsPerSecond: number;
+                    durationMs: number;
+                  }, i: number) => (
+                    <tr key={`${run.finishedAt}-${i}`}>
+                      <td className="table-cell">
+                        {new Date(run.finishedAt).toLocaleString('nb-NO')}
+                      </td>
+                      <td className="table-cell text-right">{run.insertedRows}</td>
+                      <td className="table-cell text-right">{run.rejectedRows}</td>
+                      <td className="table-cell text-right">{run.rowsPerSecond}</td>
+                      <td className="table-cell text-right">{run.durationMs}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : null}
+
+        {apiMetricsQuery.isError ? (
+          <QueryErrorBanner
+            message="Kunne ikke laste API-ytelsesdata."
+            onRetry={() => apiMetricsQuery.refetch()}
+          />
+        ) : apiMetrics ? (
           <div className="card">
             <div className="flex items-center gap-3 mb-4">
-              <div className={`w-3 h-3 rounded-full ${apiMetrics.summary.status === 'ok' ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
-              <h3 className="text-lg font-semibold">⚡ API Ytelse</h3>
-              <span className={`ml-auto px-2 py-1 rounded text-xs font-medium ${
-                apiMetrics.summary.status === 'ok' 
-                  ? 'bg-green-600/20 text-green-400' 
-                  : 'bg-yellow-600/20 text-yellow-400'
-              }`}>
-                {apiMetrics.summary.totalSlowRequests > 0 
-                  ? `${apiMetrics.summary.totalSlowRequests} TREGE` 
-                  : 'OK'}
-              </span>
+              <div
+                className={`w-3 h-3 rounded-full ${apiMetrics.summary.status === 'ok' ? 'bg-green-500' : 'bg-yellow-500'}`}
+              />
+              <h3 className="text-lg font-semibold">API Ytelse</h3>
             </div>
-
-            {/* Summary Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-              <div className="bg-dark-800/50 p-3 rounded-lg text-center">
-                <p className="text-2xl font-bold">{apiMetrics.summary.totalEndpoints}</p>
-                <p className="text-xs text-dark-400">Endepunkter</p>
-              </div>
-              <div className="bg-dark-800/50 p-3 rounded-lg text-center">
-                <p className="text-2xl font-bold">{apiMetrics.summary.totalRequests}</p>
-                <p className="text-xs text-dark-400">Totale kall</p>
-              </div>
-              <div className={`p-3 rounded-lg text-center ${apiMetrics.summary.totalSlowRequests > 0 ? 'bg-yellow-500/20' : 'bg-dark-800/50'}`}>
-                <p className={`text-2xl font-bold ${apiMetrics.summary.totalSlowRequests > 0 ? 'text-yellow-400' : ''}`}>
-                  {apiMetrics.summary.totalSlowRequests}
-                </p>
-                <p className="text-xs text-dark-400">{"Trege (>1s)"}</p>
-              </div>
-              <div className="bg-dark-800/50 p-3 rounded-lg text-center">
-                <p className="text-2xl font-bold text-primary-400">
-                  {apiMetrics.summary.slowestEndpoint?.avgMs || 0}ms
-                </p>
-                <p className="text-xs text-dark-400">Tregeste snitt</p>
-              </div>
-            </div>
-
-            {/* Endpoint List */}
-            {apiMetrics.endpoints.length > 0 && (
-              <>
-                <h4 className="text-sm font-medium text-dark-300 mb-3">Endepunkter (sortert etter responstid)</h4>
-                <DataTable
-                  data={apiMetrics.endpoints.slice(0, 15)}
-                  columns={endpointColumns}
-                  emptyMessage="Ingen endepunkter registrert ennå"
-                  paginate={false}
-                  stickyFirstColumn
-                  enableColumnManagement
-                  enableCsvExport
-                  exportFilename="api-endpoint-metrics"
-                  title="API-endepunkter"
-                  storageKey="table:admin-status-api-metrics"
-                  state={tableState}
-                  onStateChange={setTableState}
-                  rowKey={(row: ApiEndpointMetric) => `${row.method}-${row.path}`}
-                />
-                {apiMetrics.endpoints.length > 15 && (
-                  <p className="text-xs text-dark-500 mt-2">Viser første 15 av {apiMetrics.endpoints.length} endepunkter</p>
-                )}
-              </>
-            )}
-
-            {apiMetrics.endpoints.length === 0 && (
-              <p className="text-dark-400 text-center py-4">Ingen API-kall registrert ennå. Bruk applikasjonen for å generere data.</p>
+            {apiMetrics.endpoints.length > 0 ? (
+              <DataTable
+                data={apiMetrics.endpoints.slice(0, 15)}
+                columns={endpointColumns}
+                emptyMessage="Ingen endepunkter registrert"
+                paginate={false}
+                stickyFirstColumn
+                enableColumnManagement
+                enableCsvExport
+                exportFilename="api-endpoint-metrics"
+                title="API-endepunkter"
+                storageKey="table:admin-status-api-metrics"
+                state={tableState}
+                onStateChange={setTableState}
+                rowKey={(row: ApiEndpointMetric) => `${row.method}-${row.path}`}
+              />
+            ) : (
+              <p className="text-dark-400 text-center py-4">Ingen API-kall registrert ennå.</p>
             )}
           </div>
-        )}
+        ) : apiMetricsQuery.isLoading ? (
+          <div className="card animate-pulse h-48" />
+        ) : null}
       </div>
     </Layout>
   );

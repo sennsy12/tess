@@ -1,4 +1,10 @@
 import { INITIAL_GROUP_FORM, GroupsTabProps } from '../../../../types/pricing';
+import { EmptyState } from '../../../../components/EmptyState';
+import { Users } from 'lucide-react';
+
+interface ExtendedGroupsTabProps extends GroupsTabProps {
+  onContinue?: () => void;
+}
 
 export function GroupsTab({
   groups,
@@ -11,7 +17,8 @@ export function GroupsTab({
   handleCreateGroup,
   handleUpdateGroup,
   handleDeleteGroup,
-}: GroupsTabProps) {
+  onContinue,
+}: ExtendedGroupsTabProps) {
   return (
     <div className="card">
       <div className="flex justify-between items-center mb-4">
@@ -74,6 +81,26 @@ export function GroupsTab({
       )}
 
       {/* Groups Table */}
+      {groups.length === 0 && !showGroupForm && !editingGroup ? (
+        <EmptyState
+          icon={<Users className="h-8 w-8" />}
+          title="Ingen kundegrupper ennå"
+          description="Kundegrupper lar deg gi ulike priser til ulike kundetyper — f.eks. grossister, VIP-kunder eller regioner."
+          action={
+            <button
+              type="button"
+              onClick={() => {
+                setShowGroupForm(true);
+                setEditingGroup(null);
+                setGroupForm(INITIAL_GROUP_FORM);
+              }}
+              className="btn-primary"
+            >
+              Opprett første gruppe
+            </button>
+          }
+        />
+      ) : (
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead>
@@ -110,6 +137,15 @@ export function GroupsTab({
           </tbody>
         </table>
       </div>
+      )}
+
+      {groups.length > 0 && onContinue && (
+        <div className="mt-4 flex justify-end border-t border-dark-700 pt-4">
+          <button type="button" onClick={onContinue} className="btn-secondary text-sm">
+            Neste: Prislister →
+          </button>
+        </div>
+      )}
     </div>
   );
 }
