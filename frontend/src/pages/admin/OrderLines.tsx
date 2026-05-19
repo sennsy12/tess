@@ -174,6 +174,7 @@ export function AdminOrderLines() {
     {
       key: 'linjestatus',
       header: 'Status',
+      csvValue: (value: number) => (value === 1 ? 'Aktiv' : 'Inaktiv'),
       render: (value: number) => (
         <span
           className={`px-2 py-1 rounded text-xs font-medium ${
@@ -189,6 +190,10 @@ export function AdminOrderLines() {
     {
       key: 'henvisning1',
       header: 'Henvisninger',
+      csvValue: (_: any, row: OrderLine) => {
+        const refs = [row.henvisning1, row.henvisning2, row.henvisning3, row.henvisning4, row.henvisning5].filter(Boolean);
+        return refs.join('; ');
+      },
       render: (_: any, row: OrderLine) => {
         const refs = [
           row.henvisning1,
@@ -216,6 +221,8 @@ export function AdminOrderLines() {
       key: 'actions',
       header: 'Handlinger',
       sortable: false,
+      hideable: true,
+      csvValue: () => '',
       render: (_: any, row: OrderLine) => (
         <div className="flex gap-2">
           <button
@@ -290,6 +297,9 @@ export function AdminOrderLines() {
           columns={columns}
           emptyMessage="Ingen ordrelinjer funnet"
           paginate={false}
+          enableCsvExport
+          exportFilename="admin-orderlines"
+          title="Ordrelinjer"
         />
         )}
 

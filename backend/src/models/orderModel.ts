@@ -57,8 +57,8 @@ export const orderModel = {
     }
 
     if (filters.ordrenr) {
-      baseSql += ` AND o.ordrenr = $${paramIndex++}`;
-      params.push(Number(filters.ordrenr));
+      baseSql += ` AND o.ordrenr::text LIKE $${paramIndex++}`;
+      params.push(`%${filters.ordrenr}%`);
     }
 
     if (filters.startDate) {

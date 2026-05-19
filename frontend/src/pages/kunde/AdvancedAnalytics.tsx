@@ -7,9 +7,11 @@ import { ExportButton } from '../../components/ExportButton';
 import { AutocompleteInput } from '../../components/AutocompleteInput';
 import { SavedViewsPanel } from '../../components/SavedViewsPanel';
 import { ChartSkeleton, TableSkeleton } from '../../components/Skeleton';
+import { Pagination } from '../../components/admin';
 import { useSavedViews } from '../../hooks/useSavedViews';
 
 type Metric = 'sum' | 'count' | 'quantity';
+const DETAILS_PAGE_SIZE = 25;
 type Dimension = 'day' | 'month' | 'year' | 'product' | 'category';
 type ChartType = 'bar' | 'line' | 'pie';
 
@@ -78,8 +80,13 @@ export function AdvancedAnalytics() {
     search: '',
   });
 
+  const [detailsPage, setDetailsPage] = useState(1);
   const chartRef = useRef<HTMLDivElement>(null);
   const hasAppliedDefaultView = useRef(false);
+
+  useEffect(() => {
+    setDetailsPage(1);
+  }, [config.metric, config.dimension, config.startDate, config.endDate, config.search]);
 
   const {
     views,
@@ -158,8 +165,8 @@ export function AdvancedAnalytics() {
         <div className="lg:col-span-1 space-y-6 min-w-0">
           <div className="card">
             <div className="mb-4">
-              <h3 className="font-semibold text-lg">Guided presets</h3>
-              <p className="text-sm text-dark-400 mt-1">Bruk ferdige oppsett for å komme raskt i gang.</p>
+              <h3 className="font-semibold text-lg">Anbefalte analyser</h3>
+              <p className="text-sm text-dark-400 mt-1">Start raskt med ferdige oppsett for de vanligste spørsmålene.</p>
             </div>
             <div className="space-y-2">
               {ANALYTICS_PRESETS.map((preset) => (
@@ -361,7 +368,15 @@ export function AdvancedAnalytics() {
 
               {/* Data Table */}
               <div className="card">
-                <h3 className="font-semibold text-lg mb-4">📋 Detaljer</h3>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold text-lg">📋 Detaljer</h3>
+                  {data.length > 0 && (
+                    <span className="text-sm text-dark-400">
+                      Viser {(detailsPage - 1) * DETAILS_PAGE_SIZE + 1}-
+                      {Math.min(detailsPage * DETAILS_PAGE_SIZE, data.length)} av {data.length}
+                    </span>
+                  )}
+                </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left">
                     <thead>
@@ -371,17 +386,19 @@ export function AdvancedAnalytics() {
                       </tr>
                     </thead>
                     <tbody>
-                      {data.map((item, i) => (
-                        <tr key={i} className="border-b border-dark-800 hover:bg-dark-700/50">
-                          <td className="p-3">{item.label}</td>
-                          <td className="p-3 text-right font-mono">
-                            {config.metric === 'sum' 
-                              ? new Intl.NumberFormat('nb-NO', { style: 'currency', currency: 'NOK' }).format(item.value)
-                              : new Intl.NumberFormat('nb-NO').format(item.value)
-                            }
-                          </td>
-                        </tr>
-                      ))}
+                      {data
+                        .slice((detailsPage - 1) * DETAILS_PAGE_SIZE, detailsPage * DETAILS_PAGE_SIZE)
+                        .map((item, i) => (
+                          <tr key={item.label || i} className="border-b border-dark-800 hover:bg-dark-700/50">
+                            <td className="p-3">{item.label}</td>
+                            <td className="p-3 text-right font-mono">
+                              {config.metric === 'sum'
+                                ? new Intl.NumberFormat('nb-NO', { style: 'currency', currency: 'NOK' }).format(item.value)
+                                : new Intl.NumberFormat('nb-NO').format(item.value)
+                              }
+                            </td>
+                          </tr>
+                        ))}
                       {data.length === 0 && (
                         <tr>
                           <td colSpan={2} className="p-8 text-center text-dark-400">
@@ -392,6 +409,20 @@ export function AdvancedAnalytics() {
                     </tbody>
                   </table>
                 </div>
+                {data.length > DETAILS_PAGE_SIZE && (
+                  <div className="mt-4">
+                    <Pagination
+                      pagination={{
+                        page: detailsPage,
+                        total: data.length,
+                        limit: DETAILS_PAGE_SIZE,
+                        totalPages: Math.ceil(data.length / DETAILS_PAGE_SIZE),
+                      }}
+                      onPageChange={setDetailsPage}
+                      variant="simple"
+                    />
+                  </div>
+                )}
               </div>
             </div>
           )}

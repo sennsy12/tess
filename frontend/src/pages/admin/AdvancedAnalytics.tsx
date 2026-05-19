@@ -7,9 +7,12 @@ import { ExportButton } from '../../components/ExportButton';
 import { AutocompleteInput } from '../../components/AutocompleteInput';
 import { SavedViewsPanel } from '../../components/SavedViewsPanel';
 import { ChartSkeleton, TableSkeleton } from '../../components/Skeleton';
+import { Pagination } from '../../components/admin';
 import { useSavedViews } from '../../hooks/useSavedViews';
 
 import { Metric, Dimension, ChartType } from '../../types/statistics';
+
+const DETAILS_PAGE_SIZE = 25;
 
 interface AnalyticsDataPoint {
   label: string;
@@ -27,7 +30,7 @@ const shiftDays = (days: number) => {
 const ANALYTICS_PRESETS = [
   {
     id: 'monthly-revenue',
-    label: 'Monthly revenue',
+    label: 'Månedlig omsetning',
     description: 'Omsetning per måned siste 12 måneder',
     config: {
       metric: 'sum' as Metric,
@@ -40,7 +43,7 @@ const ANALYTICS_PRESETS = [
   },
   {
     id: 'quarterly-category-mix',
-    label: 'Quarterly category mix',
+    label: 'Kvartalsvis varegruppefordeling',
     description: 'Omsetning per varegruppe siste 90 dager',
     config: {
       metric: 'sum' as Metric,
@@ -53,7 +56,7 @@ const ANALYTICS_PRESETS = [
   },
   {
     id: 'products-by-category',
-    label: 'Products by category',
+    label: 'Produkter per kategori',
     description: 'Antall varer per varegruppe siste 30 dager',
     config: {
       metric: 'quantity' as Metric,
@@ -66,7 +69,7 @@ const ANALYTICS_PRESETS = [
   },
   {
     id: 'compare-this-month',
-    label: 'This month day by day',
+    label: 'Denne måneden dag for dag',
     description: 'Daglig omsetning siste 30 dager',
     config: {
       metric: 'sum' as Metric,
@@ -79,8 +82,8 @@ const ANALYTICS_PRESETS = [
   },
   {
     id: 'warehouse-revenue-trend',
-    label: 'Warehouse revenue trend',
-    description: 'Bruk produktvisning for å finne lager- og varetrender',
+    label: 'Lagertrend',
+    description: 'Se omsetning per lager/produkt siste 30 dager',
     config: {
       metric: 'sum' as Metric,
       dimension: 'product' as Dimension,
@@ -103,6 +106,7 @@ export function AdminAdvancedAnalytics() {
   });
 
   const [debouncedSearch, setDebouncedSearch] = useState(config.search);
+  const [detailsPage, setDetailsPage] = useState(1);
   const chartRef = useRef<HTMLDivElement>(null);
   const hasAppliedDefaultView = useRef(false);
 
@@ -124,6 +128,10 @@ export function AdminAdvancedAnalytics() {
     const t = setTimeout(() => setDebouncedSearch(config.search), 300);
     return () => clearTimeout(t);
   }, [config.search]);
+
+  useEffect(() => {
+    setDetailsPage(1);
+  }, [config.metric, config.dimension, config.startDate, config.endDate, debouncedSearch]);
 
   useEffect(() => {
     if (!defaultView || hasAppliedDefaultView.current) return;
@@ -190,8 +198,8 @@ export function AdminAdvancedAnalytics() {
         <div className="lg:col-span-1 space-y-6 min-w-0">
           <div className="card">
             <div className="mb-4">
-              <h3 className="font-semibold text-lg">Guided presets</h3>
-              <p className="text-sm text-dark-400 mt-1">Start med et ferdig analysemønster og finjuster derfra.</p>
+              <h3 className="font-semibold text-lg">Anbefalte analyser</h3>
+              <p className="text-sm text-dark-400 mt-1">Start raskt med ferdige oppsett for de vanligste spørsmålene.</p>
             </div>
             <div className="space-y-2">
               {ANALYTICS_PRESETS.map((preset) => (
@@ -397,7 +405,15 @@ export function AdminAdvancedAnalytics() {
 
               {/* Data Table */}
               <div className="card">
-                <h3 className="font-semibold text-lg mb-4">📋 Detaljer</h3>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold text-lg">📋 Detaljer</h3>
+                  {data.length > 0 && (
+                    <span className="text-sm text-dark-400">
+                      Viser {(detailsPage - 1) * DETAILS_PAGE_SIZE + 1}-
+                      {Math.min(detailsPage * DETAILS_PAGE_SIZE, data.length)} av {data.length}
+                    </span>
+                  )}
+                </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left">
                     <thead>
@@ -407,12 +423,14 @@ export function AdminAdvancedAnalytics() {
                       </tr>
                     </thead>
                     <tbody>
-                      {data.map((item) => (
-                        <tr key={item.label} className="border-b border-dark-800 hover:bg-dark-700/50">
-                          <td className="p-3">{item.label}</td>
-                          <td className="p-3 text-right font-mono">{valueFormatter(item.value)}</td>
-                        </tr>
-                      ))}
+                      {data
+                        .slice((detailsPage - 1) * DETAILS_PAGE_SIZE, detailsPage * DETAILS_PAGE_SIZE)
+                        .map((item) => (
+                          <tr key={item.label} className="border-b border-dark-800 hover:bg-dark-700/50">
+                            <td className="p-3">{item.label}</td>
+                            <td className="p-3 text-right font-mono">{valueFormatter(item.value)}</td>
+                          </tr>
+                        ))}
                       {data.length === 0 && (
                         <tr>
                           <td colSpan={2} className="p-8 text-center text-dark-400">
@@ -423,6 +441,20 @@ export function AdminAdvancedAnalytics() {
                     </tbody>
                   </table>
                 </div>
+                {data.length > DETAILS_PAGE_SIZE && (
+                  <div className="mt-4">
+                    <Pagination
+                      pagination={{
+                        page: detailsPage,
+                        total: data.length,
+                        limit: DETAILS_PAGE_SIZE,
+                        totalPages: Math.ceil(data.length / DETAILS_PAGE_SIZE),
+                      }}
+                      onPageChange={setDetailsPage}
+                      variant="simple"
+                    />
+                  </div>
+                )}
               </div>
             </div>
           )}

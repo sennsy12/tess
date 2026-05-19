@@ -20,6 +20,8 @@ import { AdminOrders } from './pages/admin/Orders'
 import { AdminOrderDetail } from './pages/admin/OrderDetail'
 import { AdminAdvancedAnalytics } from './pages/admin/AdvancedAnalytics'
 import { AdminUsers } from './pages/admin/Users'
+import { AdminCustomers } from './pages/admin/Customers'
+import { AdminProducts } from './pages/admin/Products'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -141,6 +143,16 @@ function App() {
           <Route path="/admin/users" element={
             <ProtectedRoute allowedRoles={['admin']}>
               <AdminUsers />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/customers" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <AdminCustomers />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/products" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <AdminProducts />
             </ProtectedRoute>
           } />
           
