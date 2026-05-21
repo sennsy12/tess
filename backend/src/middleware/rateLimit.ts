@@ -1,5 +1,6 @@
 import rateLimit from 'express-rate-limit';
 import { Request } from 'express';
+import type { AuthRequest } from './auth.js';
 
 const isDevelopment = process.env.NODE_ENV === 'development';
 
@@ -47,4 +48,17 @@ export const searchLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: 'Search rate limit exceeded. Please slow down.' },
   skip: () => isDevelopment,
+});
+
+/** AI assistant — per authenticated user (cost + abuse protection). */
+export const assistantLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: isDevelopment ? 200 : 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'For mange assistent-forespørsler. Prøv igjen om en stund.' },
+  keyGenerator: (req: Request) => {
+    const userId = (req as AuthRequest).user?.id;
+    return userId != null ? `assistant:${userId}` : `assistant:ip:${req.ip}`;
+  },
 });

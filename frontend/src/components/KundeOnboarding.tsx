@@ -12,6 +12,12 @@ const STEPS = [
     path: '/kunde',
   },
   {
+    title: 'Din bedriftsprofil',
+    body: 'Under Min konto finner du firmainfo, kundegruppe og handelsoversikt — som et digitalt kundepass.',
+    cta: 'Min konto',
+    path: '/kunde/konto',
+  },
+  {
     title: 'Finn og filtrer ordrer',
     body: 'Under Ordrer kan du søke, filtrere på dato og lagre dine favorittvisninger.',
     cta: 'Gå til ordrer',
@@ -22,6 +28,12 @@ const STEPS = [
     body: 'Bruk Statistikk og Avansert Analyse for å forstå kjøpsmønstre over tid.',
     cta: 'Åpne statistikk',
     path: '/kunde/statistics',
+  },
+  {
+    title: 'Se dine priser',
+    body: 'Under Mine priser finner du avtalte prisregler og rabatter som gjelder for kontoen din.',
+    cta: 'Mine priser',
+    path: '/kunde/pricing',
   },
 ];
 

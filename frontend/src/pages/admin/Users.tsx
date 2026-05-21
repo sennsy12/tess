@@ -2,7 +2,9 @@ import { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { Layout } from '../../components/Layout';
+import { QueryRefetchBar } from '../../components/QueryRefetchBar';
 import { DataTable, type DataTableState } from '../../components/DataTable';
+import { userKeys } from '../../lib/queryKeys';
 import { PageHeader, Pagination, FormModal, ConfirmModal, ActionKeyModal, TableSkeleton } from '../../components/admin';
 import { usersApi } from '../../lib/api';
 import type { UserPublic, CreateUserPayload, UpdateUserPayload, UserRole } from '../../types/user';
@@ -156,11 +158,14 @@ export function AdminUsers() {
   });
 
   // ── Queries ─────────────────────────────────────────────
-  const { data: usersData, isLoading } = useQuery({
-    queryKey: ['admin', 'users', page],
+  const { data: usersData, isLoading, isFetching } = useQuery({
+    queryKey: userKeys.list(page),
     queryFn: () => usersApi.getAll({ page, limit: PAGE_SIZE }).then((res) => res.data),
     placeholderData: (prev) => prev,
   });
+
+  const showSkeleton = isLoading && !usersData;
+  const showRefetchBar = isFetching && !!usersData;
 
   const users = usersData?.data ?? [];
   const pagination = usersData?.pagination ?? {
@@ -178,8 +183,8 @@ export function AdminUsers() {
     mutationFn: (data: CreateUserPayload) => usersApi.create(data),
     onMutate: async (newUser) => {
       await queryClient.cancelQueries({ queryKey: ['admin', 'users'] });
-      const previousData = queryClient.getQueryData(['admin', 'users', page]);
-      queryClient.setQueryData(['admin', 'users', page], (old: any) => {
+      const previousData = queryClient.getQueryData(userKeys.list(page));
+      queryClient.setQueryData(userKeys.list(page), (old: any) => {
         if (!old) return old;
         const optimisticUser: UserPublic = {
           id: Date.now(),
@@ -203,7 +208,7 @@ export function AdminUsers() {
     },
     onError: (err: any, _vars, context) => {
       if (context?.previousData) {
-        queryClient.setQueryData(['admin', 'users', page], context.previousData);
+        queryClient.setQueryData(userKeys.list(page), context.previousData);
       }
       toast.error(err.response?.data?.error ?? 'Kunne ikke opprette bruker');
     },
@@ -214,8 +219,8 @@ export function AdminUsers() {
       usersApi.update(id, data),
     onMutate: async ({ id, data }) => {
       await queryClient.cancelQueries({ queryKey: ['admin', 'users'] });
-      const previousData = queryClient.getQueryData(['admin', 'users', page]);
-      queryClient.setQueryData(['admin', 'users', page], (old: any) => {
+      const previousData = queryClient.getQueryData(userKeys.list(page));
+      queryClient.setQueryData(userKeys.list(page), (old: any) => {
         if (!old) return old;
         return {
           ...old,
@@ -240,7 +245,7 @@ export function AdminUsers() {
     },
     onError: (err: any, _vars, context) => {
       if (context?.previousData) {
-        queryClient.setQueryData(['admin', 'users', page], context.previousData);
+        queryClient.setQueryData(userKeys.list(page), context.previousData);
       }
       toast.error(err.response?.data?.error ?? 'Kunne ikke oppdatere bruker');
     },
@@ -251,8 +256,8 @@ export function AdminUsers() {
       usersApi.delete(id, actionKey),
     onMutate: async ({ id }) => {
       await queryClient.cancelQueries({ queryKey: ['admin', 'users'] });
-      const previousData = queryClient.getQueryData(['admin', 'users', page]);
-      queryClient.setQueryData(['admin', 'users', page], (old: any) => {
+      const previousData = queryClient.getQueryData(userKeys.list(page));
+      queryClient.setQueryData(userKeys.list(page), (old: any) => {
         if (!old) return old;
         return {
           ...old,
@@ -270,7 +275,7 @@ export function AdminUsers() {
     },
     onError: (err: any, _vars, context) => {
       if (context?.previousData) {
-        queryClient.setQueryData(['admin', 'users', page], context.previousData);
+        queryClient.setQueryData(userKeys.list(page), context.previousData);
       }
       toast.error(err.response?.data?.error ?? 'Kunne ikke slette bruker');
     },
@@ -455,9 +460,11 @@ export function AdminUsers() {
           }
         />
 
+        {showRefetchBar && <QueryRefetchBar active />}
+
         {/* Users table */}
         <div className="card p-0 lg:p-0 overflow-hidden">
-          {isLoading ? (
+          {showSkeleton ? (
             <TableSkeleton rows={8} columns={6} />
           ) : (
             <DataTable

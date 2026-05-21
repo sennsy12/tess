@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import { Layout } from '../../components/Layout';
 import { Breadcrumb } from '../../components/Breadcrumb';
 import { QueryErrorBanner } from '../../components/QueryErrorBanner';
+import { OrderWorkflowBadge } from '../../components/orders/OrderWorkflowBadge';
 import { ordersApi } from '../../lib/api';
+import { ORDER_WORKFLOW_LABELS, type OrderWorkflowStatus } from '../../types/notification';
 
 import { OrderDetail } from '../../types/order';
 
@@ -13,6 +16,7 @@ export function AdminOrderDetail() {
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
+  const [statusSaving, setStatusSaving] = useState(false);
 
   useEffect(() => {
     if (ordrenr) {
@@ -28,6 +32,23 @@ export function AdminOrderDetail() {
       setError(err.response?.data?.error || 'Kunne ikke laste ordre');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleStatusChange = async (workflowStatus: OrderWorkflowStatus) => {
+    if (!order) return;
+    setStatusSaving(true);
+    try {
+      await ordersApi.updateStatus(order.ordrenr, workflowStatus);
+      setOrder({ ...order, workflow_status: workflowStatus });
+      toast.success('Ordrestatus oppdatert');
+    } catch (err: unknown) {
+      const message =
+        (err as { response?: { data?: { error?: string } } })?.response?.data?.error ||
+        'Kunne ikke oppdatere status';
+      toast.error(message);
+    } finally {
+      setStatusSaving(false);
     }
   };
 
@@ -75,7 +96,6 @@ export function AdminOrderDetail() {
           ← Tilbake til ordrer
         </button>
 
-        {/* Order header */}
         <div className="card">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <div>
@@ -98,7 +118,7 @@ export function AdminOrderDetail() {
               </p>
             </div>
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6 pt-6 border-t border-dark-800">
             <div>
               <span className="text-sm text-dark-400">Firma</span>
@@ -111,6 +131,33 @@ export function AdminOrderDetail() {
             <div>
               <span className="text-sm text-dark-400">Kundeordrereferanse</span>
               <p>{order.kundeordreref || '-'}</p>
+            </div>
+          </div>
+
+          <div className="mt-6 pt-6 border-t border-dark-800 flex flex-wrap items-end gap-4">
+            <div>
+              <span className="text-sm text-dark-400 block mb-2">Arbeidsflytstatus</span>
+              <OrderWorkflowBadge status={order.workflow_status} />
+            </div>
+            <div>
+              <label className="label" htmlFor="workflowStatusSelect">
+                Endre status
+              </label>
+              <select
+                id="workflowStatusSelect"
+                className="input min-w-[200px]"
+                value={order.workflow_status ?? 'new'}
+                disabled={statusSaving}
+                onChange={(e) => handleStatusChange(e.target.value as OrderWorkflowStatus)}
+              >
+                {(Object.entries(ORDER_WORKFLOW_LABELS) as [OrderWorkflowStatus, string][]).map(
+                  ([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ),
+                )}
+              </select>
             </div>
           </div>
         </div>

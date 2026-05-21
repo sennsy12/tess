@@ -1,12 +1,12 @@
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, ClipboardList, BarChart3, Settings } from 'lucide-react';
+import { LayoutDashboard, ClipboardList, BarChart3, UserCircle } from 'lucide-react';
 import { isNavItemActive } from '../lib/navConfig';
 
 const items = [
   { path: '/kunde', label: 'Hjem', Icon: LayoutDashboard },
   { path: '/kunde/orders', label: 'Ordrer', Icon: ClipboardList },
   { path: '/kunde/statistics', label: 'Statistikk', Icon: BarChart3 },
-  { path: '/kunde/settings', label: 'Mer', Icon: Settings },
+  { path: '/kunde/konto', label: 'Konto', Icon: UserCircle },
 ];
 
 const paths = items.map((i) => i.path);

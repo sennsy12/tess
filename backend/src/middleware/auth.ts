@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
+import { getJwtSecret } from '../lib/jwt.js';
 
 export interface AuthRequest extends Request {
   user?: {
@@ -25,21 +26,6 @@ const jwtPayloadSchema = z
     role,
     ...(kundenr != null ? { kundenr } : {}),
   }));
-
-/**
- * Get JWT secret - fails fast in production if not configured
- */
-function getJwtSecret(): string {
-  const secret = process.env.JWT_SECRET;
-  if (!secret) {
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error('CRITICAL: JWT_SECRET is not defined in production environment!');
-    }
-    console.warn('⚠️ WARNING: JWT_SECRET not set. Using dev-only fallback. Set JWT_SECRET in .env for security.');
-    return 'dev-only-fallback-secret-do-not-use-in-production';
-  }
-  return secret;
-}
 
 export const authMiddleware = (req: AuthRequest, res: Response, next: NextFunction) => {
   const authHeader = req.headers.authorization;

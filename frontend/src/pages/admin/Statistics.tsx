@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { QueryRefetchBar } from '../../components/QueryRefetchBar';
+import { statisticsKeys } from '../../lib/queryKeys';
 import { Layout } from '../../components/Layout';
 import { Breadcrumb } from '../../components/Breadcrumb';
 import {
@@ -141,8 +143,8 @@ export function StatisticsPage({
     return response?.data as PaginatedResponse<StatRow>;
   };
 
-  const { data: statsResult, isLoading } = useQuery({
-    queryKey: ['admin', 'statistics', statType, page, dateRange, filters],
+  const { data: statsResult, isLoading, isFetching } = useQuery({
+    queryKey: statisticsKeys.list(statType, page, dateRange, filters),
     queryFn: () => {
       const params = {
         startDate: dateRange.startDate || undefined,
@@ -154,10 +156,12 @@ export function StatisticsPage({
       };
       return fetchStatData(statType, params);
     },
+    placeholderData: (prev) => prev,
   });
 
   const data = statsResult?.data ?? [];
   const pagination = statsResult?.pagination ?? { page: 1, limit: 25, total: 0, totalPages: 0 };
+  const showRefetchBar = isFetching && !!statsResult;
 
   const { data: comparison = null } = useQuery({
     queryKey: ['admin', 'statistics', 'comparison', dateRange, compareEnabled],
@@ -348,6 +352,7 @@ export function StatisticsPage({
             </div>
           ) : (
             <div ref={chartRef} className="space-y-6">
+              {showRefetchBar && <QueryRefetchBar active />}
               <StatsCharts
                 data={data}
                 nameKey={getNameKey()}

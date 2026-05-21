@@ -1,42 +1,35 @@
 import { Response } from 'express';
-import bcrypt from 'bcrypt';
+import { z } from 'zod';
 import { AuthRequest } from '../middleware/auth.js';
 import { userModel } from '../models/userModel.js';
 import { ValidationError, NotFoundError } from '../middleware/errorHandler.js';
 import { assertAdminActionKey } from '../lib/actionKey.js';
-
-const SALT_ROUNDS = 10;
+import { buildListResponse } from '../lib/listResponse.js';
+import { hashPassword } from '../lib/password.js';
+import { userListQuerySchema, userSearchQuerySchema } from '../middleware/validation.js';
 
 /**
  * User Controller
  * HTTP handlers for user management endpoints (admin only)
  */
 export const userController = {
-  /**
-   * GET /api/users
-   * List all users with pagination (password hashes are never returned)
-   */
   getAll: async (req: AuthRequest, res: Response) => {
-    const page = Math.max(1, parseInt(req.query.page as string, 10) || 1);
-    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string, 10) || 20));
-
+    const { page, limit } = req.query as unknown as z.infer<typeof userListQuerySchema>;
     const { data, total } = await userModel.getAll(page, limit);
-
-    res.json({
-      data,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
-    });
+    res.json(buildListResponse(data, { page, limit, total }));
   },
 
-  /**
-   * GET /api/users/:id
-   * Get a single user by ID
-   */
+  search: async (req: AuthRequest, res: Response) => {
+    const { q, search, limit } = req.query as unknown as z.infer<typeof userSearchQuerySchema>;
+    const term = (q ?? search ?? '').trim();
+    if (!term) {
+      res.json({ data: [] });
+      return;
+    }
+    const data = await userModel.search(term, limit);
+    res.json({ data });
+  },
+
   getById: async (req: AuthRequest, res: Response) => {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) throw new ValidationError('Invalid user ID');
@@ -47,34 +40,24 @@ export const userController = {
     res.json(user);
   },
 
-  /**
-   * POST /api/users
-   * Create a new user
-   */
   create: async (req: AuthRequest, res: Response) => {
-    const { username, password, role, kundenr, actionKey } = req.body;
+    const { username, password, role, kundenr } = req.body;
 
-    // Check for duplicate username
     const existing = await userModel.findByUsername(username);
     if (existing) {
       throw new ValidationError('A user with this username already exists');
     }
 
-    // If role is 'kunde', kundenr should be provided
     if (role === 'kunde' && !kundenr) {
       throw new ValidationError('Kundenr is required for customer (kunde) users');
     }
 
-    const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+    const passwordHash = await hashPassword(password);
     const user = await userModel.create(username, passwordHash, role, kundenr);
 
     res.status(201).json(user);
   },
 
-  /**
-   * PUT /api/users/:id
-   * Update an existing user
-   */
   update: async (req: AuthRequest, res: Response) => {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) throw new ValidationError('Invalid user ID');
@@ -84,7 +67,6 @@ export const userController = {
 
     const { username, password, role, kundenr, actionKey } = req.body;
 
-    // If changing username, check it's not already taken by another user
     if (username && username !== existing.username) {
       const duplicate = await userModel.findByUsername(username);
       if (duplicate) {
@@ -92,18 +74,22 @@ export const userController = {
       }
     }
 
-    // If role is 'kunde', kundenr should be provided
     const effectiveRole = role ?? existing.role;
     const effectiveKundenr = kundenr !== undefined ? kundenr : existing.kundenr;
     if (effectiveRole === 'kunde' && !effectiveKundenr) {
       throw new ValidationError('Kundenr is required for customer (kunde) users');
     }
 
-    const fields: { username?: string; passwordHash?: string; role?: string; kundenr?: string | null } = {};
+    const fields: {
+      username?: string;
+      passwordHash?: string;
+      role?: string;
+      kundenr?: string | null;
+    } = {};
     if (username) fields.username = username;
     if (password) {
       assertAdminActionKey(actionKey, 'password change');
-      fields.passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+      fields.passwordHash = await hashPassword(password);
     }
     if (role) fields.role = role;
     if (kundenr !== undefined) fields.kundenr = kundenr || null;
@@ -112,15 +98,10 @@ export const userController = {
     res.json(updated);
   },
 
-  /**
-   * DELETE /api/users/:id
-   * Delete a user
-   */
   delete: async (req: AuthRequest, res: Response) => {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) throw new ValidationError('Invalid user ID');
 
-    // Prevent deleting yourself
     if (req.user?.id === id) {
       throw new ValidationError('You cannot delete your own account');
     }

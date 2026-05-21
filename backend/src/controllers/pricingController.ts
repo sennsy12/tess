@@ -4,7 +4,10 @@ import { customerGroupModel, priceListModel, priceRuleModel } from '../models/pr
 import { pricingService } from '../services/pricingService.js';
 import { detectConflicts } from '../services/conflictDetectionService.js';
 import { auditService } from '../services/auditService.js';
-import { ValidationError, NotFoundError } from '../middleware/errorHandler.js';
+import { ValidationError, NotFoundError, ForbiddenError } from '../middleware/errorHandler.js';
+import { buildListResponse } from '../lib/listResponse.js';
+import { pricingCustomerSearchSchema } from '../middleware/validation.js';
+import { z } from 'zod';
 import {
   CreateCustomerGroupInput,
   CreatePriceListInput,
@@ -159,27 +162,20 @@ export const pricingController = {
    * Query params: search, group, page, limit
    */
   searchCustomers: async (req: AuthRequest, res: Response) => {
-    const search = (req.query.search as string) || '';
-    const groupId = (req.query.group as string) || undefined;
-    const page = Math.max(1, parseInt(req.query.page as string) || 1);
-    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 25));
+    const { page, limit, sortBy, sortDir, search, group } = req.query as unknown as z.infer<
+      typeof pricingCustomerSearchSchema
+    >;
 
     const result = await customerGroupModel.searchCustomersWithGroups({
-      search,
-      groupId,
+      search: search ?? '',
+      groupId: group,
       page,
       limit,
+      sortBy,
+      sortDir,
     });
 
-    res.json({
-      data: result.data,
-      pagination: {
-        page,
-        limit,
-        total: result.total,
-        totalPages: Math.ceil(result.total / limit),
-      },
-    });
+    res.json(buildListResponse(result.data, { page, limit, total: result.total }));
   },
 
   // ============================================
@@ -458,8 +454,15 @@ export const pricingController = {
    */
   getCustomerRules: async (req: AuthRequest, res: Response) => {
     const { kundenr } = req.params;
-    const rules = await pricingService.getApplicableRulesForCustomer(kundenr);
-    res.json(rules);
+
+    if (req.user?.role === 'kunde') {
+      if (!req.user.kundenr || req.user.kundenr !== kundenr) {
+        throw new ForbiddenError('Access denied');
+      }
+    }
+
+    const overview = await pricingService.getCustomerPricingOverview(kundenr);
+    res.json(overview);
   }
 };
 

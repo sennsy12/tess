@@ -10,6 +10,7 @@ import {
   createPriceRuleSchema,
   calculatePriceSchema,
   simulateSchema,
+  pricingCustomerSearchSchema,
 } from '../middleware/validation.js';
 
 export const pricingRouter = Router();
@@ -17,6 +18,7 @@ export const pricingRouter = Router();
 const auth = authMiddleware;
 const adminOnly = roleGuard('admin');
 const readRoles = roleGuard('admin', 'analyse');
+const readRolesWithKunde = roleGuard('admin', 'analyse', 'kunde');
 
 // ============================================
 // CUSTOMER GROUPS
@@ -28,7 +30,13 @@ pricingRouter.put('/groups/:id', auth, adminOnly, asyncHandler(pricingController
 pricingRouter.delete('/groups/:id', auth, adminOnly, asyncHandler(pricingController.deleteGroup));
 pricingRouter.put('/groups/:id/customers/:kundenr', auth, adminOnly, asyncHandler(pricingController.assignCustomerToGroup));
 pricingRouter.delete('/groups/customers/:kundenr', auth, adminOnly, asyncHandler(pricingController.removeCustomerFromGroup));
-pricingRouter.get('/customers/search', auth, readRoles, asyncHandler(pricingController.searchCustomers));
+pricingRouter.get(
+  '/customers/search',
+  auth,
+  readRoles,
+  validate(pricingCustomerSearchSchema, 'query'),
+  asyncHandler(pricingController.searchCustomers),
+);
 pricingRouter.get('/customers', auth, readRoles, asyncHandler(pricingController.getCustomersWithGroups));
 
 // ============================================
@@ -64,4 +72,4 @@ pricingRouter.post('/simulate', auth, adminOnly, validate(simulateSchema), async
 
 pricingRouter.post('/calculate', auth, readRoles, validate(calculatePriceSchema), asyncHandler(pricingController.calculatePrice));
 pricingRouter.post('/calculate/bulk', auth, readRoles, asyncHandler(pricingController.calculatePricesBulk));
-pricingRouter.get('/customer/:kundenr/rules', auth, readRoles, asyncHandler(pricingController.getCustomerRules));
+pricingRouter.get('/customer/:kundenr/rules', auth, readRolesWithKunde, asyncHandler(pricingController.getCustomerRules));

@@ -1,22 +1,25 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Layout } from '../../components/Layout';
 import { QueryErrorBanner } from '../../components/QueryErrorBanner';
+import { QueryRefetchBar } from '../../components/QueryRefetchBar';
+import { customerKeys, type CustomerFilters } from '../../lib/queryKeys';
+import {
+  customerFiltersFromSearchParams,
+  customerFiltersToSearchParams,
+} from '../../lib/listPageUrl';
 import { EmptyState } from '../../components/EmptyState';
 import { DataTable, type DataTableState } from '../../components/DataTable';
 import { PageHeader, FilterBar, TableSkeleton, Pagination } from '../../components/admin';
-import { customersApi, pricingApi, ordersApi } from '../../lib/api';
+import { pricingApi, ordersApi } from '../../lib/api';
 import type { Order } from '../../types/order';
-
-// ────────────────────────────────────────────────────────────
-// Types
-// ────────────────────────────────────────────────────────────
 
 interface Customer {
   kundenr: string;
   kundenavn: string;
   customer_group_id: number | null;
+  customer_group_name?: string | null;
 }
 
 interface CustomerGroup {
@@ -28,10 +31,14 @@ const PAGE_SIZE = 25;
 const ORDERS_PAGE_SIZE = 20;
 
 const NOK = new Intl.NumberFormat('nb-NO', { style: 'currency', currency: 'NOK' });
+const EMPTY_FILTERS: CustomerFilters = { search: '', groupFilter: '' };
 
-// ────────────────────────────────────────────────────────────
-// Customer Orders Modal
-// ────────────────────────────────────────────────────────────
+function mapGroupFilterToApi(groupFilter: string): string | undefined {
+  if (!groupFilter) return undefined;
+  if (groupFilter === 'none') return 'unassigned';
+  if (groupFilter === 'any') return 'assigned';
+  return groupFilter;
+}
 
 function CustomerOrdersModal({
   customer,
@@ -45,34 +52,46 @@ function CustomerOrdersModal({
   const [ordrenrFilter, setOrdrenrFilter] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [appliedOrderFilters, setAppliedOrderFilters] = useState({
+    ordrenr: '',
+    startDate: '',
+    endDate: '',
+  });
 
   const filters = useMemo(
     () => ({
       kundenr: customer.kundenr,
-      ordrenr: ordrenrFilter,
-      startDate,
-      endDate,
+      ordrenr: appliedOrderFilters.ordrenr,
+      startDate: appliedOrderFilters.startDate,
+      endDate: appliedOrderFilters.endDate,
       page,
       limit: ORDERS_PAGE_SIZE,
     }),
-    [customer.kundenr, ordrenrFilter, startDate, endDate, page],
+    [customer.kundenr, appliedOrderFilters, page],
   );
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin', 'customer-orders', filters],
     queryFn: () => ordersApi.getAll(filters).then((r) => r.data),
+    placeholderData: (prev) => prev,
   });
 
   const orders: Order[] = data?.data ?? [];
-  const total: number = data?.total ?? 0;
+  const total: number = data?.pagination?.total ?? 0;
   const totalPages = Math.ceil(total / ORDERS_PAGE_SIZE);
 
   const handleReset = useCallback(() => {
     setOrdrenrFilter('');
     setStartDate('');
     setEndDate('');
+    setAppliedOrderFilters({ ordrenr: '', startDate: '', endDate: '' });
     setPage(1);
   }, []);
+
+  const handleApplyOrderFilters = useCallback(() => {
+    setAppliedOrderFilters({ ordrenr: ordrenrFilter, startDate, endDate });
+    setPage(1);
+  }, [ordrenrFilter, startDate, endDate]);
 
   const totalSum = useMemo(
     () => orders.reduce((s, o) => s + (o.sum ?? 0), 0),
@@ -88,7 +107,6 @@ function CustomerOrdersModal({
         className="bg-dark-900 border border-dark-700 rounded-xl w-full max-w-5xl max-h-[90vh] flex flex-col shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
         <div className="px-6 py-4 border-b border-dark-800 flex items-center justify-between flex-shrink-0">
           <div>
             <h3 className="text-lg font-semibold">
@@ -111,7 +129,6 @@ function CustomerOrdersModal({
           </button>
         </div>
 
-        {/* Filters */}
         <div className="px-6 py-4 border-b border-dark-800/50 flex-shrink-0">
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
             <div>
@@ -119,7 +136,7 @@ function CustomerOrdersModal({
               <input
                 type="text"
                 value={ordrenrFilter}
-                onChange={(e) => { setOrdrenrFilter(e.target.value); setPage(1); }}
+                onChange={(e) => setOrdrenrFilter(e.target.value)}
                 className="input w-full"
                 placeholder="F.eks. 1001"
               />
@@ -129,7 +146,7 @@ function CustomerOrdersModal({
               <input
                 type="date"
                 value={startDate}
-                onChange={(e) => { setStartDate(e.target.value); setPage(1); }}
+                onChange={(e) => setStartDate(e.target.value)}
                 className="input w-full"
               />
             </div>
@@ -138,22 +155,21 @@ function CustomerOrdersModal({
               <input
                 type="date"
                 value={endDate}
-                onChange={(e) => { setEndDate(e.target.value); setPage(1); }}
+                onChange={(e) => setEndDate(e.target.value)}
                 className="input w-full"
               />
             </div>
             <div className="flex gap-2">
-              <button
-                onClick={handleReset}
-                className="btn-secondary text-sm py-2 px-3"
-              >
+              <button onClick={handleApplyOrderFilters} className="btn-primary text-sm py-2 px-3">
+                Søk
+              </button>
+              <button onClick={handleReset} className="btn-secondary text-sm py-2 px-3">
                 Nullstill
               </button>
             </div>
           </div>
         </div>
 
-        {/* Body */}
         <div className="flex-1 overflow-auto min-h-0">
           {isLoading ? (
             <div className="p-6">
@@ -212,7 +228,6 @@ function CustomerOrdersModal({
           )}
         </div>
 
-        {/* Footer pagination */}
         {totalPages > 1 && (
           <div className="px-6 py-3 border-t border-dark-800 flex-shrink-0">
             <Pagination
@@ -228,13 +243,12 @@ function CustomerOrdersModal({
   );
 }
 
-// ────────────────────────────────────────────────────────────
-// Main page
-// ────────────────────────────────────────────────────────────
-
 export function AdminCustomers() {
-  const [search, setSearch] = useState('');
-  const [groupFilter, setGroupFilter] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const hasHydratedUrl = useRef(false);
+  const [page, setPage] = useState(1);
+  const [draftFilters, setDraftFilters] = useState<CustomerFilters>(EMPTY_FILTERS);
+  const [appliedFilters, setAppliedFilters] = useState<CustomerFilters>(EMPTY_FILTERS);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [tableState, setTableState] = useState<DataTableState>({
     sortKey: 'kundenavn',
@@ -243,31 +257,79 @@ export function AdminCustomers() {
     visibleColumnKeys: ['kundenr', 'kundenavn', 'group', 'orders'],
   });
 
-  const {
-    data: customersRaw,
-    isLoading,
-    isError,
-    error,
-    refetch,
-  } = useQuery({
-    queryKey: ['admin', 'customers'],
-    queryFn: () => customersApi.getAll().then((r) => r.data as Customer[]),
-    staleTime: 5 * 60 * 1000,
-  });
+  useEffect(() => {
+    if (hasHydratedUrl.current) return;
+    hasHydratedUrl.current = true;
+    const parsed = customerFiltersFromSearchParams(searchParams);
+    if (parsed.page) setPage(parsed.page);
+    if (parsed.filters) {
+      setDraftFilters(parsed.filters);
+      setAppliedFilters(parsed.filters);
+    }
+    if (parsed.sortKey && parsed.sortDirection) {
+      setTableState((prev) => ({
+        ...prev,
+        sortKey: parsed.sortKey ?? null,
+        sortDirection: parsed.sortDirection ?? null,
+      }));
+    }
+  }, [searchParams]);
+
+  const syncUrl = useCallback(
+    (
+      nextPage: number,
+      filters: CustomerFilters,
+      sortKey: string | null,
+      sortDirection: DataTableState['sortDirection'],
+    ) => {
+      setSearchParams(customerFiltersToSearchParams(nextPage, filters, sortKey, sortDirection), {
+        replace: true,
+      });
+    },
+    [setSearchParams],
+  );
 
   const { data: groups } = useQuery({
-    queryKey: ['admin', 'customer-groups'],
+    queryKey: customerKeys.groups(),
     queryFn: () => pricingApi.getGroups().then((r) => (r.data?.data ?? r.data) as CustomerGroup[]),
     staleTime: 10 * 60 * 1000,
   });
 
-  const { data: customersWithGroups } = useQuery({
-    queryKey: ['admin', 'customers-with-groups'],
-    queryFn: () => pricingApi.getCustomersWithGroups().then((r) => r.data as Customer[]),
+  const {
+    data: customersData,
+    isLoading,
+    isFetching,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: customerKeys.list(
+      page,
+      appliedFilters,
+      tableState.sortKey,
+      tableState.sortDirection,
+    ),
+    queryFn: async () => {
+      const params: Record<string, string | number> = { page, limit: PAGE_SIZE };
+      if (appliedFilters.search.trim()) params.search = appliedFilters.search.trim();
+      const group = mapGroupFilterToApi(appliedFilters.groupFilter);
+      if (group) params.group = group;
+      if (tableState.sortKey && tableState.sortDirection) {
+        params.sortBy = tableState.sortKey;
+        params.sortDir = tableState.sortDirection;
+      }
+      const response = await pricingApi.searchCustomers(params);
+      return {
+        customers: response.data.data as Customer[],
+        pagination: response.data.pagination,
+      };
+    },
     staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
 
-  const customers = customersWithGroups ?? customersRaw ?? [];
+  const customers = customersData?.customers ?? [];
+  const pagination = customersData?.pagination ?? { page: 1, limit: PAGE_SIZE, total: 0, totalPages: 0 };
 
   const groupMap = useMemo(() => {
     const map = new Map<number, string>();
@@ -276,29 +338,6 @@ export function AdminCustomers() {
     }
     return map;
   }, [groups]);
-
-  const filtered = useMemo(() => {
-    let result = customers;
-
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      result = result.filter(
-        (c) =>
-          c.kundenr.toLowerCase().includes(q) ||
-          (c.kundenavn ?? '').toLowerCase().includes(q),
-      );
-    }
-
-    if (groupFilter === 'none') {
-      result = result.filter((c) => !c.customer_group_id);
-    } else if (groupFilter === 'any') {
-      result = result.filter((c) => !!c.customer_group_id);
-    } else if (groupFilter) {
-      result = result.filter((c) => c.customer_group_id === Number(groupFilter));
-    }
-
-    return result;
-  }, [customers, search, groupFilter]);
 
   const groupOptions = useMemo(() => {
     const opts = [
@@ -314,92 +353,101 @@ export function AdminCustomers() {
     return opts;
   }, [groups]);
 
-  const assignedCount = customers.filter((c) => c.customer_group_id).length;
+  const handleApplyFilters = useCallback(() => {
+    setAppliedFilters(draftFilters);
+    setPage(1);
+    syncUrl(1, draftFilters, tableState.sortKey, tableState.sortDirection);
+  }, [draftFilters, syncUrl, tableState.sortDirection, tableState.sortKey]);
 
-  const hasActiveFilters = Boolean(search.trim() || groupFilter);
+  const handleReset = useCallback(() => {
+    setDraftFilters(EMPTY_FILTERS);
+    setAppliedFilters(EMPTY_FILTERS);
+    setPage(1);
+    syncUrl(1, EMPTY_FILTERS, tableState.sortKey, tableState.sortDirection);
+  }, [syncUrl, tableState.sortDirection, tableState.sortKey]);
+
+  const showSkeleton = isLoading && !customersData;
+  const showRefetchBar = isFetching && !!customersData;
+
+  const hasActiveFilters = Boolean(appliedFilters.search.trim() || appliedFilters.groupFilter);
   const errorMessage =
     (error as { response?: { data?: { error?: string } } })?.response?.data?.error ||
     'Kunne ikke laste kunder.';
 
-  const columns = [
-    {
-      key: 'kundenr',
-      header: 'Kundenr',
-      hideable: false,
-      render: (value: string) => (
-        <Link
-          to={`/admin/orders?kundenr=${encodeURIComponent(value)}`}
-          className="font-medium text-primary-400 hover:underline"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {value}
-        </Link>
-      ),
-    },
-    {
-      key: 'kundenavn',
-      header: 'Kundenavn',
-    },
-    {
-      key: 'group',
-      header: 'Prisgruppe',
-      render: (_: unknown, row: Customer) => {
-        if (!row.customer_group_id) {
-          return <span className="text-dark-600">—</span>;
-        }
-        const name = groupMap.get(row.customer_group_id) ?? `#${row.customer_group_id}`;
-        return (
-          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border bg-primary-500/10 text-primary-400 border-primary-500/30">
-            {name}
-          </span>
-        );
+  const columns = useMemo(
+    () => [
+      {
+        key: 'kundenr',
+        header: 'Kundenr',
+        hideable: false,
+        render: (value: string) => (
+          <Link
+            to={`/admin/orders?search=${encodeURIComponent(value)}`}
+            className="font-medium text-primary-400 hover:underline"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {value}
+          </Link>
+        ),
       },
-      csvValue: (_: unknown, row: Customer) =>
-        row.customer_group_id ? groupMap.get(row.customer_group_id) ?? '' : '',
-    },
-    {
-      key: 'orders',
-      header: '',
-      sortable: false,
-      align: 'right' as const,
-      hideable: false,
-      render: (_: unknown, row: Customer) => (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            setSelectedCustomer(row);
-          }}
-          className="px-3 py-1.5 rounded-lg text-xs font-medium bg-dark-800 hover:bg-dark-700 text-dark-200 transition-colors"
-        >
-          Se ordrer
-        </button>
-      ),
-      csvValue: () => '',
-    },
-  ];
+      {
+        key: 'kundenavn',
+        header: 'Kundenavn',
+      },
+      {
+        key: 'group',
+        header: 'Prisgruppe',
+        render: (_: unknown, row: Customer) => {
+          const name = row.customer_group_name ?? (row.customer_group_id ? groupMap.get(row.customer_group_id) : null);
+          if (!name) {
+            return <span className="text-dark-600">—</span>;
+          }
+          return (
+            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border bg-primary-500/10 text-primary-400 border-primary-500/30">
+              {name}
+            </span>
+          );
+        },
+        csvValue: (_: unknown, row: Customer) =>
+          row.customer_group_name ?? (row.customer_group_id ? groupMap.get(row.customer_group_id) ?? '' : ''),
+      },
+      {
+        key: 'orders',
+        header: '',
+        sortable: false,
+        align: 'right' as const,
+        hideable: false,
+        render: (_: unknown, row: Customer) => (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedCustomer(row);
+            }}
+            className="px-3 py-1.5 rounded-lg text-xs font-medium bg-dark-800 hover:bg-dark-700 text-dark-200 transition-colors"
+          >
+            Se ordrer
+          </button>
+        ),
+        csvValue: () => '',
+      },
+    ],
+    [groupMap],
+  );
 
   return (
     <Layout title="Kunder">
       <div className="space-y-6">
         <PageHeader
-          count={filtered.length}
-          countLabel={`kunde${filtered.length !== 1 ? 'r' : ''}`}
-          subtitle={`${assignedCount} av ${customers.length} har prisgruppe`}
+          count={pagination.total}
+          countLabel={`kunde${pagination.total !== 1 ? 'r' : ''}`}
         />
 
         <FilterBar
           title="Søk i kunder"
-          filters={{ search, groupFilter }}
-          onFilterChange={(f) => {
-            setSearch(f.search);
-            setGroupFilter(f.groupFilter);
-          }}
-          onSubmit={() => setTableState((s) => ({ ...s, currentPage: 1 }))}
-          onReset={() => {
-            setSearch('');
-            setGroupFilter('');
-            setTableState((s) => ({ ...s, currentPage: 1 }));
-          }}
+          filters={draftFilters}
+          onFilterChange={setDraftFilters}
+          onSubmit={handleApplyFilters}
+          onReset={handleReset}
           fields={[
             {
               key: 'search',
@@ -418,43 +466,72 @@ export function AdminCustomers() {
         />
 
         {isError && <QueryErrorBanner message={errorMessage} onRetry={() => refetch()} />}
+        {showRefetchBar && <QueryRefetchBar active />}
 
         <div className="card p-0 lg:p-0 overflow-hidden">
-          {isLoading ? (
+          {showSkeleton ? (
             <TableSkeleton rows={10} columns={4} />
-          ) : isError ? null : filtered.length === 0 && hasActiveFilters ? (
+          ) : isError ? null : customers.length === 0 && hasActiveFilters ? (
             <EmptyState
               title="Ingen kunder matcher søket"
               description="Prøv et annet kundenr, navn eller prisgruppe."
               action={
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={() => {
-                    setSearch('');
-                    setGroupFilter('');
-                  }}
-                >
+                <button type="button" className="btn-secondary" onClick={handleReset}>
                   Nullstill filtre
                 </button>
               }
             />
           ) : (
-            <DataTable
-              data={filtered}
-              columns={columns}
-              rowKey={(row) => row.kundenr}
-              emptyMessage="Ingen kunder funnet"
-              pageSize={PAGE_SIZE}
-              stickyFirstColumn
-              enableColumnManagement
-              enableCsvExport
-              exportFilename="admin-kunder"
-              title="Kundetabell"
-              storageKey="table:admin-customers"
-              state={tableState}
-              onStateChange={setTableState}
-            />
+            <>
+              <div className="flex justify-between items-center text-sm text-dark-400 px-4 py-3 border-b border-dark-800">
+                <div>
+                  Viser{' '}
+                  {customers.length > 0 ? (page - 1) * PAGE_SIZE + 1 : 0}–
+                  {Math.min(page * PAGE_SIZE, pagination.total)} av {pagination.total.toLocaleString()} kunder
+                </div>
+                <Pagination
+                  pagination={pagination}
+                  onPageChange={(p) => {
+                    setPage(p);
+                    syncUrl(p, appliedFilters, tableState.sortKey, tableState.sortDirection);
+                  }}
+                  variant="minimal"
+                />
+              </div>
+              <DataTable
+                data={customers}
+                columns={columns}
+                rowKey={(row) => row.kundenr}
+                emptyMessage="Ingen kunder funnet"
+                paginate={false}
+                serverSort
+                stickyFirstColumn
+                enableColumnManagement
+                enableCsvExport
+                exportFilename="admin-kunder"
+                title="Kundetabell"
+                storageKey="table:admin-customers"
+                state={tableState}
+                onStateChange={(next) => {
+                  setTableState(next);
+                  setPage(1);
+                  syncUrl(1, appliedFilters, next.sortKey, next.sortDirection);
+                }}
+              />
+              {pagination.totalPages > 1 && (
+                <div className="px-4 py-3 border-t border-dark-800">
+                  <Pagination
+                    pagination={pagination}
+                    onPageChange={(p) => {
+                      setPage(p);
+                      syncUrl(p, appliedFilters, tableState.sortKey, tableState.sortDirection);
+                    }}
+                    variant="simple"
+                    itemLabel="kunder"
+                  />
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

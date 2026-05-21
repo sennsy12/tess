@@ -1,4 +1,5 @@
 import api from './client';
+import type { EtlJobDetail, EtlJobsListResponse } from '../../types/etlJob';
 
 export const etlApi = {
   createDB: () => api.get('/etl/createDB'),
@@ -25,4 +26,14 @@ export const etlApi = {
       },
     });
   },
+
+  listJobs: (limit = 50) =>
+    api.get<EtlJobsListResponse>('/etl/jobs', { params: { limit } }),
+
+  getJob: (jobId: string) => api.get<EtlJobDetail>(`/etl/jobs/${encodeURIComponent(jobId)}`),
+
+  cancelJob: (jobId: string) =>
+    api.post<{ success: boolean; message: string; jobId: string }>(
+      `/etl/jobs/${encodeURIComponent(jobId)}/cancel`,
+    ),
 };

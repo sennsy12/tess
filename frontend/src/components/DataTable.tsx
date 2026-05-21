@@ -29,6 +29,10 @@ interface DataTableProps<T> {
   storageKey?: string;
   state?: Partial<DataTableState>;
   onStateChange?: (state: DataTableState) => void;
+  /** When true, column headers do not sort (use for server-paginated tables). */
+  disableClientSort?: boolean;
+  /** When true, header clicks trigger server sort via onStateChange only (data must not be re-sorted locally). */
+  serverSort?: boolean;
 }
 
 type SortDirection = 'asc' | 'desc' | null;
@@ -106,6 +110,8 @@ export function DataTable<T extends Record<string, any>>({
   storageKey,
   state,
   onStateChange,
+  disableClientSort = false,
+  serverSort = false,
 }: DataTableProps<T>) {
   const defaultVisibleColumnKeys = useMemo(
     () => columns.map((column) => getColumnKey(column)),
@@ -177,6 +183,7 @@ export function DataTable<T extends Record<string, any>>({
   };
 
   const handleSort = (key: string) => {
+    if (disableClientSort) return;
     updateTableState((previous) => {
       if (previous.sortKey === key) {
         if (previous.sortDirection === 'asc') {
@@ -202,7 +209,7 @@ export function DataTable<T extends Record<string, any>>({
   );
 
   const sortedData = useMemo(() => {
-    if (!tableState.sortKey || !tableState.sortDirection) return data;
+    if (serverSort || !tableState.sortKey || !tableState.sortDirection) return data;
     const sortKey = tableState.sortKey;
 
     return [...data].sort((a, b) => {
@@ -220,7 +227,7 @@ export function DataTable<T extends Record<string, any>>({
       const bStr = String(bValue);
       return tableState.sortDirection === 'asc' ? aStr.localeCompare(bStr) : bStr.localeCompare(aStr);
     });
-  }, [data, tableState.sortDirection, tableState.sortKey]);
+  }, [data, serverSort, tableState.sortDirection, tableState.sortKey]);
 
   const totalPages = paginate ? Math.ceil(sortedData.length / pageSize) : 1;
   const startIndex = paginate ? (tableState.currentPage - 1) * pageSize : 0;
@@ -406,13 +413,17 @@ export function DataTable<T extends Record<string, any>>({
                   key={getColumnKey(column)}
                   scope="col"
                   className={`${headerClass} whitespace-nowrap group ${
-                    column.sortable !== false ? 'cursor-pointer hover:bg-dark-700/60 transition-colors' : ''
+                    column.sortable !== false && !disableClientSort
+                      ? 'cursor-pointer hover:bg-dark-700/60 transition-colors'
+                      : ''
                   } ${getCellAlignment(column.align)} ${getStickyClasses(columnIndex)}`}
-                  onClick={() => column.sortable !== false && handleSort(String(column.key))}
+                  onClick={() =>
+                    column.sortable !== false && !disableClientSort && handleSort(String(column.key))
+                  }
                 >
                   <div className={`flex items-center gap-2 ${column.align === 'right' ? 'justify-end' : column.align === 'center' ? 'justify-center' : 'justify-start'}`}>
                     <span className="group-hover:text-dark-200 transition-colors">{column.header}</span>
-                    {column.sortable !== false && (
+                    {column.sortable !== false && !disableClientSort && (
                       <span className="text-xs transition-all duration-200 transform scale-75 group-hover:scale-100">{getSortIcon(String(column.key))}</span>
                     )}
                   </div>

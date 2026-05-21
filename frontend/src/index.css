@@ -239,3 +239,16 @@ body::before {
   @apply bg-gradient-to-br from-red-600 to-red-800 border-red-500/30;
 }
 
+@keyframes query-refetch-slide {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(400%);
+  }
+}
+
+.query-refetch-indeterminate {
+  animation: query-refetch-slide 1.2s ease-in-out infinite;
+}
+

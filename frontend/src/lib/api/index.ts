@@ -21,6 +21,8 @@ export { schedulerApi } from './scheduler';
 export { suggestionsApi } from './suggestions';
 export { dashboardApi } from './dashboard';
 export { usersApi } from './users';
+export { assistantApi } from './assistant';
+export { notificationsApi } from './notifications';
 
 // Types
 export type {

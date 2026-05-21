@@ -1,6 +1,3 @@
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
-
 interface ExportButtonProps {
   targetRef: React.RefObject<HTMLElement>;
   filename: string;
@@ -9,6 +6,11 @@ interface ExportButtonProps {
 export function ExportButton({ targetRef, filename }: ExportButtonProps) {
   const exportToPDF = async () => {
     if (!targetRef.current) return;
+
+    const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+      import('html2canvas'),
+      import('jspdf'),
+    ]);
 
     const canvas = await html2canvas(targetRef.current, {
       backgroundColor: '#0f172a',
@@ -28,6 +30,8 @@ export function ExportButton({ targetRef, filename }: ExportButtonProps) {
 
   const exportToImage = async () => {
     if (!targetRef.current) return;
+
+    const { default: html2canvas } = await import('html2canvas');
 
     const canvas = await html2canvas(targetRef.current, {
       backgroundColor: '#0f172a',

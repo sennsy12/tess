@@ -8,7 +8,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install dependencies and rebuild native modules for Alpine Linux
-RUN npm install && npm rebuild bcrypt --build-from-source
+RUN npm ci && npm rebuild bcrypt --build-from-source
 
 COPY . .
 

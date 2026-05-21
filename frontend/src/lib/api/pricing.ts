@@ -1,4 +1,5 @@
 import api from './client';
+import type { CustomerPricingOverview } from '../../types/pricing';
 
 export const pricingApi = {
   // Customer Groups
@@ -13,8 +14,14 @@ export const pricingApi = {
   removeCustomerFromGroup: (kundenr: string) =>
     api.delete(`/pricing/groups/customers/${kundenr}`),
   getCustomersWithGroups: () => api.get('/pricing/customers'),
-  searchCustomers: (params: { search?: string; group?: string; page?: number; limit?: number }) =>
-    api.get('/pricing/customers/search', { params }),
+  searchCustomers: (params: {
+    search?: string;
+    group?: string;
+    page?: number;
+    limit?: number;
+    sortBy?: string;
+    sortDir?: 'asc' | 'desc';
+  }) => api.get('/pricing/customers/search', { params }),
 
   // Price Lists
   getLists: (activeOnly?: boolean) =>
@@ -73,7 +80,7 @@ export const pricingApi = {
     kundenr: string
   ) => api.post('/pricing/calculate/bulk', { items, kundenr }),
   getCustomerRules: (kundenr: string) =>
-    api.get(`/pricing/customer/${kundenr}/rules`),
+    api.get<CustomerPricingOverview>(`/pricing/customer/${kundenr}/rules`),
 
   // Pricing Simulation
   simulate: (data: {

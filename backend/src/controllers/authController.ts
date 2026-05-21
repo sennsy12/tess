@@ -1,11 +1,10 @@
 import { Request, Response } from 'express';
-import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { userModel } from '../models/userModel.js';
 import { ValidationError, UnauthorizedError } from '../middleware/errorHandler.js';
 import type { AuthRequest } from '../middleware/auth.js';
-
-const SALT_ROUNDS = 10;
+import { getJwtSecret } from '../lib/jwt.js';
+import { hashPassword, verifyPassword } from '../lib/password.js';
 
 function jwtClaimsFromUser(user: {
   id: number;
@@ -30,21 +29,6 @@ function publicUserFromRecord(user: {
   return jwtClaimsFromUser(user);
 }
 
-/**
- * Get JWT secret - fails fast in production if not configured
- */
-function getJwtSecret(): string {
-  const secret = process.env.JWT_SECRET;
-  if (!secret) {
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error('CRITICAL: JWT_SECRET is not defined in production environment!');
-    }
-    console.warn('⚠️ WARNING: JWT_SECRET not set. Using dev-only fallback. Set JWT_SECRET in .env for security.');
-    return 'dev-only-fallback-secret-do-not-use-in-production';
-  }
-  return secret;
-}
-
 export const authController = {
   login: async (req: Request, res: Response) => {
     const { username, password } = req.body;
@@ -59,17 +43,13 @@ export const authController = {
       throw new UnauthorizedError('Invalid credentials');
     }
 
-    const isValidPassword = await bcrypt.compare(password, user.password_hash);
+    const isValidPassword = await verifyPassword(password, user.password_hash);
 
     if (!isValidPassword) {
       throw new UnauthorizedError('Invalid credentials');
     }
 
-    const token = jwt.sign(
-      jwtClaimsFromUser(user),
-      getJwtSecret(),
-      { expiresIn: '24h' }
-    );
+    const token = jwt.sign(jwtClaimsFromUser(user), getJwtSecret(), { expiresIn: '24h' });
 
     res.json({
       token,
@@ -90,17 +70,13 @@ export const authController = {
       throw new UnauthorizedError('Invalid credentials');
     }
 
-    const isValidPassword = await bcrypt.compare(password, user.password_hash);
+    const isValidPassword = await verifyPassword(password, user.password_hash);
 
     if (!isValidPassword) {
       throw new UnauthorizedError('Invalid credentials');
     }
 
-    const token = jwt.sign(
-      jwtClaimsFromUser(user),
-      getJwtSecret(),
-      { expiresIn: '24h' }
-    );
+    const token = jwt.sign(jwtClaimsFromUser(user), getJwtSecret(), { expiresIn: '24h' });
 
     res.json({
       token,
@@ -124,12 +100,12 @@ export const authController = {
       throw new UnauthorizedError('User not found');
     }
 
-    const isValid = await bcrypt.compare(currentPassword, user.password_hash);
+    const isValid = await verifyPassword(currentPassword, user.password_hash);
     if (!isValid) {
       throw new UnauthorizedError('Current password is incorrect');
     }
 
-    const passwordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
+    const passwordHash = await hashPassword(newPassword);
     await userModel.update(userId, { passwordHash });
 
     res.json({ success: true, message: 'Password updated' });
@@ -137,7 +113,7 @@ export const authController = {
 
   verify: async (req: AuthRequest, res: Response) => {
     const authHeader = req.headers.authorization;
-    
+
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       throw new UnauthorizedError('No token provided');
     }
@@ -145,6 +121,5 @@ export const authController = {
     const token = authHeader.split(' ')[1];
     const decoded = jwt.verify(token, getJwtSecret());
     res.json({ valid: true, user: decoded });
-  }
+  },
 };
-

@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { ClipboardList, Search } from 'lucide-react';
 import { useAuth } from '../context/useAuth';
-import { customersApi, ordersApi, productsApi, usersApi } from '../lib/api';
+import { pricingApi, ordersApi, productsApi, usersApi } from '../lib/api';
 
 type SearchResult = {
   id: string;
   type: 'order' | 'customer' | 'product' | 'user';
   label: string;
+  sublabel?: string;
   path: string;
 };
 
@@ -15,32 +17,40 @@ interface GlobalSearchProps {
   onClose: () => void;
 }
 
-const RECENT_KEY = 'admin-search-recent';
+function recentKey(role: string) {
+  return role === 'kunde' ? 'kunde-search-recent' : 'admin-search-recent';
+}
 
-function loadRecent(): string[] {
+function loadRecent(role: string): string[] {
   try {
-    const raw = localStorage.getItem(RECENT_KEY);
+    const raw = localStorage.getItem(recentKey(role));
     return raw ? (JSON.parse(raw) as string[]) : [];
   } catch {
     return [];
   }
 }
 
-function saveRecent(path: string) {
-  const prev = loadRecent().filter((p) => p !== path);
-  localStorage.setItem(RECENT_KEY, JSON.stringify([path, ...prev].slice(0, 5)));
+function saveRecent(role: string, path: string) {
+  const prev = loadRecent(role).filter((p) => p !== path);
+  localStorage.setItem(recentKey(role), JSON.stringify([path, ...prev].slice(0, 5)));
 }
 
 export function GlobalSearch({ open, onClose }: GlobalSearchProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [highlightIndex, setHighlightIndex] = useState(0);
   const listRef = useRef<HTMLUListElement>(null);
 
-  const isAdmin = user?.role === 'admin';
+  const role = user?.role;
+  const isAdmin = role === 'admin';
+  const isKundeView = role === 'kunde' || (role === 'admin' && location.pathname.startsWith('/kunde'));
+  const enabled = isAdmin || role === 'kunde';
+
+  const orderBasePath = isKundeView ? '/kunde/orders' : '/admin/orders';
 
   const runSearch = useCallback(
     async (q: string) => {
@@ -53,35 +63,31 @@ export function GlobalSearch({ open, onClose }: GlobalSearchProps) {
       const found: SearchResult[] = [];
 
       try {
-        const orderRes = await ordersApi.getAll({ search: term, limit: 5, page: 1 });
+        const orderRes = await ordersApi.getAll({ search: term, limit: 8, page: 1 });
         const orders = orderRes.data?.data ?? [];
         for (const o of orders) {
+          const refs = [o.kunderef, o.kundeordreref].filter(Boolean).join(' · ');
           found.push({
             id: `order-${o.ordrenr}`,
             type: 'order',
-            label: `Ordre #${o.ordrenr} — ${o.kundenavn}`,
-            path: isAdmin ? `/admin/orders/${o.ordrenr}` : `/kunde/orders/${o.ordrenr}`,
+            label: `Ordre #${o.ordrenr}`,
+            sublabel: refs || o.firmanavn || undefined,
+            path: `${orderBasePath}/${o.ordrenr}`,
           });
         }
       } catch {
         /* ignore */
       }
 
-      if (isAdmin) {
+      if (isAdmin && !isKundeView) {
         try {
-          const custRes = await customersApi.getAll();
-          const customers = custRes.data?.data ?? custRes.data ?? [];
-          const termLower = term.toLowerCase();
-          const matched = customers.filter(
-            (c: { kundenr: string; kundenavn?: string; navn?: string }) =>
-              c.kundenr?.toLowerCase().includes(termLower) ||
-              (c.kundenavn ?? c.navn ?? '').toLowerCase().includes(termLower),
-          );
-          for (const c of matched.slice(0, 5)) {
+          const custRes = await pricingApi.searchCustomers({ search: term, page: 1, limit: 5 });
+          const customers = custRes.data?.data ?? [];
+          for (const c of customers) {
             found.push({
               id: `customer-${c.kundenr}`,
               type: 'customer',
-              label: `Kunde ${c.kundenr} — ${c.kundenavn ?? c.navn ?? ''}`,
+              label: `${c.kundenr} — ${c.kundenavn ?? ''}`,
               path: `/admin/customers`,
             });
           }
@@ -90,13 +96,13 @@ export function GlobalSearch({ open, onClose }: GlobalSearchProps) {
         }
 
         try {
-          const prodRes = await productsApi.getAll({ search: term, limit: 5 });
-          const products = prodRes.data?.data ?? prodRes.data ?? [];
-          for (const p of products.slice(0, 5)) {
+          const prodRes = await productsApi.search({ search: term, page: 1, limit: 5 });
+          const products = prodRes.data?.data ?? [];
+          for (const p of products) {
             found.push({
               id: `product-${p.varekode}`,
               type: 'product',
-              label: `Vare ${p.varekode} — ${p.varenavn ?? ''}`,
+              label: `${p.varekode} — ${p.varenavn ?? ''}`,
               path: `/admin/products`,
             });
           }
@@ -105,16 +111,13 @@ export function GlobalSearch({ open, onClose }: GlobalSearchProps) {
         }
 
         try {
-          const userRes = await usersApi.getAll({ page: 1, limit: 20 });
+          const userRes = await usersApi.search({ q: term, limit: 5 });
           const users = userRes.data?.data ?? [];
-          const matched = users.filter((u) =>
-            u.username.toLowerCase().includes(term.toLowerCase()),
-          );
-          for (const u of matched.slice(0, 5)) {
+          for (const u of users) {
             found.push({
               id: `user-${u.id}`,
               type: 'user',
-              label: `Bruker ${u.username} (${u.role})`,
+              label: `${u.username} (${u.role})`,
               path: `/admin/users`,
             });
           }
@@ -127,7 +130,7 @@ export function GlobalSearch({ open, onClose }: GlobalSearchProps) {
       setHighlightIndex(0);
       setIsSearching(false);
     },
-    [isAdmin],
+    [isAdmin, orderBasePath],
   );
 
   useEffect(() => {
@@ -142,7 +145,7 @@ export function GlobalSearch({ open, onClose }: GlobalSearchProps) {
   }, [query, open, runSearch]);
 
   const selectResult = (r: SearchResult) => {
-    saveRecent(r.path);
+    if (role) saveRecent(role, r.path);
     navigate(r.path);
     onClose();
   };
@@ -169,9 +172,9 @@ export function GlobalSearch({ open, onClose }: GlobalSearchProps) {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose, results, highlightIndex, navigate]);
+  }, [open, onClose, results, highlightIndex, navigate, role]);
 
-  if (!open || !isAdmin) return null;
+  if (!open || !enabled) return null;
 
   const typeLabel: Record<SearchResult['type'], string> = {
     order: 'Ordre',
@@ -180,48 +183,70 @@ export function GlobalSearch({ open, onClose }: GlobalSearchProps) {
     user: 'Bruker',
   };
 
+  const placeholder = isKundeView
+    ? 'Søk ordrenr, referanse, firma…'
+    : 'Søk ordre, kunder, produkter, brukere…';
+
   return (
     <div
-      className="fixed inset-0 z-[200] flex items-start justify-center bg-black/60 backdrop-blur-sm p-4 pt-[12vh]"
+      className="fixed inset-0 z-[200] flex items-start justify-center bg-black/60 backdrop-blur-sm p-4 pt-[10vh] sm:pt-[12vh]"
       onClick={onClose}
       role="presentation"
     >
       <div
-        className="w-full max-w-xl rounded-xl border border-dark-700 bg-dark-900 shadow-2xl"
+        className="w-full max-w-xl rounded-2xl border border-dark-700 bg-dark-900 shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
-        aria-label="Globalt søk"
+        aria-label={isKundeView ? 'Søk i dine ordrer' : 'Globalt søk'}
       >
         <div className="border-b border-dark-800 p-4">
-          <input
-            type="search"
-            autoFocus
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Søk ordre, kunder, produkter, brukere…"
-            className="input w-full"
-            aria-label="Søk"
-            aria-activedescendant={results[highlightIndex] ? `search-result-${highlightIndex}` : undefined}
-          />
-          <p className="mt-2 text-xs text-dark-500">Ctrl+K · ↑↓ velg · Enter åpne</p>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-dark-500 pointer-events-none" aria-hidden />
+            <input
+              type="search"
+              autoFocus
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={placeholder}
+              className="input w-full pl-10"
+              aria-label="Søk"
+              aria-activedescendant={results[highlightIndex] ? `search-result-${highlightIndex}` : undefined}
+            />
+          </div>
+          <p className="mt-2 text-xs text-dark-500">
+            {isKundeView ? 'Ctrl+K · kun dine ordrer' : 'Ctrl+K · ↑↓ velg · Enter åpne'}
+          </p>
         </div>
+
+        {query.length < 2 && isKundeView && (
+          <div className="px-4 py-6 text-center text-sm text-dark-400">
+            <ClipboardList className="h-8 w-8 mx-auto mb-2 text-dark-600" aria-hidden />
+            Skriv minst 2 tegn for å søke blant ordrene dine
+          </div>
+        )}
+
         <ul ref={listRef} className="max-h-80 overflow-y-auto p-2" role="listbox">
           {isSearching && <li className="px-3 py-2 text-sm text-dark-400">Søker…</li>}
           {!isSearching && query.length >= 2 && results.length === 0 && (
-            <li className="px-3 py-2 text-sm text-dark-400">Ingen treff</li>
+            <li className="px-3 py-6 text-sm text-dark-400 text-center">Ingen treff</li>
           )}
           {results.map((r, index) => (
             <li key={r.id} id={`search-result-${index}`} role="option" aria-selected={index === highlightIndex}>
               <button
                 type="button"
-                className={`w-full rounded-lg px-3 py-2 text-left text-sm ${
-                  index === highlightIndex ? 'bg-primary-600/30 text-dark-50' : 'hover:bg-dark-800'
+                className={`w-full rounded-xl px-3 py-2.5 text-left transition-colors ${
+                  index === highlightIndex ? 'bg-primary-600/25 text-dark-50' : 'hover:bg-dark-800'
                 }`}
                 onClick={() => selectResult(r)}
                 onMouseEnter={() => setHighlightIndex(index)}
               >
-                <span className="text-xs text-primary-400 mr-2">{typeLabel[r.type]}</span>
-                {r.label}
+                <span className="text-[10px] uppercase tracking-wider font-semibold text-primary-400 mr-2">
+                  {typeLabel[r.type]}
+                </span>
+                <span className="text-sm">{r.label}</span>
+                {r.sublabel && (
+                  <span className="block text-xs text-dark-400 mt-0.5 truncate">{r.sublabel}</span>
+                )}
               </button>
             </li>
           ))}

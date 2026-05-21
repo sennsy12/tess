@@ -24,9 +24,23 @@ export interface PriceRule {
   kundenr: string | null;
   customer_group_id: number | null;
   customer_group_name?: string | null;
+  price_list_name?: string | null;
   min_quantity: number;
   discount_percent: number | null;
   fixed_price: number | null;
+}
+
+export interface CustomerPriceRule extends PriceRule {
+  price_list_name: string | null;
+}
+
+export interface CustomerPricingOverview {
+  customer: {
+    kundenr: string;
+    kundenavn: string | null;
+    customer_group_name: string | null;
+  };
+  rules: CustomerPriceRule[];
 }
 
 export interface CustomerWithGroup {

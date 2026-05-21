@@ -9,6 +9,8 @@
  * @module models/statisticsModel
  */
 import { query } from '../db/index.js';
+import { extractWindowCountPage } from '../lib/paginatedQuery.js';
+import { toIlikeContains } from '../lib/sqlSearch.js';
 
 /** Common filter parameters shared across all statistics queries. */
 export interface StatsFilters {
@@ -49,9 +51,57 @@ const buildPagination = (page: number, limit: number, total: number) => ({
   totalPages: Math.ceil(total / limit),
 });
 
+/** Single-query paginated grouped stats using COUNT(*) OVER(). */
+const runPaginatedGroupQuery = async (
+  aggregatedSql: string,
+  params: any[],
+  orderBy: string,
+  page: number,
+  limit: number,
+  offset: number,
+  paramIndex: number,
+): Promise<PaginatedResult<any>> => {
+  const sql = `
+    WITH aggregated AS (${aggregatedSql})
+    SELECT sub.*, COUNT(*) OVER()::int AS _total_count
+    FROM aggregated sub
+    ORDER BY ${orderBy}
+    LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+  `;
+  const dataResult = await query(sql, [...params, limit, offset]);
+  const { data, total } = extractWindowCountPage(dataResult.rows);
+  return { data, pagination: buildPagination(page, limit, total) };
+};
+
+/** Fast path: paginate a materialized view when no date/customer filters apply. */
+const runMaterializedViewQuery = async (
+  viewName: string,
+  orderBy: string,
+  page: number,
+  limit: number,
+  offset: number,
+): Promise<PaginatedResult<any>> => {
+  const sql = `
+    SELECT sub.*, COUNT(*) OVER()::int AS _total_count
+    FROM ${viewName} sub
+    ORDER BY ${orderBy}
+    LIMIT $1 OFFSET $2
+  `;
+  const dataResult = await query(sql, [limit, offset]);
+  const { data, total } = extractWindowCountPage(dataResult.rows);
+  return { data, pagination: buildPagination(page, limit, total) };
+};
+
+const hasDateOrKundeFilter = (filters: StatsFilters) =>
+  Boolean(filters.startDate || filters.endDate || filters.kundenr);
+
 export const statisticsModel = {
   getByKunde: async (filters: StatsFilters): Promise<PaginatedResult<any>> => {
     const { page, limit, offset } = getPagination(filters);
+
+    if (!hasDateOrKundeFilter(filters)) {
+      return runMaterializedViewQuery('mv_stats_by_kunde', 'total_sum DESC NULLS LAST', page, limit, offset);
+    }
 
     let whereClause = ' WHERE 1=1';
     const params: any[] = [];
@@ -70,23 +120,8 @@ export const statisticsModel = {
       params.push(filters.kundenr);
     }
 
-    // Count query
-    const countSql = `
-      SELECT COUNT(*) as total FROM (
-        SELECT k.kundenr
-        FROM kunde k
-        LEFT JOIN ordre o ON k.kundenr = o.kundenr
-        ${whereClause}
-        GROUP BY k.kundenr
-        HAVING SUM(o.sum) > 0
-      ) subquery
-    `;
-    const countResult = await query(countSql, params);
-    const total = parseInt(countResult.rows[0]?.total || '0');
-
-    // Data query with pagination
-    const dataSql = `
-      SELECT k.kundenr, k.kundenavn, 
+    const aggregatedSql = `
+      SELECT k.kundenr, k.kundenavn,
              COUNT(DISTINCT o.ordrenr) as order_count,
              SUM(o.sum) as total_sum,
              AVG(o.sum) as avg_order_value
@@ -95,19 +130,25 @@ export const statisticsModel = {
       ${whereClause}
       GROUP BY k.kundenr, k.kundenavn
       HAVING SUM(o.sum) > 0
-      ORDER BY total_sum DESC NULLS LAST
-      LIMIT $${paramIndex++} OFFSET $${paramIndex++}
     `;
-    const dataResult = await query(dataSql, [...params, limit, offset]);
 
-    return {
-      data: dataResult.rows,
-      pagination: buildPagination(page, limit, total),
-    };
+    return runPaginatedGroupQuery(
+      aggregatedSql,
+      params,
+      'total_sum DESC NULLS LAST',
+      page,
+      limit,
+      offset,
+      paramIndex,
+    );
   },
 
   getByVaregruppe: async (filters: StatsFilters): Promise<PaginatedResult<any>> => {
     const { page, limit, offset } = getPagination(filters);
+
+    if (!hasDateOrKundeFilter(filters) && !filters.varegruppe) {
+      return runMaterializedViewQuery('mv_stats_by_varegruppe', 'total_sum DESC NULLS LAST', page, limit, offset);
+    }
 
     let whereClause = ' WHERE v.varegruppe IS NOT NULL';
     const params: any[] = [];
@@ -130,23 +171,7 @@ export const statisticsModel = {
       params.push(filters.varegruppe);
     }
 
-    // Count query
-    const countSql = `
-      SELECT COUNT(*) as total FROM (
-        SELECT v.varegruppe
-        FROM vare v
-        LEFT JOIN ordrelinje ol ON v.varekode = ol.varekode
-        LEFT JOIN ordre o ON ol.ordrenr = o.ordrenr
-        ${whereClause}
-        GROUP BY v.varegruppe
-        HAVING SUM(ol.linjesum) > 0
-      ) subquery
-    `;
-    const countResult = await query(countSql, params);
-    const total = parseInt(countResult.rows[0]?.total || '0');
-
-    // Data query with pagination
-    const dataSql = `
+    const aggregatedSql = `
       SELECT v.varegruppe,
              COUNT(DISTINCT ol.ordrenr) as order_count,
              SUM(ol.antall) as total_quantity,
@@ -157,15 +182,17 @@ export const statisticsModel = {
       ${whereClause}
       GROUP BY v.varegruppe
       HAVING SUM(ol.linjesum) > 0
-      ORDER BY total_sum DESC NULLS LAST
-      LIMIT $${paramIndex++} OFFSET $${paramIndex++}
     `;
-    const dataResult = await query(dataSql, [...params, limit, offset]);
 
-    return {
-      data: dataResult.rows,
-      pagination: buildPagination(page, limit, total),
-    };
+    return runPaginatedGroupQuery(
+      aggregatedSql,
+      params,
+      'total_sum DESC NULLS LAST',
+      page,
+      limit,
+      offset,
+      paramIndex,
+    );
   },
 
   getByVare: async (filters: StatsFilters): Promise<PaginatedResult<any>> => {
@@ -192,23 +219,7 @@ export const statisticsModel = {
       params.push(filters.kundenr);
     }
 
-    // Count query
-    const countSql = `
-      SELECT COUNT(*) as total FROM (
-        SELECT v.varekode
-        FROM vare v
-        LEFT JOIN ordrelinje ol ON v.varekode = ol.varekode
-        LEFT JOIN ordre o ON ol.ordrenr = o.ordrenr
-        ${whereClause}
-        GROUP BY v.varekode
-        HAVING SUM(ol.linjesum) > 0
-      ) subquery
-    `;
-    const countResult = await query(countSql, params);
-    const total = parseInt(countResult.rows[0]?.total || '0');
-
-    // Data query with pagination
-    const dataSql = `
+    const aggregatedSql = `
       SELECT v.varekode, v.varenavn, v.varegruppe,
              COUNT(DISTINCT ol.ordrenr) as order_count,
              SUM(ol.antall) as total_quantity,
@@ -219,15 +230,17 @@ export const statisticsModel = {
       ${whereClause}
       GROUP BY v.varekode, v.varenavn, v.varegruppe
       HAVING SUM(ol.linjesum) > 0
-      ORDER BY total_sum DESC NULLS LAST
-      LIMIT $${paramIndex++} OFFSET $${paramIndex++}
     `;
-    const dataResult = await query(dataSql, [...params, limit, offset]);
 
-    return {
-      data: dataResult.rows,
-      pagination: buildPagination(page, limit, total),
-    };
+    return runPaginatedGroupQuery(
+      aggregatedSql,
+      params,
+      'total_sum DESC NULLS LAST',
+      page,
+      limit,
+      offset,
+      paramIndex,
+    );
   },
 
   getByLager: async (filters: StatsFilters): Promise<PaginatedResult<any>> => {
@@ -250,23 +263,7 @@ export const statisticsModel = {
       params.push(filters.kundenr);
     }
 
-    // Count query
-    const countSql = `
-      SELECT COUNT(*) as total FROM (
-        SELECT l.lagernavn, l.firmaid
-        FROM lager l
-        LEFT JOIN firma f ON l.firmaid = f.firmaid
-        LEFT JOIN ordre o ON l.lagernavn = o.lagernavn AND l.firmaid = o.firmaid
-        ${whereClause}
-        GROUP BY l.lagernavn, l.firmaid
-        HAVING SUM(o.sum) > 0
-      ) subquery
-    `;
-    const countResult = await query(countSql, params);
-    const total = parseInt(countResult.rows[0]?.total || '0');
-
-    // Data query with pagination
-    const dataSql = `
+    const aggregatedSql = `
       SELECT l.lagernavn, f.firmanavn,
              COUNT(DISTINCT o.ordrenr) as order_count,
              SUM(o.sum) as total_sum
@@ -276,15 +273,17 @@ export const statisticsModel = {
       ${whereClause}
       GROUP BY l.lagernavn, l.firmaid, f.firmanavn
       HAVING SUM(o.sum) > 0
-      ORDER BY total_sum DESC NULLS LAST
-      LIMIT $${paramIndex++} OFFSET $${paramIndex++}
     `;
-    const dataResult = await query(dataSql, [...params, limit, offset]);
 
-    return {
-      data: dataResult.rows,
-      pagination: buildPagination(page, limit, total),
-    };
+    return runPaginatedGroupQuery(
+      aggregatedSql,
+      params,
+      'total_sum DESC NULLS LAST',
+      page,
+      limit,
+      offset,
+      paramIndex,
+    );
   },
 
   getByFirma: async (filters: StatsFilters): Promise<PaginatedResult<any>> => {
@@ -307,22 +306,7 @@ export const statisticsModel = {
       params.push(filters.kundenr);
     }
 
-    // Count query
-    const countSql = `
-      SELECT COUNT(*) as total FROM (
-        SELECT f.firmaid
-        FROM firma f
-        LEFT JOIN ordre o ON f.firmaid = o.firmaid
-        ${whereClause}
-        GROUP BY f.firmaid
-        HAVING SUM(o.sum) > 0
-      ) subquery
-    `;
-    const countResult = await query(countSql, params);
-    const total = parseInt(countResult.rows[0]?.total || '0');
-
-    // Data query with pagination
-    const dataSql = `
+    const aggregatedSql = `
       SELECT f.firmaid, f.firmanavn,
              COUNT(DISTINCT o.ordrenr) as order_count,
              SUM(o.sum) as total_sum
@@ -331,15 +315,17 @@ export const statisticsModel = {
       ${whereClause}
       GROUP BY f.firmaid, f.firmanavn
       HAVING SUM(o.sum) > 0
-      ORDER BY total_sum DESC NULLS LAST
-      LIMIT $${paramIndex++} OFFSET $${paramIndex++}
     `;
-    const dataResult = await query(dataSql, [...params, limit, offset]);
 
-    return {
-      data: dataResult.rows,
-      pagination: buildPagination(page, limit, total),
-    };
+    return runPaginatedGroupQuery(
+      aggregatedSql,
+      params,
+      'total_sum DESC NULLS LAST',
+      page,
+      limit,
+      offset,
+      paramIndex,
+    );
   },
 
   getTimeSeries: async (
@@ -530,7 +516,7 @@ export const statisticsModel = {
       params.push(user.kundenr);
     } else if (filters.search) {
       // Free-text search: match kundenr OR any henvisning1-5
-      const searchPattern = `%${filters.search}%`;
+      const searchPattern = toIlikeContains(filters.search);
       sql += ` AND (
         o.kundenr::text ILIKE $${paramIndex} OR
         EXISTS (

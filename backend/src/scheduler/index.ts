@@ -2,6 +2,7 @@ import cron from 'node-cron';
 import { generateTestData, insertTestData } from '../etl/testDataController.js';
 import { generateRealData, insertRealData } from '../etl/realDataController.js';
 import { query } from '../db/index.js';
+import { refreshStatisticsAggregates } from '../services/statsAggregateService.js';
 import { isSchedulerJobsEnabled } from '../middleware/productionSafety.js';
 import { logger } from '../lib/logger.js';
 
@@ -216,7 +217,7 @@ export function initializeDefaultJobs() {
   }
 
   const statsTask = async () => {
-    logger.debug('Statistics aggregation placeholder');
+    await refreshStatisticsAggregates();
   };
   taskRegistry.set('aggregate-stats', statsTask);
   createJob('aggregate-stats', 'Aggregate Statistics', '0 * * * *', statsTask);

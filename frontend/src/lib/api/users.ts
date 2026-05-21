@@ -16,6 +16,8 @@ export interface PaginatedUsersResponse {
 export const usersApi = {
   getAll: (params?: { page?: number; limit?: number }) =>
     api.get<PaginatedUsersResponse>('/users', { params }),
+  search: (params: { q: string; limit?: number }) =>
+    api.get<{ data: UserPublic[] }>('/users/search', { params }),
   getById: (id: number) => api.get<UserPublic>(`/users/${id}`),
   create: (data: CreateUserPayload) => api.post<UserPublic>('/users', data),
   update: (id: number, data: UpdateUserPayload) => api.put<UserPublic>(`/users/${id}`, data),

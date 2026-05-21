@@ -1,46 +1,51 @@
 import type { OrderDetail } from '../types/order';
+import { ORDER_WORKFLOW_LABELS, type OrderWorkflowStatus } from '../types/notification';
 
 interface OrderTimelineProps {
   order: OrderDetail;
 }
 
-/** Visual order progress from available order/line fields. */
+const WORKFLOW_STEP_ORDER: OrderWorkflowStatus[] = [
+  'new',
+  'processing',
+  'shipped',
+  'invoiced',
+];
+
+/** Visual order progress from workflow status and line data. */
 export function OrderTimeline({ order }: OrderTimelineProps) {
+  const workflow = (order.workflow_status ?? 'new') as OrderWorkflowStatus;
+  const workflowIndex = WORKFLOW_STEP_ORDER.indexOf(workflow);
+  const isCancelled = workflow === 'cancelled';
+
   const activeLines = order.lines.filter((l) => l.linjestatus === 1).length;
   const totalLines = order.lines.length;
-  const hasRefs = order.lines.some(
-    (l) => l.henvisning1 || l.henvisning2 || l.henvisning3,
-  );
 
-  const steps = [
-    {
-      id: 'registered',
-      label: 'Ordre registrert',
-      detail: new Date(order.dato).toLocaleDateString('nb-NO'),
+  const steps = WORKFLOW_STEP_ORDER.map((status, index) => ({
+    id: status,
+    label: ORDER_WORKFLOW_LABELS[status],
+    detail:
+      status === 'new'
+        ? new Date(order.dato).toLocaleDateString('nb-NO')
+        : status === 'processing'
+          ? `${activeLines} av ${totalLines} aktive linjer`
+          : status === 'shipped'
+            ? order.lagernavn || 'Sendt fra lager'
+            : new Intl.NumberFormat('nb-NO', {
+                style: 'currency',
+                currency: order.valutaid || 'NOK',
+              }).format(order.sum),
+    done: isCancelled ? false : workflowIndex >= index,
+  }));
+
+  if (isCancelled) {
+    steps.push({
+      id: 'cancelled',
+      label: ORDER_WORKFLOW_LABELS.cancelled,
+      detail: 'Ordren er kansellert',
       done: true,
-    },
-    {
-      id: 'lines',
-      label: 'Ordrelinjer',
-      detail: `${activeLines} av ${totalLines} aktive linjer`,
-      done: totalLines > 0,
-    },
-    {
-      id: 'refs',
-      label: 'Referanser',
-      detail: hasRefs ? 'Henvisninger registrert' : 'Ingen henvisninger',
-      done: hasRefs || Boolean(order.kunderef || order.kundeordreref),
-    },
-    {
-      id: 'complete',
-      label: 'Ordre fullført',
-      detail: new Intl.NumberFormat('nb-NO', {
-        style: 'currency',
-        currency: order.valutaid || 'NOK',
-      }).format(order.sum),
-      done: order.sum > 0 && activeLines === totalLines && totalLines > 0,
-    },
-  ];
+    });
+  }
 
   return (
     <ol className="space-y-0" aria-label="Ordrestatus">

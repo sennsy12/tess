@@ -66,6 +66,9 @@ CREATE TABLE IF NOT EXISTS public.ordre
     lagernavn text,
     valutaid text,
     sum double precision,
+    workflow_status text NOT NULL DEFAULT 'new'
+        CHECK (workflow_status IN ('new', 'processing', 'shipped', 'invoiced', 'cancelled')),
+    status_updated_at TIMESTAMP,
     FOREIGN KEY (kundenr) REFERENCES public.kunde(kundenr),
     FOREIGN KEY (firmaid) REFERENCES public.firma(firmaid),
     FOREIGN KEY (lagernavn, firmaid) REFERENCES public.lager(lagernavn, firmaid),
@@ -260,6 +263,64 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_timestamp ON audit_log (timestamp DESC)
 CREATE INDEX IF NOT EXISTS idx_audit_log_user ON audit_log (user_id);
 CREATE INDEX IF NOT EXISTS idx_audit_log_entity ON audit_log (entity_type, entity_id);
 CREATE INDEX IF NOT EXISTS idx_audit_log_action ON audit_log (action);
+
+-- Trigram indexes for ILIKE search (see migration 004_trigram_search_indexes.sql)
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
+CREATE INDEX IF NOT EXISTS idx_kunde_kundenavn_trgm ON public.kunde USING gin (kundenavn gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_kunde_kundenr_trgm ON public.kunde USING gin (kundenr gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_ordre_kundeordreref_trgm ON public.ordre USING gin (kundeordreref gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_ordre_kunderef_trgm ON public.ordre USING gin (kunderef gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_ordre_kundenr_trgm ON public.ordre USING gin (kundenr gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_vare_varekode_trgm ON public.vare USING gin (varekode gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_vare_varenavn_trgm ON public.vare USING gin (varenavn gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_ordre_henvisning_h1_trgm ON public.ordre_henvisning USING gin (henvisning1 gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_ordre_henvisning_h2_trgm ON public.ordre_henvisning USING gin (henvisning2 gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_ordre_henvisning_h3_trgm ON public.ordre_henvisning USING gin (henvisning3 gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_ordre_henvisning_h4_trgm ON public.ordre_henvisning USING gin (henvisning4 gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_ordre_henvisning_h5_trgm ON public.ordre_henvisning USING gin (henvisning5 gin_trgm_ops);
+
+CREATE INDEX IF NOT EXISTS idx_ordre_workflow_status ON public.ordre(workflow_status);
+
+-- Notifications (in-app alerts)
+CREATE TABLE IF NOT EXISTS public.notifications (
+    id BIGSERIAL PRIMARY KEY,
+    type TEXT NOT NULL,
+    title TEXT NOT NULL,
+    message TEXT NOT NULL,
+    metadata JSONB,
+    audience TEXT NOT NULL CHECK (audience IN ('admin', 'kunde')),
+    kundenr TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.notification_reads (
+    notification_id BIGINT NOT NULL REFERENCES public.notifications(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    read_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (notification_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON public.notifications (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notifications_audience ON public.notifications (audience, kundenr);
+
+-- ETL job progress (durable)
+CREATE TABLE IF NOT EXISTS public.etl_job_progress (
+    job_id TEXT PRIMARY KEY,
+    status TEXT NOT NULL CHECK (status IN ('pending', 'running', 'completed', 'failed', 'cancelled')),
+    table_name TEXT NOT NULL,
+    source_type TEXT NOT NULL,
+    attempted_rows BIGINT NOT NULL DEFAULT 0,
+    inserted_rows BIGINT NOT NULL DEFAULT 0,
+    rejected_rows BIGINT NOT NULL DEFAULT 0,
+    dead_letter_count BIGINT NOT NULL DEFAULT 0,
+    estimated_total BIGINT,
+    error TEXT,
+    started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_etl_job_progress_updated_at ON public.etl_job_progress (updated_at DESC);
 
 COMMIT;
 

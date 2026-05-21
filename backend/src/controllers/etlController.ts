@@ -1,5 +1,4 @@
 import { Request, Response } from 'express';
-import fs from 'fs/promises';
 import { createDB, truncateDB } from '../etl/dbController.js';
 import { generateTestData, insertTestData } from '../etl/testDataController.js';
 import { generateRealData, insertRealData } from '../etl/realDataController.js';
@@ -7,26 +6,36 @@ import { generateBulkTestData, insertBulkTestData, getTableCounts, runBulkPipeli
 import { runBulkLoadFast } from '../etl/bulkLoadFast.js';
 import { getEtlMetrics } from '../etl/etlMetrics.js';
 import { uploadCsvToTable } from '../etl/csvUploadController.js';
-import { runStreamingEtl } from '../etl/streaming/pipeline.js';
 import { runStreamingBenchmark } from '../etl/etlBenchmark.js';
-import { subscribeToJob, getJob, listJobs, setJobAbortController, clearJobAbortController, cancelJob } from '../etl/jobRegistry.js';
+import {
+  subscribeToJob,
+  getJob,
+  getJobAsync,
+  listJobsAsync,
+  setJobAbortController,
+  clearJobAbortController,
+  cancelJob,
+} from '../etl/jobRegistry.js';
 import { getLastFailureForJob } from '../etl/etlFailures.js';
+import {
+  createIngestJobId,
+  enqueueIngestJob,
+  executeIngestJob,
+  isEtlQueueReady,
+} from '../etl/etlQueue.js';
 import { ValidationError } from '../middleware/errorHandler.js';
 import { assertAdminActionKey } from '../lib/actionKey.js';
+import { computeEtlProgressPercent } from '../lib/etlProgress.js';
 import { etlLogger } from '../lib/logger.js';
-import { randomUUID } from 'crypto';
+import { unlinkIfExists } from '../lib/fsUtil.js';
 import type { EtlIngestBody } from '../middleware/validation.js';
+import type { EtlJobProgress } from '../etl/streaming/types.js';
 
-/** Async unlink; ignores ENOENT. Use for temp file cleanup to avoid blocking the event loop. */
-async function unlinkIfExists(filePath: string): Promise<void> {
-  try {
-    await fs.unlink(filePath);
-  } catch (e) {
-    const err = e as NodeJS.ErrnoException;
-    if (err.code !== 'ENOENT') {
-      etlLogger.warn({ err: err.message, path: filePath }, 'Failed to delete temp file');
-    }
-  }
+function withEtlProgressFields(job: EtlJobProgress) {
+  return {
+    ...job,
+    progressPercent: computeEtlProgressPercent(job.attemptedRows, job.estimatedTotal),
+  };
 }
 
 export const etlController = {
@@ -244,7 +253,15 @@ export const etlController = {
 
   ingestStream: async (req: Request<object, object, EtlIngestBody>, res: Response) => {
     const body = req.body;
-    const { sourceType, table, strictMode, onConflict, sourceMapping, jobId: providedJobId, checkpoint, deadLetter, progressInterval, upsertKeyColumns, upsertUpdateColumns, maxRows, maxDurationMs, maxDeadLetters, maxHeapMb, csv: csvOpts, json: jsonOpts, api } = body;
+    const {
+      sourceType,
+      table,
+      async: runAsync,
+      jobId: providedJobId,
+      deadLetter,
+      checkpoint,
+      progressInterval,
+    } = body;
 
     const shouldUseUploadedFile = sourceType === 'csv' || (sourceType === 'json' && req.file);
     const uploadedFilePath = req.file?.path;
@@ -255,49 +272,31 @@ export const etlController = {
       throw new ValidationError('JSON ingest requires an uploaded file (multipart field name: file)');
     }
 
-    const jobId = providedJobId ?? (deadLetter || checkpoint || progressInterval > 0 ? randomUUID() : undefined);
-    const abortController = jobId ? new AbortController() : undefined;
-    if (jobId && abortController) {
-      setJobAbortController(jobId, abortController);
+    const jobId = createIngestJobId(providedJobId);
+
+    const payload = {
+      jobId,
+      body,
+      uploadedFilePath: shouldUseUploadedFile ? uploadedFilePath : undefined,
+    };
+
+    if (runAsync && isEtlQueueReady()) {
+      await enqueueIngestJob(payload);
+      res.status(202).json({
+        success: true,
+        message: `ETL job queued for ${table}`,
+        jobId,
+        status: 'pending',
+        pollUrl: `/api/etl/jobs/${jobId}`,
+      });
+      return;
     }
 
-    const fileToCleanup = shouldUseUploadedFile ? uploadedFilePath : undefined;
+    const abortController = new AbortController();
+    setJobAbortController(jobId, abortController);
+
     try {
-      const result = await runStreamingEtl({
-        sourceType,
-        table,
-        strictMode,
-        onConflict,
-        sourceMapping,
-        jobId,
-        checkpoint,
-        deadLetter,
-        progressInterval,
-        upsertKeyColumns,
-        upsertUpdateColumns,
-        maxRows,
-        maxDurationMs,
-        maxDeadLetters,
-        maxHeapMb,
-        signal: abortController?.signal,
-        csv:
-          sourceType === 'csv' && uploadedFilePath
-            ? {
-                filePath: uploadedFilePath,
-                delimiter: csvOpts?.delimiter,
-                compression: csvOpts?.compression ?? 'none',
-              }
-            : undefined,
-        json:
-          sourceType === 'json' && uploadedFilePath
-            ? {
-                mode: jsonOpts?.mode ?? 'array',
-                filePath: uploadedFilePath,
-                compression: jsonOpts?.compression ?? 'none',
-              }
-            : undefined,
-        api: sourceType === 'api' && api ? api : undefined,
-      });
+      const result = await executeIngestJob(payload);
 
       const msPerInsertedRow =
         result.insertedRows > 0 ? Number((result.durationMs / result.insertedRows).toFixed(3)) : null;
@@ -317,7 +316,7 @@ export const etlController = {
       });
     } catch (err) {
       const isAbort = err instanceof DOMException && err.name === 'AbortError';
-      if (isAbort && jobId) {
+      if (isAbort) {
         res.status(200).json({
           success: false,
           message: 'Job cancelled',
@@ -328,10 +327,7 @@ export const etlController = {
       }
       throw err;
     } finally {
-      if (jobId) clearJobAbortController(jobId);
-      if (fileToCleanup) {
-        await unlinkIfExists(fileToCleanup);
-      }
+      clearJobAbortController(jobId);
     }
   },
 
@@ -341,7 +337,7 @@ export const etlController = {
       res.status(400).json({ error: 'jobId required' });
       return;
     }
-    const job = getJob(jobId);
+    const job = await getJobAsync(jobId);
     if (!job) {
       res.status(404).json({ error: 'Job not found' });
       return;
@@ -353,17 +349,18 @@ export const etlController = {
   listJobs: async (req: Request, res: Response) => {
     const raw = req.query?.limit;
     const limit = Math.min(Number(typeof raw === 'string' ? raw : undefined) || 100, 500);
-    res.json({ jobs: listJobs(limit) });
+    const jobs = await listJobsAsync(limit);
+    res.json({ jobs: jobs.map(withEtlProgressFields) });
   },
 
   getJob: async (req: Request, res: Response) => {
-    const job = getJob(req.params.jobId);
+    const job = await getJobAsync(req.params.jobId);
     if (!job) {
       res.status(404).json({ error: 'Job not found' });
       return;
     }
     const lastFailure = await getLastFailureForJob(req.params.jobId);
-    res.json({ ...job, lastFailure: lastFailure ?? undefined });
+    res.json({ ...withEtlProgressFields(job), lastFailure: lastFailure ?? undefined });
   },
 
   jobProgressSSE: async (req: Request, res: Response) => {
@@ -379,7 +376,7 @@ export const etlController = {
     res.flushHeaders?.();
 
     const unsubscribe = subscribeToJob(jobId, (progress) => {
-      res.write(`data: ${JSON.stringify(progress)}\n\n`);
+      res.write(`data: ${JSON.stringify(withEtlProgressFields(progress))}\n\n`);
       const resWithFlush = res as Response & { flush?: () => void };
       if (typeof resWithFlush.flush === 'function') {
         resWithFlush.flush();

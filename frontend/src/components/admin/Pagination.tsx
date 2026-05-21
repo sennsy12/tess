@@ -92,13 +92,9 @@ export function Pagination({
   const { page, total, limit } = pagination;
   const totalPages = pagination.totalPages ?? Math.ceil(total / limit);
 
-  // Don't render when there is only one page
-  if (totalPages <= 1) return null;
-
   const isFirst = page === 1;
   const isLast = page === totalPages;
 
-  // Stable callbacks so consumer can safely pass without useCallback wrapping
   const goFirst = useCallback(() => onPageChange(1), [onPageChange]);
   const goPrev = useCallback(
     () => onPageChange(Math.max(1, page - 1)),
@@ -119,7 +115,8 @@ export function Pagination({
     [variant, page, totalPages, siblingCount],
   );
 
-  // Summary text (e.g. "Side 2 av 10 · 193 brukere totalt")
+  if (totalPages <= 1) return null;
+
   const summaryText = itemLabel
     ? `Side ${page} av ${totalPages} \u00B7 ${total} ${itemLabel} totalt`
     : `Side ${page} av ${totalPages}`;

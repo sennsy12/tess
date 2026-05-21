@@ -114,6 +114,27 @@ export const pricingService = {
   /**
    * Get all applicable rules for a customer (for UI preview)
    */
+  getCustomerPricingOverview: async (kundenr: string) => {
+    const customerResult = await query(
+      `SELECT k.kundenavn, cg.name AS customer_group_name
+       FROM kunde k
+       LEFT JOIN customer_group cg ON k.customer_group_id = cg.id
+       WHERE k.kundenr = $1`,
+      [kundenr],
+    );
+    const row = customerResult.rows[0];
+    const rules = await pricingService.getApplicableRulesForCustomer(kundenr);
+
+    return {
+      customer: {
+        kundenr,
+        kundenavn: row?.kundenavn ?? null,
+        customer_group_name: row?.customer_group_name ?? null,
+      },
+      rules,
+    };
+  },
+
   getApplicableRulesForCustomer: async (kundenr: string): Promise<PriceRule[]> => {
     // Get customer's group
     const customerResult = await query(

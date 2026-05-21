@@ -1,3 +1,5 @@
+import type { OrderWorkflowStatus } from './notification';
+
 export interface OrderLine {
   linjenr: number;
   ordrenr?: number; // Added from OrderLines.tsx
@@ -27,6 +29,8 @@ export interface Order {
   sum: number;
   kunderef?: string;
   kundeordreref?: string;
+  workflow_status?: OrderWorkflowStatus;
+  status_updated_at?: string;
 }
 
 export interface OrderDetail extends Order {

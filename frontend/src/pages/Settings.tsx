@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { ArrowRight, UserCircle } from 'lucide-react';
 import { Layout } from '../components/Layout';
 import { PasswordInput } from '../components/PasswordInput';
 import { useAuth } from '../context/useAuth';
@@ -52,8 +53,28 @@ export function Settings() {
           ← Tilbake
         </button>
 
+        {user?.role === 'kunde' && (
+          <Link
+            to="/kunde/konto"
+            className="card group flex items-center justify-between gap-4 hover:border-emerald-500/40 hover:bg-dark-800/30 transition-all"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 border border-emerald-500/30">
+                <UserCircle className="h-5 w-5 text-emerald-400" aria-hidden />
+              </div>
+              <div className="min-w-0">
+                <p className="font-semibold text-white">Min konto</p>
+                <p className="text-sm text-dark-400 truncate">
+                  Bedriftsprofil, kundegruppe og handelsoversikt
+                </p>
+              </div>
+            </div>
+            <ArrowRight className="h-5 w-5 text-dark-500 group-hover:text-emerald-400 group-hover:translate-x-0.5 transition-all shrink-0" aria-hidden />
+          </Link>
+        )}
+
         <div className="card space-y-4">
-          <h3 className="text-lg font-semibold">Profil</h3>
+          <h3 className="text-lg font-semibold">Innlogging</h3>
           <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
             <div>
               <dt className="text-dark-400">Brukernavn</dt>
@@ -63,12 +84,6 @@ export function Settings() {
               <dt className="text-dark-400">Rolle</dt>
               <dd className="font-medium capitalize">{user?.role}</dd>
             </div>
-            {user?.kundenr && (
-              <div>
-                <dt className="text-dark-400">Kundenummer</dt>
-                <dd className="font-medium">{user.kundenr}</dd>
-              </div>
-            )}
           </dl>
         </div>
 

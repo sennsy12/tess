@@ -39,6 +39,11 @@ export const paginationSchema = z.object({
   limit: z.string().optional().transform(v => Math.min(100, Math.max(1, parseInt(v || '50', 10) || 50))),
 });
 
+export const sortQuerySchema = z.object({
+  sortBy: z.string().optional().transform(emptyToUndefined),
+  sortDir: z.enum(['asc', 'desc']).optional(),
+});
+
 // Date range - allows empty strings (treated as undefined)
 export const dateRangeSchema = z.object({
   startDate: z.string().optional().transform(v => v && v.trim() ? v : undefined).pipe(
@@ -127,11 +132,13 @@ export const etlIngestSchema = z.object({
   sourceType: z.enum(['csv', 'json', 'api']),
   table: z.enum(['ordre', 'ordrelinje', 'kunde', 'vare', 'firma', 'lager']),
   strictMode: z.boolean().default(false),
-  onConflict: z.enum(['nothing', 'error', 'upsert']).default('nothing'),
+  onConflict: z.enum(['nothing', 'error', 'upsert']).default('upsert'),
   sourceMapping: z.record(z.string(), z.string()).optional(),
   jobId: z.string().max(100).optional(),
-  checkpoint: z.boolean().default(false),
+  checkpoint: z.boolean().default(true),
   deadLetter: z.boolean().default(false),
+  /** When true (default), ingest returns 202 and runs via pg-boss queue. Set false for synchronous ingest. */
+  async: z.boolean().default(true),
   progressInterval: z.number().int().min(100).max(100000).default(5000),
   upsertKeyColumns: z.array(z.string().max(100)).optional(),
   upsertUpdateColumns: z.array(z.string().max(100)).optional(),
@@ -231,7 +238,7 @@ export const simulateSchema = z.object({
 // Order validation schemas
 // ============================================================
 
-export const orderQuerySchema = paginationSchema.merge(dateRangeSchema).extend({
+export const orderQuerySchema = paginationSchema.merge(dateRangeSchema).merge(sortQuerySchema).extend({
   kundenr: z.string().optional().transform(emptyToUndefined),
   ordrenr: z.string().optional().transform(emptyToUndefined),
   firmaid: z.string().optional().transform(v => v && v.trim() ? parseInt(v, 10) : undefined),
@@ -240,6 +247,24 @@ export const orderQuerySchema = paginationSchema.merge(dateRangeSchema).extend({
   kunderef: z.string().optional().transform(emptyToUndefined),
   search: z.string().optional().transform(emptyToUndefined),
   q: z.string().optional().transform(emptyToUndefined),
+  workflowStatus: z
+    .enum(['new', 'processing', 'shipped', 'invoiced', 'cancelled'])
+    .optional(),
+});
+
+export const updateOrderStatusSchema = z.object({
+  workflowStatus: z.enum(['new', 'processing', 'shipped', 'invoiced', 'cancelled']),
+});
+
+export const notificationQuerySchema = paginationSchema.extend({
+  unreadOnly: z
+    .string()
+    .optional()
+    .transform((v) => v === 'true' || v === '1'),
+});
+
+export const markNotificationsReadSchema = z.object({
+  ids: z.array(z.number().int().positive()).min(1).max(200),
 });
 
 export const orderLineSchema = z.object({
@@ -281,4 +306,36 @@ export const deleteUserSchema = z.object({
 
 export const searchQuerySchema = z.object({
   q: z.string().min(1).max(200),
+});
+
+// ============================================================
+// Product / user / pricing list query schemas
+// ============================================================
+
+export const productListQuerySchema = paginationSchema.merge(sortQuerySchema).extend({
+  search: z.string().optional().transform(emptyToUndefined),
+  varegruppe: z.string().optional().transform(emptyToUndefined),
+});
+
+export const pricingCustomerSearchSchema = paginationSchema.merge(sortQuerySchema).extend({
+  search: z.string().optional().transform(emptyToUndefined),
+  group: z.string().optional().transform(emptyToUndefined),
+});
+
+export const userListQuerySchema = paginationSchema;
+
+export const userSearchQuerySchema = paginationSchema.extend({
+  q: z.string().optional().transform(emptyToUndefined),
+  search: z.string().optional().transform(emptyToUndefined),
+});
+
+export const auditQuerySchema = paginationSchema.extend({
+  entity_type: z.string().optional(),
+  action: z.string().optional(),
+  user_id: z
+    .string()
+    .optional()
+    .transform((v) => (v && v.trim() ? parseInt(v, 10) : undefined)),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
 });

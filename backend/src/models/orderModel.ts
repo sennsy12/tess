@@ -8,6 +8,10 @@
  * @module models/orderModel
  */
 import { query } from '../db/index.js';
+import { extractWindowCountPage } from '../lib/paginatedQuery.js';
+import { buildOrderByClause } from '../lib/sqlSort.js';
+import { toIlikeContains } from '../lib/sqlSearch.js';
+import type { OrderWorkflowStatus } from '../lib/orderWorkflow.js';
 
 /** Filter parameters accepted by `findAll`. */
 export interface OrderFilters {
@@ -15,11 +19,26 @@ export interface OrderFilters {
   ordrenr?: string;
   startDate?: string;
   endDate?: string;
-  firmaid?: string;
+  firmaid?: number;
   lagernavn?: string;
   valutaid?: string;
   search?: string;
+  workflowStatus?: OrderWorkflowStatus;
+  sortBy?: string;
+  sortDir?: 'asc' | 'desc';
 }
+
+const ORDER_SORT_COLUMNS: Record<string, string> = {
+  ordrenr: 'o.ordrenr',
+  dato: 'o.dato',
+  kundenavn: 'k.kundenavn',
+  kunderef: 'o.kunderef',
+  firmanavn: 'f.firmanavn',
+  lagernavn: 'o.lagernavn',
+  valutaid: 'o.valutaid',
+  sum: 'o.sum',
+  workflow_status: 'o.workflow_status',
+};
 
 export const orderModel = {
   /**
@@ -73,7 +92,7 @@ export const orderModel = {
 
     if (filters.firmaid) {
       baseSql += ` AND o.firmaid = $${paramIndex++}`;
-      params.push(Number(filters.firmaid));
+      params.push(filters.firmaid);
     }
 
     if (filters.lagernavn) {
@@ -84,6 +103,11 @@ export const orderModel = {
     if (filters.valutaid) {
       baseSql += ` AND o.valutaid = $${paramIndex++}`;
       params.push(filters.valutaid);
+    }
+
+    if (filters.workflowStatus) {
+      baseSql += ` AND o.workflow_status = $${paramIndex++}`;
+      params.push(filters.workflowStatus);
     }
 
     if (filters.search) {
@@ -105,18 +129,18 @@ export const orderModel = {
           )
         )
       )`;
-      params.push(`%${filters.search}%`);
+      params.push(toIlikeContains(filters.search));
       paramIndex++;
     }
 
-    // Get total count
-    const countSql = `SELECT COUNT(*) as total ${baseSql}`;
-    const countResult = await query(countSql, params);
-    const total = parseInt(countResult.rows[0].total);
+    const orderBy = filters.sortBy
+      ? buildOrderByClause(ORDER_SORT_COLUMNS, filters.sortBy, filters.sortDir, 'o.dato')
+      : 'o.dato DESC, o.ordrenr DESC';
 
-    // Get data
-    let dataSql = `SELECT o.*, k.kundenavn, f.firmanavn ${baseSql}`;
-    dataSql += ' ORDER BY o.dato DESC, o.ordrenr DESC';
+    let dataSql = `SELECT o.*, k.kundenavn, f.firmanavn,
+                          COUNT(*) OVER()::int AS _total_count
+                   ${baseSql}
+                   ORDER BY ${orderBy}`;
 
     if (pagination) {
       dataSql += ` LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
@@ -124,10 +148,11 @@ export const orderModel = {
     }
 
     const result = await query(dataSql, params);
-    
+    const { data, total } = extractWindowCountPage(result.rows);
+
     return {
-      data: result.rows,
-      total
+      data,
+      total,
     };
   },
 
@@ -206,7 +231,7 @@ export const orderModel = {
         oh.henvisning5 ILIKE $1
       )
     `;
-    const params: any[] = [`%${q}%`];
+    const params: any[] = [toIlikeContains(q)];
 
     // If user is kunde, only show their orders
     if (user?.role === 'kunde' && user?.kundenr) {
@@ -218,5 +243,28 @@ export const orderModel = {
 
     const result = await query(sql, params);
     return result.rows;
-  }
+  },
+
+  updateWorkflowStatus: async (
+    ordrenr: number,
+    workflowStatus: OrderWorkflowStatus,
+  ): Promise<{ ordrenr: number; kundenr: string; workflow_status: OrderWorkflowStatus } | null> => {
+    const result = await query(
+      `UPDATE ordre
+       SET workflow_status = $2, status_updated_at = NOW()
+       WHERE ordrenr = $1
+       RETURNING ordrenr, kundenr, workflow_status`,
+      [ordrenr, workflowStatus],
+    );
+    if (result.rows.length === 0) return null;
+    return result.rows[0];
+  },
+
+  getWorkflowStatus: async (ordrenr: number): Promise<OrderWorkflowStatus | null> => {
+    const result = await query(
+      `SELECT workflow_status FROM ordre WHERE ordrenr = $1`,
+      [ordrenr],
+    );
+    return result.rows[0]?.workflow_status ?? null;
+  },
 };

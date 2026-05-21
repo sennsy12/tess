@@ -31,7 +31,9 @@ export function AdminOrderLines() {
   const [selectedOrder, setSelectedOrder] = useState<number | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [orderLines, setOrderLines] = useState<OrderLine[]>([]);
-  const [products, setProducts] = useState<any[]>([]);
+  const [productOptions, setProductOptions] = useState<{ varekode: string; varenavn: string }[]>([]);
+  const [productSearch, setProductSearch] = useState('');
+  const [isLoadingProducts, setIsLoadingProducts] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingLine, setEditingLine] = useState<OrderLine | null>(null);
@@ -58,13 +60,9 @@ export function AdminOrderLines() {
 
   const loadInitialData = async () => {
     try {
-      const [ordersRes, productsRes] = await Promise.all([
-        ordersApi.getAll({ limit: 100 }),
-        productsApi.getAll(),
-      ]);
-      const ordersData = ordersRes.data.data || ordersRes.data;
+      const ordersRes = await ordersApi.getAll({ limit: 100, page: 1 });
+      const ordersData = ordersRes.data.data ?? [];
       setOrders(ordersData);
-      setProducts(productsRes.data);
       if (ordersData.length > 0) {
         setSelectedOrder(ordersData[0].ordrenr);
       }
@@ -74,6 +72,32 @@ export function AdminOrderLines() {
       setIsLoading(false);
     }
   };
+
+  const searchProducts = useCallback(async (term: string) => {
+    setIsLoadingProducts(true);
+    try {
+      const response = await productsApi.search({
+        search: term.trim() || undefined,
+        page: 1,
+        limit: 50,
+        sortBy: 'varenavn',
+        sortDir: 'asc',
+      });
+      setProductOptions(response.data.data ?? []);
+    } catch {
+      setProductOptions([]);
+    } finally {
+      setIsLoadingProducts(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!showModal) return;
+    const timer = setTimeout(() => {
+      void searchProducts(productSearch);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [showModal, productSearch, searchProducts]);
 
   const loadOrderLines = async (ordrenr: number, page: number) => {
     try {
@@ -99,15 +123,15 @@ export function AdminOrderLines() {
 
   const handleCreate = useCallback(() => {
     setEditingLine(null);
-    setFormData({
-      ...INITIAL_FORM,
-      varekode: products[0]?.varekode || '',
-    });
+    setProductSearch('');
+    setFormData({ ...INITIAL_FORM, varekode: '' });
     setShowModal(true);
-  }, [products]);
+    void searchProducts('');
+  }, [searchProducts]);
 
   const handleEdit = useCallback((line: OrderLine) => {
     setEditingLine(line);
+    setProductSearch(line.varekode);
     setFormData({
       varekode: line.varekode,
       antall: line.antall,
@@ -116,7 +140,8 @@ export function AdminOrderLines() {
       linjestatus: line.linjestatus,
     });
     setShowModal(true);
-  }, []);
+    void searchProducts(line.varekode);
+  }, [searchProducts]);
 
   const handleDelete = useCallback(
     async (line: OrderLine) => {
@@ -297,6 +322,7 @@ export function AdminOrderLines() {
           columns={columns}
           emptyMessage="Ingen ordrelinjer funnet"
           paginate={false}
+          disableClientSort
           enableCsvExport
           exportFilename="admin-orderlines"
           title="Ordrelinjer"
@@ -322,14 +348,24 @@ export function AdminOrderLines() {
           submitLabel={editingLine ? 'Lagre' : 'Opprett'}
         >
           <div>
+            <label className="label">Søk vare</label>
+            <input
+              type="search"
+              value={productSearch}
+              onChange={(e) => setProductSearch(e.target.value)}
+              className="input mb-2"
+              placeholder="Varekode eller navn..."
+            />
             <label className="label">Vare</label>
             <select
               value={formData.varekode}
               onChange={(e) => setFormData({ ...formData, varekode: e.target.value })}
               className="input"
               required
+              disabled={isLoadingProducts}
             >
-              {products.map((product) => (
+              <option value="">{isLoadingProducts ? 'Laster...' : 'Velg vare'}</option>
+              {productOptions.map((product) => (
                 <option key={product.varekode} value={product.varekode}>
                   {product.varekode} - {product.varenavn}
                 </option>

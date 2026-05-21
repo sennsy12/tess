@@ -1,4 +1,7 @@
 import { query } from '../db/index.js';
+import { extractWindowCountPage } from '../lib/paginatedQuery.js';
+import { buildOrderByClause } from '../lib/sqlSort.js';
+import { toIlikeContains } from '../lib/sqlSearch.js';
 import {
   CustomerGroup,
   CreateCustomerGroupInput,
@@ -104,53 +107,60 @@ export const customerGroupModel = {
    */
   searchCustomersWithGroups: async (params: {
     search?: string;
-    groupId?: string;   // 'unassigned' | number as string | undefined (= all)
+    groupId?: string;
     page: number;
     limit: number;
+    sortBy?: string;
+    sortDir?: 'asc' | 'desc';
   }): Promise<{ data: CustomerWithGroup[]; total: number }> => {
     const conditions: string[] = [];
     const values: any[] = [];
     let paramIdx = 1;
 
-    // Search filter (kundenr or kundenavn)
-    if (params.search && params.search.trim()) {
+    if (params.search?.trim()) {
       conditions.push(`(k.kundenr ILIKE $${paramIdx} OR k.kundenavn ILIKE $${paramIdx})`);
-      values.push(`%${params.search.trim()}%`);
+      values.push(toIlikeContains(params.search));
       paramIdx++;
     }
 
-    // Group filter
     if (params.groupId === 'unassigned') {
       conditions.push('k.customer_group_id IS NULL');
+    } else if (params.groupId === 'assigned') {
+      conditions.push('k.customer_group_id IS NOT NULL');
     } else if (params.groupId && params.groupId !== 'all') {
       conditions.push(`k.customer_group_id = $${paramIdx}`);
-      values.push(parseInt(params.groupId));
+      values.push(parseInt(params.groupId, 10));
       paramIdx++;
     }
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-
-    // Count total
-    const countResult = await query(
-      `SELECT COUNT(*) as total FROM kunde k ${whereClause}`,
-      values
+    const orderBy = buildOrderByClause(
+      {
+        kundenr: 'k.kundenr',
+        kundenavn: 'k.kundenavn',
+        group: 'cg.name',
+      },
+      params.sortBy,
+      params.sortDir,
+      'k.kundenavn',
     );
-    const total = parseInt(countResult.rows[0].total);
-
-    // Fetch page
     const offset = (params.page - 1) * params.limit;
+
     const dataResult = await query(
-      `SELECT k.kundenr, k.kundenavn, k.customer_group_id, cg.name as customer_group_name
+      `SELECT k.kundenr, k.kundenavn, k.customer_group_id, cg.name AS customer_group_name,
+              COUNT(*) OVER()::int AS _total_count
        FROM kunde k
        LEFT JOIN customer_group cg ON k.customer_group_id = cg.id
        ${whereClause}
-       ORDER BY k.kundenavn
+       ORDER BY ${orderBy}
        LIMIT $${paramIdx} OFFSET $${paramIdx + 1}`,
-      [...values, params.limit, offset]
+      [...values, params.limit, offset],
     );
 
-    return { data: dataResult.rows, total };
-  }
+    const { data, total } = extractWindowCountPage(dataResult.rows);
+
+    return { data, total };
+  },
 };
 
 // ============================================

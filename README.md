@@ -75,6 +75,11 @@ npm run dev
 - Search orders by ordrenr, date, references
 - Sortable order tables with saved views
 - View order details with line items
+- Read-only price list (Mine priser)
+- Company profile page (Min konto)
+- Order status notifications with deep links
+- Global order search (Ctrl+K)
+- Mobile-friendly order cards
 - Advanced analytics
 - Export charts to PDF/Image
 
@@ -128,6 +133,24 @@ npm run dev
 | GET /api/users | List users |
 | GET/POST/PUT/DELETE /api/users/:id | User CRUD |
 | GET /api/audit | Audit logs |
+| **Assistant** | |
+| GET /api/assistant/status | Whether AI help chat is enabled |
+| POST /api/assistant/chat | Project help chat (JWT, rate limited) |
+
+### AI help assistant (optional)
+
+Server-side AI for in-app help about TESS (not live order data). **Gemini Flash** is the default (cheaper); OpenAI is also supported.
+
+```bash
+ENABLE_ASSISTANT=true
+ASSISTANT_PROVIDER=gemini
+GEMINI_API_KEY=your-key-from-aistudio.google.com
+GEMINI_MODEL=gemini-2.5-flash-lite   # optional; cheap default
+```
+
+For OpenAI instead: `ASSISTANT_PROVIDER=openai` and `OPENAI_API_KEY=sk-...`.
+
+API keys must never be exposed to the browser. Disabled by default in production (see `.env.prod.example`).
 
 ## License
 

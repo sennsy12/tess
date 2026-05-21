@@ -17,7 +17,10 @@ import { pricingRouter } from './routes/pricing.js';
 import { dashboardRouter } from './routes/dashboard.js';
 import { auditRouter } from './routes/audit.js';
 import { usersRouter } from './routes/users.js';
+import { assistantRouter } from './routes/assistant.js';
+import { notificationsRouter } from './routes/notifications.js';
 import { initializeDefaultJobs, stopAllJobs } from './scheduler/index.js';
+import { initEtlQueue, stopEtlQueue } from './etl/etlQueue.js';
 import { apiMetricsMiddleware } from './middleware/apiMetrics.js';
 import { generalLimiter } from './middleware/rateLimit.js';
 import { logger } from './lib/logger.js';
@@ -131,6 +134,8 @@ app.use('/api/pricing', pricingRouter);
 app.use('/api/dashboard', dashboardRouter);
 app.use('/api/audit', auditRouter);
 app.use('/api/users', usersRouter);
+app.use('/api/assistant', assistantRouter);
+app.use('/api/notifications', notificationsRouter);
 
 // Error handling middleware (must be last)
 app.use(errorHandler);
@@ -145,6 +150,7 @@ function setupGracefulShutdown(httpServer: ReturnType<typeof app.listen>) {
     logger.info({ signal }, 'Shutting down gracefully');
 
     stopAllJobs();
+    await stopEtlQueue();
 
     httpServer.close(async (err) => {
       if (err) {
@@ -183,6 +189,12 @@ async function startServer() {
   }
 
   initializeDefaultJobs();
+
+  try {
+    await initEtlQueue();
+  } catch (err) {
+    logger.warn({ err }, 'ETL queue failed to start — ingest will run synchronously');
+  }
 
   server = app.listen(PORT, () => {
     logger.info({ port: PORT }, 'Server started');

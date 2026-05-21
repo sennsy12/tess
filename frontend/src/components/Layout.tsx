@@ -1,13 +1,15 @@
 import { ReactNode, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useQueryClient } from '@tanstack/react-query';
-import { Menu, X as XIcon, LogOut, HelpCircle } from 'lucide-react';
+import { Menu, X as XIcon, LogOut, HelpCircle, Search } from 'lucide-react';
 import { useAuth } from '../context/useAuth';
 import { IdleTimer } from './IdleTimer';
 import { EnvironmentBanner } from './EnvironmentBanner';
 import { ImpersonationBanner } from './ImpersonationBanner';
 import { GlobalSearch, useGlobalSearchShortcut } from './GlobalSearch';
+import { AssistantChat } from './assistant';
+import { NotificationBell } from './NotificationBell';
+import { useEtlJobToasts } from '../hooks/useEtlJobToasts';
 import { KundeMobileNav } from './KundeMobileNav';
 import { KundeOnboardingModal, useKundeOnboarding } from './KundeOnboarding';
 import {
@@ -55,7 +57,14 @@ export function Layout({ children, title }: LayoutProps) {
 
   const { open: onboardingOpen, dismiss: dismissOnboarding } = useKundeOnboarding();
 
-  useGlobalSearchShortcut(() => setSearchOpen(true), user?.role === 'admin');
+  const showGlobalSearch =
+    user?.role === 'admin' || user?.role === 'kunde';
+
+  useGlobalSearchShortcut(() => setSearchOpen(true), showGlobalSearch);
+
+  const showNotifications = user?.role === 'admin' || user?.role === 'kunde';
+  const showEtlToasts = user?.role === 'admin' && !isAdminOnKundeRoute;
+  useEtlJobToasts(showEtlToasts);
 
   const handleLogout = () => {
     logout();
@@ -92,14 +101,27 @@ export function Layout({ children, title }: LayoutProps) {
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary-600 to-primary-500 flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-primary-500/20">T</div>
           <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-dark-400">TESS</h1>
         </div>
-        <button
+        <div className="flex items-center gap-1">
+          {showGlobalSearch && (
+            <button
+              type="button"
+              onClick={() => setSearchOpen(true)}
+              className="p-2 rounded-lg text-dark-300 hover:text-white hover:bg-dark-800 transition-colors"
+              aria-label="Søk (Ctrl+K)"
+            >
+              <Search className="h-5 w-5" aria-hidden />
+            </button>
+          )}
+          {showNotifications && <NotificationBell />}
+          <button
           type="button"
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
           className="p-2 text-dark-300 hover:text-white transition-colors"
           aria-label={isMobileMenuOpen ? 'Lukk meny' : 'Åpne meny'}
         >
           {isMobileMenuOpen ? <XIcon className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-        </button>
+          </button>
+        </div>
       </header>
 
       {isMobileMenuOpen && (
@@ -182,8 +204,9 @@ export function Layout({ children, title }: LayoutProps) {
               >
                 Innstillinger
               </Link>
-              {user?.role === 'admin' && !isAdminOnKundeRoute && (
-                <button type="button" onClick={() => setSearchOpen(true)} className="w-full btn-secondary text-sm py-2">
+              {showGlobalSearch && (
+                <button type="button" onClick={() => setSearchOpen(true)} className="w-full btn-secondary text-sm py-2 flex items-center justify-center gap-2">
+                  <Search className="h-4 w-4" aria-hidden />
                   Søk (Ctrl+K)
                 </button>
               )}
@@ -215,25 +238,31 @@ export function Layout({ children, title }: LayoutProps) {
         <header className="hidden lg:block bg-dark-950/80 backdrop-blur-md border-b border-dark-800/50 sticky top-0 z-10">
           <div className="px-8 py-5 flex items-center justify-between">
             <h2 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white via-white to-dark-400 tracking-tight">{title}</h2>
-            <div className="text-xs text-dark-500 font-mono">
-              Oppdatert {new Date().toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' })}
+            <div className="flex items-center gap-2">
+              {showGlobalSearch && (
+                <button
+                  type="button"
+                  onClick={() => setSearchOpen(true)}
+                  className="hidden sm:flex items-center gap-2 rounded-lg border border-dark-700 bg-dark-900/80 px-3 py-1.5 text-sm text-dark-400 hover:text-dark-200 hover:border-dark-600 transition-colors"
+                  aria-label="Søk (Ctrl+K)"
+                >
+                  <Search className="h-4 w-4" aria-hidden />
+                  <span>Søk</span>
+                  <kbd className="hidden md:inline text-[10px] font-mono text-dark-500 bg-dark-800 px-1.5 py-0.5 rounded">Ctrl+K</kbd>
+                </button>
+              )}
+              {showNotifications && <NotificationBell />}
+              <div className="text-xs text-dark-500 font-mono">
+                Oppdatert {new Date().toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' })}
+              </div>
             </div>
           </div>
         </header>
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={location.pathname}
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -15 }}
-            transition={{ duration: 0.3, ease: 'easeOut' }}
-            className="p-4 lg:p-8"
-          >
-            <h2 className="text-2xl font-bold text-white mb-6 lg:hidden">{title}</h2>
-            {isAdminOnKundeRoute && <ImpersonationBanner />}
-            {children}
-          </motion.div>
-        </AnimatePresence>
+        <div className="p-4 lg:p-8 animate-fade-in">
+          <h2 className="text-2xl font-bold text-white mb-6 lg:hidden">{title}</h2>
+          {isAdminOnKundeRoute && <ImpersonationBanner />}
+          {children}
+        </div>
       </main>
 
       {showKundeMobileNav && <KundeMobileNav />}
@@ -242,6 +271,7 @@ export function Layout({ children, title }: LayoutProps) {
       )}
 
       <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
+      <AssistantChat elevatedBottom={showKundeMobileNav} />
       <IdleTimer />
     </div>
   );

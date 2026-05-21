@@ -12,6 +12,8 @@ const Settings = lazy(() => import('./pages/Settings').then((m) => ({ default: m
 const KundeDashboard = lazy(() => import('./pages/kunde/Dashboard').then((m) => ({ default: m.KundeDashboard })))
 const KundeOrders = lazy(() => import('./pages/kunde/Orders').then((m) => ({ default: m.KundeOrders })))
 const KundeOrderDetail = lazy(() => import('./pages/kunde/OrderDetail').then((m) => ({ default: m.KundeOrderDetail })))
+const KundePricing = lazy(() => import('./pages/kunde/Pricing').then((m) => ({ default: m.KundePricing })))
+const KundeAccount = lazy(() => import('./pages/kunde/Account').then((m) => ({ default: m.KundeAccount })))
 const AdvancedAnalytics = lazy(() => import('./pages/kunde/AdvancedAnalytics').then((m) => ({ default: m.AdvancedAnalytics })))
 const KundeStatistics = lazy(() => import('./pages/kunde/Statistics').then((m) => ({ default: m.KundeStatistics })))
 
@@ -92,6 +94,16 @@ function App() {
           <Route path="/kunde/orders/:ordrenr" element={
             <ProtectedRoute allowedRoles={['kunde', 'admin']}>
               <KundeOrderDetail />
+            </ProtectedRoute>
+          } />
+          <Route path="/kunde/konto" element={
+            <ProtectedRoute allowedRoles={['kunde', 'admin']}>
+              <KundeAccount />
+            </ProtectedRoute>
+          } />
+          <Route path="/kunde/pricing" element={
+            <ProtectedRoute allowedRoles={['kunde', 'admin']}>
+              <KundePricing />
             </ProtectedRoute>
           } />
           <Route path="/kunde/analytics" element={

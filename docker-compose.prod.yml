@@ -15,6 +15,12 @@ services:
     networks:
       - tess-prod-network
     restart: always
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${DB_USER:-postgres} -d tess']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   # Backend
   backend:
@@ -26,13 +32,29 @@ services:
       NODE_ENV: production
       DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD}@db:5432/tess
       JWT_SECRET: ${JWT_SECRET}
-      ADMIN_ACTION_KEY: ${ADMIN_ACTION_KEY:-123}
+      ADMIN_ACTION_KEY: ${ADMIN_ACTION_KEY}
+      FRONTEND_URL: ${FRONTEND_URL}
+      ENABLE_DESTRUCTIVE_ETL: ${ENABLE_DESTRUCTIVE_ETL:-false}
+      ENABLE_SCHEDULER_JOBS: ${ENABLE_SCHEDULER_JOBS:-false}
       PORT: 5000
+    volumes:
+      - uploads_prod_data:/app/uploads
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     networks:
       - tess-prod-network
     restart: always
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'node -e "fetch(''http://127.0.0.1:5000/api/health/ready'').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"',
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   # Frontend
   frontend:
@@ -51,15 +73,17 @@ services:
     image: caddy:latest
     container_name: tess-proxy
     ports:
-      - "80:80"
-      - "443:443"
+      - '80:80'
+      - '443:443'
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
-      - frontend
-      - backend
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_started
     networks:
       - tess-prod-network
     restart: always
@@ -70,5 +94,6 @@ networks:
 
 volumes:
   postgres_prod_data:
+  uploads_prod_data:
   caddy_data:
   caddy_config:

@@ -1,18 +1,23 @@
 import { EtlJobProgress, EtlJobStatus, EtlSourceType } from './streaming/types.js';
+import { loadEtlJob, listPersistedEtlJobs, persistEtlJob } from './etlJobStore.js';
 
 const jobs = new Map<string, EtlJobProgress>();
 const abortControllers = new Map<string, AbortController>();
 const MAX_JOBS = 500;
 
-export function registerJob(jobId: string, table: string, sourceType: EtlSourceType): void {
+function syncPersist(job: EtlJobProgress): void {
+  void persistEtlJob(job);
+}
+
+export function registerJob(jobId: string, table: string, sourceType: EtlSourceType, status: EtlJobStatus = 'running'): void {
   const existing = jobs.get(jobId);
   if (existing && existing.status === 'running') {
     throw new Error(`Job already running with this jobId: ${jobId}`);
   }
   const now = new Date().toISOString();
-  jobs.set(jobId, {
+  const job: EtlJobProgress = {
     jobId,
-    status: 'running',
+    status,
     table,
     sourceType,
     attemptedRows: 0,
@@ -21,32 +26,43 @@ export function registerJob(jobId: string, table: string, sourceType: EtlSourceT
     deadLetterCount: 0,
     startedAt: now,
     updatedAt: now,
-  });
+  };
+  jobs.set(jobId, job);
+  syncPersist(job);
   pruneOldJobs();
 }
 
 export function updateJobProgress(
   jobId: string,
-  update: Partial<Pick<EtlJobProgress, 'attemptedRows' | 'insertedRows' | 'rejectedRows' | 'deadLetterCount' | 'estimatedTotal'>>
+  update: Partial<Pick<EtlJobProgress, 'attemptedRows' | 'insertedRows' | 'rejectedRows' | 'deadLetterCount' | 'estimatedTotal'>>,
 ): void {
   const job = jobs.get(jobId);
   if (!job) return;
   Object.assign(job, update, { updatedAt: new Date().toISOString() });
+  syncPersist(job);
 }
 
 export function completeJob(jobId: string): void {
   const job = jobs.get(jobId);
-  if (!job) return;
+  if (!job || job.status === 'completed') return;
   job.status = 'completed';
   job.updatedAt = new Date().toISOString();
+  syncPersist(job);
+  void import('../services/notificationService.js').then(({ notifyEtlJobFinished }) =>
+    notifyEtlJobFinished(job),
+  );
 }
 
 export function failJob(jobId: string, error: string): void {
   const job = jobs.get(jobId);
-  if (!job) return;
+  if (!job || job.status === 'failed' || job.status === 'completed') return;
   job.status = 'failed';
   job.error = error;
   job.updatedAt = new Date().toISOString();
+  syncPersist(job);
+  void import('../services/notificationService.js').then(({ notifyEtlJobFinished }) =>
+    notifyEtlJobFinished(job),
+  );
 }
 
 export function setJobAbortController(jobId: string, controller: AbortController): void {
@@ -65,16 +81,36 @@ export function cancelJob(jobId: string, reason?: string): void {
   job.status = 'cancelled';
   if (reason !== undefined) job.error = reason;
   job.updatedAt = new Date().toISOString();
+  syncPersist(job);
 }
 
 export function getJob(jobId: string): EtlJobProgress | null {
   return jobs.get(jobId) ?? null;
 }
 
+/** Resolve job from memory or durable store (e.g. after API restart). */
+export async function getJobAsync(jobId: string): Promise<EtlJobProgress | null> {
+  const cached = jobs.get(jobId);
+  if (cached) return cached;
+  const persisted = await loadEtlJob(jobId);
+  if (persisted) jobs.set(jobId, persisted);
+  return persisted;
+}
+
 export function listJobs(limit = 100): EtlJobProgress[] {
   return Array.from(jobs.values())
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
     .slice(0, limit);
+}
+
+export async function listJobsAsync(limit = 100): Promise<EtlJobProgress[]> {
+  const inMemory = listJobs(limit);
+  if (inMemory.length >= limit) return inMemory;
+  const persisted = await listPersistedEtlJobs(limit);
+  for (const job of persisted) {
+    if (!jobs.has(job.jobId)) jobs.set(job.jobId, job);
+  }
+  return listJobs(limit);
 }
 
 function pruneOldJobs(): void {
@@ -84,7 +120,6 @@ function pruneOldJobs(): void {
   entries.slice(MAX_JOBS).forEach(([id]) => jobs.delete(id));
 }
 
-// SSE: subscribers per job (or global)
 type Subscriber = (progress: EtlJobProgress) => void;
 const subscribers = new Map<string, Set<Subscriber>>();
 

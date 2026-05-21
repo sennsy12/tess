@@ -2,6 +2,8 @@ import { useState, useCallback, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Layout } from '../../components/Layout';
 import { QueryErrorBanner } from '../../components/QueryErrorBanner';
+import { QueryRefetchBar } from '../../components/QueryRefetchBar';
+import { auditKeys, userKeys } from '../../lib/queryKeys';
 import { EmptyState } from '../../components/EmptyState';
 import { Pagination } from '../../components/admin';
 import { auditApi, usersApi } from '../../lib/api';
@@ -129,14 +131,14 @@ export function AdminAudit() {
   const [endDate, setEndDate] = useState('');
 
   const { data: usersRes } = useQuery({
-    queryKey: ['admin', 'users', 'all'],
+    queryKey: userKeys.all(),
     queryFn: () => usersApi.getAll({ limit: 500 }),
   });
 
   const users = usersRes?.data?.data ?? [];
 
-  const { data: auditRes, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ['admin', 'audit', page, filterType, filterAction, filterUser, startDate, endDate],
+  const { data: auditRes, isLoading, isFetching, isError, error, refetch } = useQuery({
+    queryKey: auditKeys.list(page, filterType, filterAction, filterUser, startDate, endDate),
     queryFn: async () => {
       const params: Record<string, string | number> = { page, limit: LIMIT };
       if (filterType) params.entity_type = filterType;
@@ -147,11 +149,14 @@ export function AdminAudit() {
       const res = await auditApi.getAll(params);
       return res.data;
     },
+    placeholderData: (prev) => prev,
   });
 
   const entries: AuditEntry[] = auditRes?.data ?? [];
   const total = auditRes?.pagination?.total ?? 0;
   const totalPages = Math.ceil(total / LIMIT);
+  const showSkeleton = isLoading && !auditRes;
+  const showRefetchBar = isFetching && !!auditRes;
 
   const toggleExpand = useCallback((id: number) => {
     setExpandedId((prev) => (prev === id ? null : id));
@@ -296,9 +301,10 @@ export function AdminAudit() {
         </div>
 
         {isError && <QueryErrorBanner message={errorMessage} onRetry={() => refetch()} />}
+        {showRefetchBar && <QueryRefetchBar active />}
 
         {/* Results */}
-        {isLoading ? (
+        {showSkeleton ? (
           <div className="card flex justify-center py-16">
             <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-primary-500" />
           </div>

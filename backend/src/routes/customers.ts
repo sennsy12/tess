@@ -5,8 +5,15 @@ import { asyncHandler } from '../middleware/errorHandler.js';
 
 export const customersRouter = Router();
 
+const auth = authMiddleware;
+const adminOnly = roleGuard('admin');
+const kundeProfileRoles = roleGuard('admin', 'kunde');
+
+// Kunde portal: own company profile (must be before /:kundenr)
+customersRouter.get('/me/profile', auth, kundeProfileRoles, asyncHandler(customerController.getMyProfile));
+
 // Get all customers (admin only)
-customersRouter.get('/', authMiddleware, roleGuard('admin'), asyncHandler(customerController.getAll));
+customersRouter.get('/', auth, adminOnly, asyncHandler(customerController.getAll));
 
 // Get a single customer (admin only)
-customersRouter.get('/:kundenr', authMiddleware, roleGuard('admin'), asyncHandler(customerController.getOne));
+customersRouter.get('/:kundenr', auth, adminOnly, asyncHandler(customerController.getOne));

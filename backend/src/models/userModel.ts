@@ -7,6 +7,8 @@
  * @module models/userModel
  */
 import { query } from '../db/index.js';
+import { extractWindowCountPage } from '../lib/paginatedQuery.js';
+import { toIlikeContains } from '../lib/sqlSearch.js';
 
 /** Full user record including the password hash (internal use only). */
 export interface User {
@@ -87,19 +89,30 @@ export const userModel = {
    * @param limit - Maximum items per page (default `20`)
    * @returns Object containing the page of users and the total count
    */
+  search: async (search: string, limit: number): Promise<UserPublic[]> => {
+    const result = await query(
+      `SELECT id, username, role, kundenr, created_at
+       FROM users
+       WHERE username ILIKE $1
+       ORDER BY username
+       LIMIT $2`,
+      [toIlikeContains(search), limit],
+    );
+    return result.rows;
+  },
+
   getAll: async (page: number = 1, limit: number = 20): Promise<{ data: UserPublic[]; total: number }> => {
     const offset = (page - 1) * limit;
-    const [countResult, dataResult] = await Promise.all([
-      query('SELECT COUNT(*) AS total FROM users'),
-      query(
-        'SELECT id, username, role, kundenr, created_at FROM users ORDER BY id ASC LIMIT $1 OFFSET $2',
-        [limit, offset]
-      ),
-    ]);
-    return {
-      data: dataResult.rows,
-      total: parseInt(countResult.rows[0].total, 10),
-    };
+    const result = await query(
+      `SELECT id, username, role, kundenr, created_at,
+              COUNT(*) OVER()::int AS _total_count
+       FROM users
+       ORDER BY id ASC
+       LIMIT $1 OFFSET $2`,
+      [limit, offset],
+    );
+    const { data, total } = extractWindowCountPage(result.rows);
+    return { data: data as UserPublic[], total };
   },
 
   /**

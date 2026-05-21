@@ -18,6 +18,7 @@ function mockReqResNext(user?: AuthRequest['user']) {
 describe('pricing RBAC guards', () => {
   const adminGuard = roleGuard('admin');
   const readGuard = roleGuard('admin', 'analyse');
+  const readGuardWithKunde = roleGuard('admin', 'analyse', 'kunde');
 
   it('denies kunde from admin-only mutations', () => {
     const { req, res, next } = mockReqResNext({
@@ -38,6 +39,17 @@ describe('pricing RBAC guards', () => {
       role: 'analyse',
     });
     readGuard(req, res, next);
+    expect(next).toHaveBeenCalled();
+  });
+
+  it('allows kunde to read own pricing rules route guard', () => {
+    const { req, res, next } = mockReqResNext({
+      id: 1,
+      username: 'k1',
+      role: 'kunde',
+      kundenr: 'K000001',
+    });
+    readGuardWithKunde(req, res, next);
     expect(next).toHaveBeenCalled();
   });
 

@@ -13,6 +13,7 @@ import {
   Database,
   ScrollText,
   LineChart,
+  UserCircle,
 } from 'lucide-react';
 
 export interface NavItem {
@@ -23,7 +24,9 @@ export interface NavItem {
 
 export const kundeNavItems: NavItem[] = [
   { path: '/kunde', label: 'Dashboard', Icon: LayoutDashboard },
+  { path: '/kunde/konto', label: 'Min konto', Icon: UserCircle },
   { path: '/kunde/orders', label: 'Ordrer', Icon: ClipboardList },
+  { path: '/kunde/pricing', label: 'Mine priser', Icon: CircleDollarSign },
   { path: '/kunde/statistics', label: 'Statistikk', Icon: BarChart3 },
   { path: '/kunde/analytics', label: 'Avansert Analyse', Icon: LineChart },
 ];

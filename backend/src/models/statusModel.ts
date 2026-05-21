@@ -1,16 +1,15 @@
 import { query } from '../db/index.js';
+import { estimateTableRowCount } from '../lib/tableEstimate.js';
 
 export const statusModel = {
   getSystemStatus: async () => {
-    // Check database connection
     const dbCheck = await query('SELECT NOW() as timestamp, version() as version');
-    
-    // Get table counts
+
     const [ordersCount, customersCount, productsCount, usersCount] = await Promise.all([
-      query('SELECT COUNT(*) as count FROM ordre'),
-      query('SELECT COUNT(*) as count FROM kunde'),
-      query('SELECT COUNT(*) as count FROM vare'),
-      query('SELECT COUNT(*) as count FROM users'),
+      estimateTableRowCount('ordre'),
+      estimateTableRowCount('kunde'),
+      estimateTableRowCount('vare'),
+      estimateTableRowCount('users'),
     ]);
 
     return {
@@ -22,26 +21,25 @@ export const statusModel = {
         version: dbCheck.rows[0].version,
       },
       tables: {
-        orders: parseInt(ordersCount.rows[0].count),
-        customers: parseInt(customersCount.rows[0].count),
-        products: parseInt(productsCount.rows[0].count),
-        users: parseInt(usersCount.rows[0].count),
+        orders: ordersCount,
+        customers: customersCount,
+        products: productsCount,
+        users: usersCount,
       },
     };
   },
 
   getImportStatus: async () => {
-    // Get latest records from each table
     const [latestOrder, orderCount] = await Promise.all([
       query('SELECT ordrenr, dato FROM ordre ORDER BY dato DESC LIMIT 1'),
-      query('SELECT COUNT(*) as count FROM ordre'),
+      estimateTableRowCount('ordre'),
     ]);
 
     return {
       status: 'ok',
-      lastImport: new Date().toISOString(), // Placeholder - would be from actual ETL logs
+      lastImport: new Date().toISOString(),
       latestOrder: latestOrder.rows[0] || null,
-      totalOrders: parseInt(orderCount.rows[0].count),
+      totalOrders: orderCount,
       message: 'Data import status is nominal',
     };
   },
@@ -49,7 +47,7 @@ export const statusModel = {
   getExtractionStatus: async () => {
     return {
       status: 'ok',
-      lastExtraction: new Date().toISOString(), // Placeholder
+      lastExtraction: new Date().toISOString(),
       message: 'Data extraction status is nominal',
       details: {
         source: 'PostgreSQL',
@@ -75,26 +73,21 @@ export const statusModel = {
         nodeVersion: process.version,
       },
       frontend: {
-        status: 'assumed healthy', // Would need actual frontend health check
+        status: 'assumed healthy',
         url: process.env.FRONTEND_URL || 'http://localhost:3000',
       },
     };
   },
 
-  /**
-   * Get recent ETL/scheduler activity logs
-   */
   getRecentActivity: async (days: number = 7) => {
-    // Get data freshness metrics
-    const [latestOrder, latestCustomer, latestProduct] = await Promise.all([
+    const [latestOrder, customerCount, productCount] = await Promise.all([
       query('SELECT MAX(dato) as last_date FROM ordre'),
-      query('SELECT MAX(kundenr) as last_id, (SELECT COUNT(*) FROM kunde) as count FROM kunde'),
-      query('SELECT MAX(varekode) as last_id, (SELECT COUNT(*) FROM vare) as count FROM vare'),
+      estimateTableRowCount('kunde'),
+      estimateTableRowCount('vare'),
     ]);
 
-    // Calculate data freshness
     const latestOrderDate = latestOrder.rows[0]?.last_date;
-    const daysSinceLastOrder = latestOrderDate 
+    const daysSinceLastOrder = latestOrderDate
       ? Math.floor((Date.now() - new Date(latestOrderDate).getTime()) / (1000 * 60 * 60 * 24))
       : null;
 
@@ -102,14 +95,14 @@ export const statusModel = {
       dataFreshness: {
         lastOrderDate: latestOrderDate,
         daysSinceLastOrder,
-        totalCustomers: parseInt(latestCustomer.rows[0]?.count || '0'),
-        totalProducts: parseInt(latestProduct.rows[0]?.count || '0'),
+        totalCustomers: customerCount,
+        totalProducts: productCount,
       },
       status: daysSinceLastOrder !== null && daysSinceLastOrder < days ? 'fresh' : 'stale',
-      message: daysSinceLastOrder !== null && daysSinceLastOrder < days 
-        ? `Data is up to date (${daysSinceLastOrder} days old)`
-        : 'Data may be outdated, consider running an import',
+      message:
+        daysSinceLastOrder !== null && daysSinceLastOrder < days
+          ? `Data is up to date (${daysSinceLastOrder} days old)`
+          : 'Data may be outdated, consider running an import',
     };
-  }
+  },
 };
-

@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Layout } from '../../components/Layout';
 import { Breadcrumb } from '../../components/Breadcrumb';
 import { OrderTimeline } from '../../components/OrderTimeline';
+import { OrderWorkflowBadge } from '../../components/orders/OrderWorkflowBadge';
 import { QueryErrorBanner } from '../../components/QueryErrorBanner';
 import { ordersApi } from '../../lib/api';
 import { downloadOrderCsv } from '../../lib/orderExport';
@@ -69,7 +70,10 @@ export function KundeOrderDetail() {
         </div>
 
         <div className="card">
-          <h3 className="text-lg font-semibold mb-4">Ordrestatus</h3>
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+            <h3 className="text-lg font-semibold">Ordrestatus</h3>
+            <OrderWorkflowBadge status={order.workflow_status} />
+          </div>
           <OrderTimeline order={order} />
         </div>
 

@@ -1,5 +1,4 @@
 import { useEffect, useState, useRef } from 'react';
-import { motion } from 'framer-motion';
 import { Layout } from '../../components/Layout';
 import { Skeleton } from '../../components/Skeleton';
 import {
@@ -270,12 +269,7 @@ export function AnalyseStatistics() {
 
   return (
     <Layout title="Detaljert Statistikk">
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="grid grid-cols-1 lg:grid-cols-3 gap-6"
-      >
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in">
         {/* Left Column: Filters & Saved Reports */}
         <div className="space-y-6 lg:col-span-1">
           <div className="card">
@@ -359,7 +353,7 @@ export function AnalyseStatistics() {
             </div>
           )}
         </div>
-      </motion.div>
+      </div>
     </Layout>
   );
 }

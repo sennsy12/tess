@@ -1,18 +1,34 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Layout } from '../../components/Layout';
 import { ActionKeyModal, ConfirmModal, GridStatSkeleton, ListSkeleton } from '../../components/admin';
 import { allowDestructiveEtl } from '../../lib/appConfig';
 import { Tabs, TabContent } from '../../components/Tabs';
 import { etlApi, schedulerApi } from '../../lib/api';
+import { ETL_JOBS_QUERY_KEY } from '../../hooks/useEtlJobs';
+import { EtlJobsPanel } from './etl/EtlJobsPanel';
 
 import { ActionResult, Job } from '../../types/etl';
+
+type EtlPageTab = 'etl' | 'bulk' | 'jobs' | 'scheduler';
+
+function extractJobId(data: unknown): string | undefined {
+  if (!data || typeof data !== 'object') return undefined;
+  const record = data as Record<string, unknown>;
+  if (typeof record.jobId === 'string') return record.jobId;
+  const details = record.details;
+  if (details && typeof details === 'object' && typeof (details as Record<string, unknown>).jobId === 'string') {
+    return (details as Record<string, unknown>).jobId as string;
+  }
+  return undefined;
+}
 
 export function AdminETL() {
   const queryClient = useQueryClient();
   const [results, setResults] = useState<ActionResult[]>([]);
   const [isLoading, setIsLoading] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'etl' | 'bulk' | 'scheduler'>('etl');
+  const [activeTab, setActiveTab] = useState<EtlPageTab>('etl');
+  const [focusJobId, setFocusJobId] = useState<string | null>(null);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [jobsLoading, setJobsLoading] = useState(false);
   const [tableCounts, setTableCounts] = useState<Record<string, number>>({});
@@ -58,6 +74,19 @@ export function AdminETL() {
     }
   }, []);
 
+  const etlJobsQuery = useQuery({
+    queryKey: [...ETL_JOBS_QUERY_KEY, 50],
+    queryFn: () => etlApi.listJobs(50).then((res) => res.data.jobs),
+    placeholderData: (prev) => prev,
+    refetchInterval: (query) => {
+      const list = query.state.data;
+      return list?.some((j) => j.status === 'running' || j.status === 'pending') ? 5000 : false;
+    },
+  });
+
+  const activePipelineJobs =
+    etlJobsQuery.data?.filter((j) => j.status === 'running' || j.status === 'pending').length ?? 0;
+
   useEffect(() => {
     if (activeTab === 'scheduler') {
       loadJobs();
@@ -80,6 +109,13 @@ export function AdminETL() {
       }, ...prev]);
       if (activeTab === 'bulk') loadTableCounts();
       if (activeTab === 'scheduler') loadJobs();
+
+      const jobId = extractJobId(response.data);
+      if (jobId) {
+        setFocusJobId(jobId);
+        setActiveTab('jobs');
+        void queryClient.invalidateQueries({ queryKey: ETL_JOBS_QUERY_KEY });
+      }
       
       // Invalidate dashboard and analytics queries after data changes
       queryClient.invalidateQueries({ queryKey: ['admin'] });
@@ -140,10 +176,15 @@ export function AdminETL() {
           tabs={[
             { id: 'etl', label: 'ETL', icon: '🔧' },
             { id: 'bulk', label: 'Bulk Data', icon: '📊' },
+            {
+              id: 'jobs',
+              label: activePipelineJobs > 0 ? `Jobber (${activePipelineJobs})` : 'Jobber',
+              icon: '📡',
+            },
             { id: 'scheduler', label: 'Scheduler', icon: '⏰' },
           ]}
           activeTab={activeTab}
-          onChange={(tab) => setActiveTab(tab as typeof activeTab)}
+          onChange={(tab) => setActiveTab(tab as EtlPageTab)}
           variant="pill"
         />
 
@@ -301,6 +342,15 @@ export function AdminETL() {
                 </div>
               </div>
             </div>
+          </TabContent>
+        )}
+
+        {activeTab === 'jobs' && (
+          <TabContent tabKey="jobs">
+            <EtlJobsPanel
+              focusJobId={focusJobId}
+              onFocusConsumed={() => setFocusJobId(null)}
+            />
           </TabContent>
         )}
 

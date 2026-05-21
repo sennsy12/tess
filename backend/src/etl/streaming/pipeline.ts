@@ -2,6 +2,7 @@ import { copyFromLineStream, getTableColumns } from '../../db/index.js';
 import { etlLogger } from '../../lib/logger.js';
 import { ValidationError } from '../../middleware/errorHandler.js';
 import { recordEtlRun } from '../etlMetrics.js';
+import { scheduleStatisticsRefreshAfterEtl } from '../../services/statsAggregateService.js';
 import {
   broadcastProgress,
   cancelJob,
@@ -406,5 +407,6 @@ export async function runStreamingEtl(config: StreamingEtlRequest): Promise<Stre
     'Streaming ETL run completed'
   );
   recordEtlRun(result);
+  scheduleStatisticsRefreshAfterEtl(config.table);
   return result;
 }
