@@ -1,18 +1,27 @@
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
+import { AnimatePresence, motion } from 'framer-motion';
+import { XCircle } from 'lucide-react';
 import { Layout } from '../../components/Layout';
 import { Breadcrumb } from '../../components/Breadcrumb';
 import { OrderTimeline } from '../../components/OrderTimeline';
 import { OrderWorkflowBadge } from '../../components/orders/OrderWorkflowBadge';
+import { OrderLineSummaryCard } from '../../components/orders/OrderLineSummaryCard';
 import { QueryErrorBanner } from '../../components/QueryErrorBanner';
 import { ordersApi } from '../../lib/api';
 import { downloadOrderCsv } from '../../lib/orderExport';
+import { getApiError } from '../../lib/apiErrors';
+import { KUNDE_CANCELLABLE_STATUSES, type OrderWorkflowStatus } from '../../types/notification';
 import type { OrderDetail } from '../../types/order';
 
 export function KundeOrderDetail() {
   const { ordrenr } = useParams<{ ordrenr: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const orderId = ordrenr ? parseInt(ordrenr, 10) : NaN;
+  const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
 
   const { data: order, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['kunde', 'order', orderId],
@@ -22,6 +31,23 @@ export function KundeOrderDetail() {
     },
     enabled: Number.isFinite(orderId),
   });
+
+  const cancelMutation = useMutation({
+    mutationFn: () => ordersApi.cancel(orderId),
+    onSuccess: () => {
+      setConfirmCancelOpen(false);
+      void queryClient.invalidateQueries({ queryKey: ['kunde'] });
+      toast.success('Ordren er kansellert');
+    },
+    onError: (err) => {
+      setConfirmCancelOpen(false);
+      toast.error(getApiError(err, 'Kunne ikke kansellere ordren'));
+    },
+  });
+
+  const cancellable =
+    order != null &&
+    KUNDE_CANCELLABLE_STATUSES.includes((order.workflow_status ?? 'new') as OrderWorkflowStatus);
 
   const errorMessage =
     (error as { response?: { data?: { error?: string } } })?.response?.data?.error ||
@@ -67,7 +93,71 @@ export function KundeOrderDetail() {
           <button type="button" onClick={() => downloadOrderCsv(order)} className="btn-primary">
             Last ned CSV
           </button>
+          {cancellable && (
+            <button
+              type="button"
+              onClick={() => setConfirmCancelOpen(true)}
+              className="btn-secondary hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-400 flex items-center gap-2"
+              disabled={cancelMutation.isPending}
+            >
+              <XCircle className="h-4 w-4" aria-hidden />
+              Kanseller ordre
+            </button>
+          )}
         </div>
+
+        {/* Cancel confirmation */}
+        <AnimatePresence>
+          {confirmCancelOpen && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+                onClick={() => !cancelMutation.isPending && setConfirmCancelOpen(false)}
+                role="presentation"
+              />
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                className="relative card w-full max-w-md z-10"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Bekreft kansellering"
+              >
+                <h3 className="text-lg font-semibold mb-2">Kansellere ordre #{order.ordrenr}?</h3>
+                <p className="text-sm text-dark-400 mb-5">
+                  Ordren fjernes fra godkjenningskøen. Denne handlingen kan ikke angres.
+                </p>
+                <div className="flex justify-end gap-3">
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    disabled={cancelMutation.isPending}
+                    onClick={() => setConfirmCancelOpen(false)}
+                  >
+                    Behold ordre
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-primary bg-red-600 border-red-600 hover:bg-red-500 flex items-center gap-2"
+                    disabled={cancelMutation.isPending}
+                    onClick={() => cancelMutation.mutate()}
+                  >
+                    {cancelMutation.isPending ? (
+                      <span className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white" />
+                    ) : (
+                      <XCircle className="h-4 w-4" aria-hidden />
+                    )}
+                    Kanseller
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
 
         <div className="card">
           <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
@@ -116,6 +206,7 @@ export function KundeOrderDetail() {
               <p>{order.kundeordreref || '-'}</p>
             </div>
           </div>
+          {order.lineSummary && <OrderLineSummaryCard summary={order.lineSummary} />}
         </div>
 
         {/* Mobile line cards */}

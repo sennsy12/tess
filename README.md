@@ -72,6 +72,8 @@ npm run dev
 ### Kunde (Customer)
 
 - Dashboard with order statistics & charts
+- **Place orders from a product catalog** (cart with live customer-specific pricing, order references, confirmation step)
+- Orders enter an approval workflow (`pending_approval` → approved/rejected) with cancel-before-processing
 - Search orders by ordrenr, date, references
 - Sortable order tables with saved views
 - View order details with line items
@@ -93,6 +95,8 @@ npm run dev
 ### Admin (Administrator)
 
 - Full system dashboard with all statistics
+- **Approval queue widget** — approve/reject customer orders (or deep-link into the filtered order list)
+- **Product base-price management** — set the catalog price customers' discounts apply to
 - Order management & order line CRUD
 - Pricing module (customer groups, price lists, rules, simulator)
 - ETL pipelines for data import
@@ -120,6 +124,12 @@ npm run dev
 | **Orders** | |
 | GET /api/orders | List orders with filters |
 | GET /api/orders/:ordrenr | Get order details |
+| POST /api/orders | Place a customer order (kunde; idempotent, server-side repricing) |
+| PATCH /api/orders/:ordrenr/cancel | Cancel an order awaiting approval (owning kunde or admin) |
+| **Catalog** | |
+| GET /api/catalog/products | Product catalog with per-customer effective prices |
+| **Products** | |
+| PATCH /api/products/:varekode/price | Set product base price (admin) |
 | **Statistics** | |
 | GET /api/statistics/* | Statistics endpoints |
 | **Pricing** | |
@@ -151,6 +161,12 @@ GEMINI_MODEL=gemini-2.5-flash-lite   # optional; cheap default
 For OpenAI instead: `ASSISTANT_PROVIDER=openai` and `OPENAI_API_KEY=sk-...`.
 
 API keys must never be exposed to the browser. Disabled by default in production (see `.env.prod.example`).
+
+### Customer order placement (approval workflow)
+
+Kunde users browse the catalog (`Ny bestilling`), fill a cart with their effective prices, and submit. The server re-prices every line via the pricing engine (client prices are never trusted), creates the order atomically in a `pending_approval` state using a dedicated ordrenr sequence, and notifies admins. Admins approve or reject from the dashboard queue; customers can cancel until processing starts. Submissions carry an idempotency key so double-clicks and retries never create duplicates.
+
+Workflow statuses: `new → pending_approval → approved/rejected → processing → shipped → invoiced` (+ `cancelled`).
 
 ## License
 

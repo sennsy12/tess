@@ -12,6 +12,7 @@ import { extractWindowCountPage } from '../lib/paginatedQuery.js';
 import { buildOrderByClause } from '../lib/sqlSort.js';
 import { toIlikeContains } from '../lib/sqlSearch.js';
 import type { OrderWorkflowStatus } from '../lib/orderWorkflow.js';
+import { KUNDE_CANCELLABLE_STATUSES } from '../lib/orderWorkflow.js';
 
 /** Filter parameters accepted by `findAll`. */
 export interface OrderFilters {
@@ -143,7 +144,7 @@ export const orderModel = {
                    ORDER BY ${orderBy}`;
 
     if (pagination) {
-      dataSql += ` LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
+      dataSql += ` LIMIT $${paramIndex++} OFFSET $${paramIndex}`;
       params.push(pagination.limit, pagination.offset);
     }
 
@@ -266,5 +267,36 @@ export const orderModel = {
       [ordrenr],
     );
     return result.rows[0]?.workflow_status ?? null;
+  },
+
+  /**
+   * Cancel an order that is still awaiting approval.
+   * Scoped to `pending_approval`/`approved` and, for kunde users,
+   * to their own orders — enforced in SQL so no TOCTOU window exists.
+   *
+   * @returns The cancelled order's ordrenr/kundenr, or `null` when the
+   *          order doesn't exist, isn't owned, or isn't cancellable
+   */
+  cancelByOwner: async (
+    ordrenr: number,
+    user: { role: string; kundenr?: string },
+  ): Promise<{ ordrenr: number; kundenr: string; workflow_status: OrderWorkflowStatus } | null> => {
+    let sql = `
+      UPDATE ordre
+      SET workflow_status = 'cancelled', status_updated_at = NOW()
+      WHERE ordrenr = $1
+        AND workflow_status = ANY($2::text[])
+    `;
+    const params: any[] = [ordrenr, [...KUNDE_CANCELLABLE_STATUSES]];
+
+    if (user.role === 'kunde' && user.kundenr) {
+      sql += ` AND kundenr = $3`;
+      params.push(user.kundenr);
+    }
+
+    sql += ` RETURNING ordrenr, kundenr, workflow_status`;
+
+    const result = await query(sql, params);
+    return result.rows[0] ?? null;
   },
 };

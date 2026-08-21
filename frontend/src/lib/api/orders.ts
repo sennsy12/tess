@@ -12,7 +12,36 @@ export const ordersApi = {
   updateStatus: (ordrenr: number, workflowStatus: string) =>
     api.patch(`/orders/${ordrenr}/status`, { workflowStatus }),
   listStatuses: () => api.get<{ value: string; label: string }[]>('/orders/statuses'),
+  /** Place a customer order from the cart. Server re-prices all items. */
+  create: (data: CreateOrderPayload) => api.post<CreateOrderResponse>('/orders', data),
+  /** Cancel an order still awaiting approval (owning kunde or admin). */
+  cancel: (ordrenr: number) => api.patch(`/orders/${ordrenr}/cancel`),
 };
+
+export interface CreateOrderItemPayload {
+  varekode: string;
+  antall: number;
+}
+
+export interface CreateOrderPayload {
+  items: CreateOrderItemPayload[];
+  kundeordreref?: string;
+  kunderef?: string;
+  lagernavn?: string;
+  valutaid?: string;
+  /** Unique per attempt — protects against double submits. */
+  idempotencyKey: string;
+  /** Admin-only: place the order on behalf of this customer. */
+  kundenr?: string;
+}
+
+export interface CreateOrderResponse {
+  ordrenr: number;
+  kundenr: string;
+  workflow_status: string;
+  sum: number;
+  duplicate: boolean;
+}
 
 export const orderlinesApi = {
   getByOrder: (ordrenr: number, params?: { page?: number; limit?: number }) =>

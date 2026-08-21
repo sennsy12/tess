@@ -12,13 +12,27 @@ Responses follow a consistent envelope:
 
 ## Authentication
 
-All requests (except `/auth/login*` and `/health`) require a `Bearer` token in the `Authorization` header.
+All requests (except `/auth/login*`, `/auth/refresh`, `/auth/logout` and `/health`) require a `Bearer` token in the `Authorization` header.
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| `POST` | `/auth/login` | Public (rate-limited) | Login for admin / analyse users. Body: `{ username, password }` |
-| `POST` | `/auth/login-kunde` | Public (rate-limited) | Login for customer users. Body: `{ kundenr, password }` |
+| `POST` | `/auth/login` | Public (rate-limited) | Login for admin / analyse users. Body: `{ username, password }`. Returns `{ token, refreshToken, user }` |
+| `POST` | `/auth/login-kunde` | Public (rate-limited) | Login for customer users. Body: `{ kundenr, password }`. Returns `{ token, refreshToken, user }` |
+| `POST` | `/auth/refresh` | Refresh token (rate-limited) | Exchange a refresh token for a new pair. Body: `{ refreshToken }`. The presented token is consumed (rotated); reuse fails with 401 |
+| `POST` | `/auth/logout` | Refresh token | Revoke a refresh token. Body: `{ refreshToken }`. Idempotent |
 | `GET` | `/auth/verify` | Token | Verify the current JWT token is still valid |
+
+### Token lifecycle
+
+- **Access tokens** are short-lived JWTs (1h). Every authenticated request
+  checks the token's `tokenVersion` claim against the user's current DB value;
+  a mismatch returns `401 { error: "Token revoked, please sign in again" }`.
+- **Refresh tokens** are opaque 64-char strings stored server-side as SHA-256
+  hashes (`refresh_tokens` table), valid for 7 days and rotated on every use.
+- **Password change** bumps `token_version` and revokes all of the user's
+  refresh tokens — every existing session is signed out immediately.
+- The frontend automatically refreshes expired access tokens via a
+  single-flight axios interceptor and replays the failed request once.
 
 ## Users (admin only)
 

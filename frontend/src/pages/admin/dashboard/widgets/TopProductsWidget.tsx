@@ -1,6 +1,8 @@
 import { useMemo } from 'react';
 
 import { TopProductsWidgetProps } from '../../../../types/dashboard';
+import { formatCurrencyNok } from '../../../../lib/formatters';
+import { topN } from '../../../../lib/chartUtils';
 import { WidgetError } from './WidgetError';
 
 export function TopProductsWidget({ data, isLoading, isError, onRetry }: TopProductsWidgetProps) {
@@ -12,10 +14,13 @@ export function TopProductsWidget({ data, isLoading, isError, onRetry }: TopProd
       </div>
     );
   }
-  const formatCurrency = (value: number) =>
-    new Intl.NumberFormat('nb-NO', { style: 'currency', currency: 'NOK', maximumFractionDigits: 0 }).format(value);
+  const formatCurrency = formatCurrencyNok;
 
   const maxRevenue = useMemo(() => Math.max(...data.map(p => Number(p.total_revenue) || 0), 1), [data]);
+  const topProducts = useMemo(
+    () => topN(data, 10, (product) => Number(product.total_revenue) || 0),
+    [data],
+  );
 
   if (isLoading) {
     return (
@@ -34,7 +39,7 @@ export function TopProductsWidget({ data, isLoading, isError, onRetry }: TopProd
     <div className="card">
       <h3 className="text-lg font-semibold mb-4">🏆 Topp 10 Produkter</h3>
       <div className="space-y-3">
-        {data.slice(0, 10).map((product, index) => (
+        {topProducts.map((product, index) => (
           <div key={product.varekode} className="flex items-center gap-3">
             <span className="text-sm font-bold text-dark-400 w-6">{index + 1}.</span>
             <div className="flex-1 min-w-0">

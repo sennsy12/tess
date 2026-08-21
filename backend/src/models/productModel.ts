@@ -48,7 +48,7 @@ export const productModel = {
     const offset = (params.page - 1) * params.limit;
 
     const dataResult = await query(
-      `SELECT v.varekode, v.varenavn, v.varegruppe,
+      `SELECT v.varekode, v.varenavn, v.varegruppe, v.base_price,
               COUNT(*) OVER()::int AS _total_count
        FROM vare v
        ${whereClause}
@@ -71,6 +71,20 @@ export const productModel = {
 
   findByCode: async (varekode: string) => {
     const result = await query('SELECT * FROM vare WHERE varekode = $1', [varekode]);
+    return result.rows[0];
+  },
+
+  /**
+   * Set the catalog base price for a product (admin action).
+   * This is the price the pricing engine applies customer rules on top of.
+   *
+   * @returns The updated product row, or `undefined` if not found
+   */
+  updateBasePrice: async (varekode: string, basePrice: number) => {
+    const result = await query(
+      'UPDATE vare SET base_price = $2 WHERE varekode = $1 RETURNING varekode, varenavn, varegruppe, base_price',
+      [varekode, basePrice],
+    );
     return result.rows[0];
   },
 };

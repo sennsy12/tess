@@ -8,7 +8,8 @@ import {
 } from 'recharts';
 import { truncateLabel } from '../../lib/formatters';
 
-const COLORS = ['#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#ec4899', '#f43f5e', '#f97316', '#eab308'];
+// Executive Dark palette: indigo family, champagne-gold highlight, slate falloff
+const COLORS = ['#6366f1', '#818cf8', '#a5b4fc', '#c9a962', '#94a3b8', '#64748b', '#475569', '#3f4c63'];
 
 interface PieChartProps {
   data: any[];

@@ -1,6 +1,8 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Pagination } from '../../../../components/admin';
 import { auditApi } from '../../../../lib/api';
+import { pricingKeys } from '../../../../lib/queryKeys';
 import { AuditEntry } from '../../../../types/pricing';
 
 // ────────────────────────────────────────────────────────────
@@ -144,35 +146,33 @@ function DeleteDetails({ snapshot }: { snapshot: Record<string, any> }) {
 const LIMIT = 25;
 
 export function AuditLogTab() {
-  const [entries, setEntries] = useState<AuditEntry[]>([]);
-  const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const [isLoading, setIsLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [filterType, setFilterType] = useState('');
   const [filterAction, setFilterAction] = useState('');
 
-  // ── Data loading ──────────────────────────────────────
-  const loadEntries = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const params: Record<string, any> = { page, limit: LIMIT };
+  const filters = useMemo(
+    () => ({ filterType, filterAction }),
+    [filterType, filterAction],
+  );
+
+  const auditQuery = useQuery({
+    queryKey: pricingKeys.auditLog(page, filters),
+    queryFn: async () => {
+      const params: Record<string, unknown> = { page, limit: LIMIT };
       if (filterType) params.entity_type = filterType;
       if (filterAction) params.action = filterAction;
       const res = await auditApi.getAll(params);
-      setEntries(res.data.data);
-      setTotal(res.data.pagination.total);
-    } catch (error: any) {
-      console.error('Failed to load audit log:', error);
-      if (error.response?.status === 403) setEntries([]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [page, filterType, filterAction]);
+      return {
+        entries: res.data.data as AuditEntry[],
+        total: res.data.pagination.total as number,
+      };
+    },
+  });
 
-  useEffect(() => {
-    loadEntries();
-  }, [loadEntries]);
+  const entries = auditQuery.data?.entries ?? [];
+  const total = auditQuery.data?.total ?? 0;
+  const isLoading = auditQuery.isLoading;
 
   // ── Filter handlers ───────────────────────────────────
   const handleTypeChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -197,14 +197,26 @@ export function AuditLogTab() {
       <div className="flex flex-wrap justify-between items-center gap-4 mb-4">
         <h3 className="text-lg font-semibold">Endringslogg</h3>
         <div className="flex gap-2">
-          <select value={filterType} onChange={handleTypeChange} className="input text-sm">
+          <label htmlFor="audit-filter-type" className="sr-only">
+            Filtrer etter type
+          </label>
+          <select
+            id="audit-filter-type"
+            value={filterType}
+            onChange={handleTypeChange}
+            className="input text-sm"
+          >
             {TYPE_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value}>
                 {opt.label}
               </option>
             ))}
           </select>
+          <label htmlFor="audit-filter-action" className="sr-only">
+            Filtrer etter handling
+          </label>
           <select
+            id="audit-filter-action"
             value={filterAction}
             onChange={handleActionChange}
             className="input text-sm"

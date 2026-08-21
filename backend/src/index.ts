@@ -9,6 +9,7 @@ import { statisticsRouter } from './routes/statistics.js';
 import { statusRouter } from './routes/status.js';
 import { customersRouter } from './routes/customers.js';
 import { productsRouter } from './routes/products.js';
+import { catalogRouter } from './routes/catalog.js';
 import { etlRouter } from './routes/etl.js';
 import { schedulerRouter } from './routes/scheduler.js';
 import { suggestionsRouter } from './routes/suggestions.js';
@@ -24,8 +25,8 @@ import { initEtlQueue, stopEtlQueue } from './etl/etlQueue.js';
 import { apiMetricsMiddleware } from './middleware/apiMetrics.js';
 import { generalLimiter } from './middleware/rateLimit.js';
 import { logger } from './lib/logger.js';
-import { validateEnv } from './lib/env.js';
-import { query, getPoolStats } from './db/index.js';
+import { validateEnv, getEnv } from './lib/env.js';
+import { query } from './db/index.js';
 import pool from './db/index.js';
 import { runMigrations } from './db/migrate.js';
 import { errorHandler } from './middleware/errorHandler.js';
@@ -48,9 +49,13 @@ const PORT = process.env.PORT || 5000;
 // Trust proxy for rate limiting behind reverse proxy
 app.set('trust proxy', 1);
 
+// Validated at startup above; production requires FRONTEND_URL, so this
+// fallback only ever applies in development/test.
+const CORS_ORIGIN = getEnv().FRONTEND_URL || 'http://localhost:3000';
+
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: CORS_ORIGIN,
     credentials: true,
   })
 );
@@ -95,7 +100,9 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Readiness probe — verifies database connectivity
+// Readiness probe — verifies database connectivity.
+// Deliberately minimal: this endpoint is unauthenticated, so internal
+// connection-pool details are not exposed (available via metrics instead).
 app.get('/api/health/ready', async (_req, res) => {
   try {
     await query('SELECT 1');
@@ -103,7 +110,6 @@ app.get('/api/health/ready', async (_req, res) => {
       status: 'ready',
       timestamp: new Date().toISOString(),
       database: 'connected',
-      pool: getPoolStats(),
     });
   } catch (err) {
     logger.warn({ err }, 'Readiness check failed');
@@ -123,6 +129,7 @@ app.use('/api/statistics', statisticsRouter);
 app.use('/api/status', statusRouter);
 app.use('/api/customers', customersRouter);
 app.use('/api/products', productsRouter);
+app.use('/api/catalog', catalogRouter);
 
 // ETL Route needs higher payload limit for bulk uploads
 app.use('/api/etl', express.json({ limit: '50mb' }), etlRouter);

@@ -1,6 +1,7 @@
 import fs from 'fs';
 import readline from 'readline';
 import { runStreamingEtl } from './streaming/pipeline.js';
+import { runCombinedOrderCsvEtl } from './streaming/pipeline/combinedOrderCsv.js';
 import { EtlTableName } from './streaming/types.js';
 import { normalizeHeader } from './streaming/transforms.js';
 
@@ -64,43 +65,30 @@ export async function uploadCsvToTable(
     throw new Error(`Unsupported table: ${detectedTable}`);
   }
 
-  let insertedRows = 0;
-  let attemptedRows = 0;
-  let rejectedRows = 0;
-
   // For combined order+line CSV (one row per order line, with order fields repeated):
-  // Insert ordre first (one row per CSV row; ON CONFLICT DO NOTHING dedupes by ordrenr),
-  // then ordrelinje. Order-level fields (e.g. sum) use the first row per ordrenr.
+  // single-pass fan-out reads the file once and feeds ordre + ordrelinje COPY
+  // streams in parallel; ordre commits before the ordrelinje merge (FK-safe).
   if (!providedTable && detectedTable === 'ordrelinje' && headers.includes('ordrenr') && headers.includes('linjenr')) {
-    await runStreamingEtl({
-      sourceType: 'csv',
-      table: 'ordre',
-      csv: { filePath, delimiter: separator },
-      onConflict: 'nothing',
-      strictMode: false,
-    });
-    const lineResult = await runStreamingEtl({
-      sourceType: 'csv',
-      table: 'ordrelinje',
-      csv: { filePath, delimiter: separator },
-      onConflict: 'nothing',
-      strictMode: false,
-    });
-    insertedRows = lineResult.insertedRows;
-    attemptedRows = lineResult.attemptedRows;
-    rejectedRows = lineResult.rejectedRows;
-  } else {
-    const result = await runStreamingEtl({
-      sourceType: 'csv',
+    const combined = await runCombinedOrderCsvEtl({ filePath, delimiter: separator });
+    return {
+      duration: Date.now() - startTime,
       table: detectedTable,
-      csv: { filePath, delimiter: separator },
-      onConflict: 'nothing',
-      strictMode: false,
-    });
-    insertedRows = result.insertedRows;
-    attemptedRows = result.attemptedRows;
-    rejectedRows = result.rejectedRows;
+      rowCount: combined.ordrelinjeInserted,
+      attemptedRows: combined.attemptedRows,
+      rejectedRows: combined.rejectedOrdrelinjeRows,
+    };
   }
+
+  const result = await runStreamingEtl({
+    sourceType: 'csv',
+    table: detectedTable,
+    csv: { filePath, delimiter: separator },
+    onConflict: 'nothing',
+    strictMode: false,
+  });
+  const insertedRows = result.insertedRows;
+  const attemptedRows = result.attemptedRows;
+  const rejectedRows = result.rejectedRows;
 
   const duration = Date.now() - startTime;
   return {

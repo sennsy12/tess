@@ -1,4 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useDebouncedValue } from '../hooks/useDebouncedValue';
+import { useOnClickOutside } from '../hooks/useOnClickOutside';
 
 interface Suggestion {
   suggestion: string;
@@ -6,6 +8,7 @@ interface Suggestion {
 }
 
 interface AutocompleteInputProps {
+  id?: string;
   value: string;
   onChange: (value: string) => void;
   onSelect?: (suggestion: Suggestion) => void;
@@ -17,6 +20,7 @@ interface AutocompleteInputProps {
 }
 
 export function AutocompleteInput({
+  id,
   value,
   onChange,
   onSelect,
@@ -32,53 +36,41 @@ export function AutocompleteInput({
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const debounceRef = useRef<NodeJS.Timeout>();
+  const debouncedValue = useDebouncedValue(value, debounceMs);
 
-  // Fetch suggestions with debounce
   useEffect(() => {
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current);
-    }
-
-    if (value.length < minChars) {
+    if (debouncedValue.length < minChars) {
       setSuggestions([]);
       setIsOpen(false);
       return;
     }
 
-    debounceRef.current = setTimeout(async () => {
+    let cancelled = false;
+
+    (async () => {
       setIsLoading(true);
       try {
-        const results = await fetchSuggestions(value);
+        const results = await fetchSuggestions(debouncedValue);
+        if (cancelled) return;
         setSuggestions(results);
         setIsOpen(results.length > 0);
         setHighlightedIndex(-1);
       } catch (error) {
+        if (cancelled) return;
         console.error('Failed to fetch suggestions:', error);
         setSuggestions([]);
       } finally {
-        setIsLoading(false);
+        if (!cancelled) setIsLoading(false);
       }
-    }, debounceMs);
+    })();
 
     return () => {
-      if (debounceRef.current) {
-        clearTimeout(debounceRef.current);
-      }
+      cancelled = true;
     };
-  }, [value, minChars, debounceMs, fetchSuggestions]);
+  }, [debouncedValue, minChars, fetchSuggestions]);
 
-  // Close on click outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  const handleClickOutside = useCallback(() => setIsOpen(false), []);
+  useOnClickOutside(containerRef, handleClickOutside);
 
   const handleSelect = (suggestion: Suggestion) => {
     onChange(suggestion.suggestion);
@@ -131,6 +123,7 @@ export function AutocompleteInput({
       <div className="relative">
         <input
           ref={inputRef}
+          id={id}
           type="text"
           value={value}
           onChange={(e) => onChange(e.target.value)}

@@ -133,7 +133,14 @@ export async function initEtlQueue(): Promise<void> {
 
   await boss.start();
 
-  await boss.work(ETL_INGEST_QUEUE, { teamConcurrency: 1 }, async (job) => {
+  // Concurrency 1 keeps memory flat for huge jobs; raise via ETL_TEAM_CONCURRENCY
+  // when jobs target different tables and throughput matters more than heap headroom.
+  const teamConcurrencyRaw = Number(process.env.ETL_TEAM_CONCURRENCY ?? '1');
+  const teamConcurrency = Number.isFinite(teamConcurrencyRaw) && teamConcurrencyRaw >= 1
+    ? Math.floor(teamConcurrencyRaw)
+    : 1;
+
+  await boss.work(ETL_INGEST_QUEUE, { teamConcurrency }, async (job) => {
     const payload = job.data as EtlIngestJobPayload;
     etlLogger.info({ jobId: payload.jobId, table: payload.body.table }, 'Processing queued ETL job');
     await executeIngestJob(payload);

@@ -36,6 +36,15 @@ export interface Order {
 export interface OrderDetail extends Order {
   firmaid?: number; // found in OrderDetail.tsx
   lines: OrderLine[];
+  lineSummary?: OrderLineSummary;
+}
+
+export interface OrderLineSummary {
+  qty: number;
+  netto: number;
+  mva: number;
+  brutto: number;
+  weightedAvgPrice: number;
 }
 
 export interface Suggestion {

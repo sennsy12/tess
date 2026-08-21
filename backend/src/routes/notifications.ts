@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authMiddleware, roleGuard } from '../middleware/auth.js';
+import { authMiddleware } from '../middleware/auth.js';
 import {
   notificationController,
   notificationMarkReadController,

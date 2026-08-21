@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useMemo, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/useAuth';
@@ -12,6 +12,7 @@ import {
 } from '../../lib/api';
 import { StatCardSkeleton, ChartSkeleton } from '../../components/admin';
 import { formatCurrencyNok, abbreviateCurrencyNok } from '../../lib/formatters';
+import { fillMissingPeriods } from '../../lib/chartUtils';
 import { AnimatedStatCard } from '../../components/dashboard/AnimatedStatCard';
 import {
   TopProductsWidget,
@@ -59,6 +60,16 @@ export function AdminDashboard() {
     },
   });
 
+  const { data: pendingApprovalCount = 0 } = useQuery({
+    queryKey: ['admin', 'pending-approval-count'],
+    enabled: queriesEnabled,
+    queryFn: async () => {
+      const response = await ordersApi.getAll({ workflowStatus: 'pending_approval', limit: 1 });
+      return response.data?.pagination?.total ?? 0;
+    },
+    refetchInterval: 60_000,
+  });
+
   const { data: analytics, isLoading } = useQuery({
     queryKey: ['admin', 'analytics'],
     queryFn: () => dashboardApi.getAnalyticsBatch().then(res => res.data as DashboardAnalytics),
@@ -66,7 +77,11 @@ export function AdminDashboard() {
   });
 
   const summary = analytics?.summary ?? null;
-  const timeSeries = analytics?.timeSeries ?? [];
+  const rawTimeSeries = analytics?.timeSeries ?? [];
+  const timeSeries = useMemo(
+    () => fillMissingPeriods(rawTimeSeries, 'month'),
+    [rawTimeSeries],
+  );
   const firmaStats = (analytics?.firma?.data ?? []).filter((f: FirmaLagerStat) => f.total_sum > 0);
   const lagerStats = (analytics?.lager?.data ?? []).filter((l: FirmaLagerStat) => l.total_sum > 0);
 
@@ -151,7 +166,14 @@ export function AdminDashboard() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
+          <ActionCard
+            label="Ordrer til godkjenning"
+            value={pendingApprovalCount}
+            description="Kundebestillinger som venter på godkjenning eller avvisning."
+            cta="Åpne godkjenningskøen"
+            onClick={() => navigate('/admin/orders?workflowStatus=pending_approval')}
+          />
           <ActionCard
             label="Ordrer trenger oppfølging"
             value={ordersNeedingAttention}

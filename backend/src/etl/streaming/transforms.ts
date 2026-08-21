@@ -172,9 +172,14 @@ export function getRowValidationError(
   return null;
 }
 
+const COPY_SPECIAL_CHARS = /[\t\n\r\\]/;
+
 export function formatCopyValue(value: unknown): string {
   if (value === null || value === undefined) return '\\N';
-  return String(value)
+  const str = typeof value === 'string' ? value : String(value);
+  // Fast path: most fields (ids, numbers, dates) contain no special chars.
+  if (!COPY_SPECIAL_CHARS.test(str)) return str;
+  return str
     .replace(/\\/g, '\\\\')
     .replace(/\t/g, '\\t')
     .replace(/\n/g, '\\n')
@@ -182,5 +187,10 @@ export function formatCopyValue(value: unknown): string {
 }
 
 export function formatCopyLine(values: Array<string | number | null>): string {
-  return `${values.map(formatCopyValue).join('\t')}\n`;
+  let line = '';
+  for (let i = 0; i < values.length; i++) {
+    if (i > 0) line += '\t';
+    line += formatCopyValue(values[i]);
+  }
+  return line + '\n';
 }

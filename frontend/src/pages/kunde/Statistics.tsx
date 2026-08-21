@@ -1,4 +1,4 @@
-import { StatisticsPage } from '../admin/Statistics';
+import { StatisticsPage } from '../statistics/StatisticsPage';
 
 export function KundeStatistics() {
   return (
@@ -6,6 +6,7 @@ export function KundeStatistics() {
       pageTitle="Statistikk"
       savedViewsScope="kunde-statistics"
       enableSharedViews={false}
+      exportFilenamePrefix="kunde-statistikk"
     />
   );
 }

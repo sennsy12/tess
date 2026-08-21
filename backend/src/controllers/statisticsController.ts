@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth.js';
 import { statisticsModel, StatsFilters } from '../models/statisticsModel.js';
 import { ValidationError } from '../middleware/errorHandler.js';
+import { assertKundeOwnership } from '../lib/assertOwnership.js';
 
 const parseFilters = (query: any): StatsFilters => ({
   startDate: query.startDate,
@@ -19,6 +20,9 @@ const parseFilters = (query: any): StatsFilters => ({
  */
 const applyUserScope = (filters: StatsFilters, user?: AuthRequest['user']): StatsFilters => {
   if (user?.role === 'kunde' && user?.kundenr) {
+    if (filters.kundenr) {
+      assertKundeOwnership(user, filters.kundenr);
+    }
     return { ...filters, kundenr: user.kundenr };
   }
   return filters;

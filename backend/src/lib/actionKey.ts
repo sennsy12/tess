@@ -2,13 +2,21 @@ import { ForbiddenError } from '../middleware/errorHandler.js';
 import { assertAdminActionKeyStrength } from '../middleware/productionSafety.js';
 
 /**
- * Get admin action key - fails fast in production if not configured
+ * Get admin action key - fails fast unless configured.
+ *
+ * The fallback is only permitted in development/test. In any other
+ * environment a missing key throws, otherwise the well-known constant would
+ * unlock privileged admin operations (password changes, deletes).
  */
 export function getAdminActionKey(): string {
+  const env = process.env.NODE_ENV;
+  const allowsFallback = env === 'development' || env === 'test';
   const key = process.env.ADMIN_ACTION_KEY;
   if (!key) {
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error('CRITICAL: ADMIN_ACTION_KEY is not defined in production environment!');
+    if (!allowsFallback) {
+      throw new Error(
+        `CRITICAL: ADMIN_ACTION_KEY is not defined (NODE_ENV=${env ?? 'unset'}).`
+      );
     }
     console.warn('⚠️ WARNING: ADMIN_ACTION_KEY not set. Using dev-only fallback. Set ADMIN_ACTION_KEY in .env for security.');
     return 'dev-only-action-key-not-for-production';

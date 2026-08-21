@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { pricingApi } from '../../../../lib/api';
 import { CustomerWithGroup, CustomersTabProps } from '../../../../types/pricing';
 import { Pagination } from '../../../../components/admin';
 import { PaginationInfo } from '../../../../types/statistics';
+import { useDebouncedValue } from '../../../../hooks/useDebouncedValue';
 
 const PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
 
@@ -18,24 +19,13 @@ export function CustomersTab({
 
   // Filters
   const [search, setSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search, 300);
   const [filterGroup, setFilterGroup] = useState<string>('all');
   const [pageSize, setPageSize] = useState<number>(25);
-
-  const debounceTimer = useRef<ReturnType<typeof setTimeout>>();
-
-  // Debounce search input (300ms)
-  useEffect(() => {
-    debounceTimer.current = setTimeout(() => {
-      setDebouncedSearch(search);
-    }, 300);
-    return () => clearTimeout(debounceTimer.current);
-  }, [search]);
 
   useEffect(() => {
     if (!initialState) return;
     setSearch(initialState.search);
-    setDebouncedSearch(initialState.search);
     setFilterGroup(initialState.filterGroup);
     setPageSize(initialState.pageSize);
   }, [initialState]);

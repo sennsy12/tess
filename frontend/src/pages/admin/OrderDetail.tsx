@@ -6,7 +6,14 @@ import { Breadcrumb } from '../../components/Breadcrumb';
 import { QueryErrorBanner } from '../../components/QueryErrorBanner';
 import { OrderWorkflowBadge } from '../../components/orders/OrderWorkflowBadge';
 import { ordersApi } from '../../lib/api';
-import { ORDER_WORKFLOW_LABELS, type OrderWorkflowStatus } from '../../types/notification';
+import {
+  ORDER_WORKFLOW_LABELS,
+  ORDER_WORKFLOW_STATUSES,
+  canTransition,
+  getNextWorkflowStatuses,
+  type OrderWorkflowStatus,
+} from '../../types/notification';
+import { OrderLineSummaryCard } from '../../components/orders/OrderLineSummaryCard';
 
 import { OrderDetail } from '../../types/order';
 
@@ -37,6 +44,11 @@ export function AdminOrderDetail() {
 
   const handleStatusChange = async (workflowStatus: OrderWorkflowStatus) => {
     if (!order) return;
+    const current = (order.workflow_status ?? 'new') as OrderWorkflowStatus;
+    if (!canTransition(current, workflowStatus)) {
+      toast.error('Ugyldig statusovergang');
+      return;
+    }
     setStatusSaving(true);
     try {
       await ordersApi.updateStatus(order.ordrenr, workflowStatus);
@@ -81,6 +93,9 @@ export function AdminOrderDetail() {
       </Layout>
     );
   }
+
+  const currentStatus = (order.workflow_status ?? 'new') as OrderWorkflowStatus;
+  const allowedStatuses = [currentStatus, ...getNextWorkflowStatuses(currentStatus)];
 
   return (
     <Layout title={`Ordre #${order.ordrenr}`}>
@@ -150,16 +165,17 @@ export function AdminOrderDetail() {
                 disabled={statusSaving}
                 onChange={(e) => handleStatusChange(e.target.value as OrderWorkflowStatus)}
               >
-                {(Object.entries(ORDER_WORKFLOW_LABELS) as [OrderWorkflowStatus, string][]).map(
-                  ([value, label]) => (
+                {(ORDER_WORKFLOW_STATUSES.filter((value) => allowedStatuses.includes(value))).map(
+                  (value) => (
                     <option key={value} value={value}>
-                      {label}
+                      {ORDER_WORKFLOW_LABELS[value]}
                     </option>
                   ),
                 )}
               </select>
             </div>
           </div>
+          {order.lineSummary && <OrderLineSummaryCard summary={order.lineSummary} />}
         </div>
 
         {/* Order lines */}

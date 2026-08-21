@@ -1,4 +1,4 @@
-import { query } from '../db/index.js';
+import { query, bulkCopy } from '../db/index.js';
 
 // In-memory storage for generated test data
 let generatedTestData: any = null;
@@ -148,7 +148,10 @@ function generateRandomOrders() {
 }
 
 /**
- * Inserts generated test data into database
+ * Inserts generated test data into database.
+ * Uses COPY-based bulk loading instead of per-row INSERTs: one round-trip
+ * per table instead of one per row, and ON CONFLICT DO NOTHING semantics
+ * are preserved via bulkCopy's staging-table merge.
  */
 export async function insertTestData() {
   if (!generatedTestData) {
@@ -158,85 +161,71 @@ export async function insertTestData() {
   const data = generatedTestData;
   const results: Record<string, number> = {};
 
-  // Insert kunder
-  for (const kunde of data.kunder) {
-    await query(
-      'INSERT INTO kunde (kundenr, kundenavn) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-      [kunde.kundenr, kunde.kundenavn]
-    );
-  }
-  results.kunder = data.kunder.length;
+  // Dimensions first (ordre/ordrelinje/henvisning carry FKs to them).
+  results.kunder = await bulkCopy(
+    'kunde',
+    ['kundenr', 'kundenavn'],
+    data.kunder.map((k: any) => [k.kundenr, k.kundenavn])
+  );
 
-  // Insert firmaer
-  for (const firma of data.firmaer) {
-    await query(
-      'INSERT INTO firma (firmaid, firmanavn) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-      [firma.firmaid, firma.firmanavn]
-    );
-  }
-  results.firmaer = data.firmaer.length;
+  results.firmaer = await bulkCopy(
+    'firma',
+    ['firmaid', 'firmanavn'],
+    data.firmaer.map((f: any) => [f.firmaid, f.firmanavn])
+  );
 
-  // Insert lager
-  for (const lager of data.lager) {
-    await query(
-      'INSERT INTO lager (lagernavn, firmaid) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-      [lager.lagernavn, lager.firmaid]
-    );
-  }
-  results.lager = data.lager.length;
+  results.lager = await bulkCopy(
+    'lager',
+    ['lagernavn', 'firmaid'],
+    data.lager.map((l: any) => [l.lagernavn, l.firmaid])
+  );
 
-  // Insert valutaer
-  for (const valuta of data.valutaer) {
-    await query(
-      'INSERT INTO valuta (valutaid) VALUES ($1) ON CONFLICT DO NOTHING',
-      [valuta.valutaid]
-    );
-  }
-  results.valutaer = data.valutaer.length;
+  results.valutaer = await bulkCopy(
+    'valuta',
+    ['valutaid'],
+    data.valutaer.map((v: any) => [v.valutaid])
+  );
 
-  // Insert varer
-  for (const vare of data.varer) {
-    await query(
-      'INSERT INTO vare (varekode, varenavn, varegruppe) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
-      [vare.varekode, vare.varenavn, vare.varegruppe]
-    );
-  }
-  results.varer = data.varer.length;
+  results.varer = await bulkCopy(
+    'vare',
+    ['varekode', 'varenavn', 'varegruppe'],
+    data.varer.map((v: any) => [v.varekode, v.varenavn, v.varegruppe])
+  );
 
-  // Insert ordrer and ordrelinjer
-  let linesInserted = 0;
+  // Orders and their lines (ordre before ordrelinje for FK safety).
+  const ordreRows = data.ordrer.map((o: any) => [
+    o.ordrenr, o.dato, o.kundenr, o.kundeordreref, o.kunderef,
+    o.firmaid, o.lagernavn, o.valutaid, o.sum,
+  ]);
+  const linjeRows: any[][] = [];
   for (const ordre of data.ordrer) {
-    await query(
-      `INSERT INTO ordre (ordrenr, dato, kundenr, kundeordreref, kunderef, firmaid, lagernavn, valutaid, sum) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) ON CONFLICT DO NOTHING`,
-      [ordre.ordrenr, ordre.dato, ordre.kundenr, ordre.kundeordreref, ordre.kunderef, 
-       ordre.firmaid, ordre.lagernavn, ordre.valutaid, ordre.sum]
-    );
-
     for (const line of ordre.lines) {
-      await query(
-        `INSERT INTO ordrelinje (linjenr, ordrenr, varekode, antall, enhet, nettpris, linjesum, linjestatus)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT DO NOTHING`,
-        [line.linjenr, line.ordrenr, line.varekode, line.antall, line.enhet, 
-         line.nettpris, line.linjesum, line.linjestatus]
-      );
-      linesInserted++;
+      linjeRows.push([
+        line.linjenr, line.ordrenr, line.varekode, line.antall, line.enhet,
+        line.nettpris, line.linjesum, line.linjestatus,
+      ]);
     }
   }
-  results.ordrer = data.ordrer.length;
-  results.ordrelinjer = linesInserted;
+  results.ordrer = await bulkCopy(
+    'ordre',
+    ['ordrenr', 'dato', 'kundenr', 'kundeordreref', 'kunderef', 'firmaid', 'lagernavn', 'valutaid', 'sum'],
+    ordreRows
+  );
+  results.ordrelinjer = await bulkCopy(
+    'ordrelinje',
+    ['linjenr', 'ordrenr', 'varekode', 'antall', 'enhet', 'nettpris', 'linjesum', 'linjestatus'],
+    linjeRows
+  );
 
-  // Insert ordre_henvisninger
-  let henvisningerInserted = 0;
-  for (const h of data.ordre_henvisninger) {
-    await query(
-      `INSERT INTO ordre_henvisning (ordrenr, linjenr, henvisning1, henvisning2, henvisning3, henvisning4, henvisning5)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT DO NOTHING`,
-      [h.ordrenr, h.linjenr, h.henvisning1, h.henvisning2, h.henvisning3, h.henvisning4, h.henvisning5]
-    );
-    henvisningerInserted++;
-  }
-  results.ordre_henvisninger = henvisningerInserted;
+  // Henvisninger reference ordrelinje PKs -> must come last.
+  results.ordre_henvisninger = await bulkCopy(
+    'ordre_henvisning',
+    ['ordrenr', 'linjenr', 'henvisning1', 'henvisning2', 'henvisning3', 'henvisning4', 'henvisning5'],
+    data.ordre_henvisninger.map((h: any) => [
+      h.ordrenr, h.linjenr, h.henvisning1, h.henvisning2,
+      h.henvisning3, h.henvisning4, h.henvisning5,
+    ])
+  );
 
   // Insert default users
   await query(

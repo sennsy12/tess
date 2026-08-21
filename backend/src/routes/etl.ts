@@ -8,11 +8,20 @@ import { asyncHandler } from '../middleware/errorHandler.js';
 import { etlLimiter } from '../middleware/rateLimit.js';
 import { validate, bulkDataSchema, bulkStagesSchema, bulkStreamingSchema, etlIngestSchema } from '../middleware/validation.js';
 import { requireDestructiveEtl } from '../middleware/productionSafety.js';
+import { AppError } from '../middleware/errorHandler.js';
 
 export const etlRouter = Router();
 
 const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
 fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+
+const ALLOWED_UPLOAD_EXTENSIONS = /\.(csv|txt)$/i;
+const ALLOWED_UPLOAD_MIMES = new Set([
+  'text/csv',
+  'text/plain',
+  'application/vnd.ms-excel',
+  'application/octet-stream', // common on Windows for .csv
+]);
 
 // Configure multer with file size limits
 const upload = multer({
@@ -20,7 +29,17 @@ const upload = multer({
   limits: {
     fileSize: 50 * 1024 * 1024, // 50MB max file size
     files: 1, // Single file only
-  }
+  },
+  // Only accept CSV uploads — reject anything else before it hits disk.
+  fileFilter: (_req, file, cb) => {
+    const extOk = ALLOWED_UPLOAD_EXTENSIONS.test(file.originalname);
+    const mimeOk = ALLOWED_UPLOAD_MIMES.has(file.mimetype);
+    if (!extOk || !mimeOk) {
+      cb(new AppError('Only CSV files are accepted', 400));
+      return;
+    }
+    cb(null, true);
+  },
 });
 
 // All ETL routes require admin access

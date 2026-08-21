@@ -4,7 +4,11 @@ import { AuthRequest } from '../middleware/auth.js';
 import { productModel } from '../models/productModel.js';
 import { NotFoundError } from '../middleware/errorHandler.js';
 import { buildListResponse } from '../lib/listResponse.js';
-import { productListQuerySchema } from '../middleware/validation.js';
+import {
+  productListQuerySchema,
+  updateProductPriceSchema,
+} from '../middleware/validation.js';
+import { auditService } from '../services/auditService.js';
 
 export const productController = {
   /** Paginated product list (GET / and GET /search). */
@@ -39,5 +43,34 @@ export const productController = {
     }
 
     res.json(product);
+  },
+
+  /** Set the catalog base price for a product (admin action). */
+  updateBasePrice: async (req: AuthRequest, res: Response) => {
+    const { varekode } = req.params;
+    const { base_price } = req.body as z.infer<typeof updateProductPriceSchema>;
+
+    const existing = await productModel.findByCode(varekode);
+    if (!existing) {
+      throw new NotFoundError('Product not found');
+    }
+
+    const updated = await productModel.updateBasePrice(varekode, base_price);
+
+    await auditService.log({
+      user: {
+        id: req.user?.id,
+        username: req.user?.username || 'unknown',
+      },
+      action: 'UPDATE',
+      entityType: 'vare',
+      entityId: varekode,
+      entityName: existing.varenavn ?? varekode,
+      oldData: { base_price: existing.base_price },
+      newData: { base_price: updated?.base_price ?? base_price },
+      ipAddress: req.ip,
+    });
+
+    res.json(updated);
   },
 };

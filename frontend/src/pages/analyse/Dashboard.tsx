@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useMemo, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Layout } from '../../components/Layout';
 import { ExportButton } from '../../components/ExportButton';
@@ -11,6 +11,7 @@ import {
   TimeSeriesPoint,
 } from '../../lib/api';
 import { formatCurrencyNok } from '../../lib/formatters';
+import { fillMissingPeriods } from '../../lib/chartUtils';
 import { DashboardStats } from './components/DashboardStats';
 import { TopCustomerCard } from './components/TopCustomerCard';
 import { DashboardCharts } from './components/DashboardCharts';
@@ -83,7 +84,10 @@ export function AnalyseDashboard() {
   const summary = data?.summary ?? null;
   const kundeStats = data?.kundeStats ?? [];
   const varegruppeStats = data?.varegruppeStats ?? [];
-  const timeSeries = data?.timeSeries ?? [];
+  const timeSeries = useMemo(
+    () => fillMissingPeriods(data?.timeSeries ?? [], 'month'),
+    [data?.timeSeries],
+  );
 
   return (
     <Layout title="Analyse Dashboard">

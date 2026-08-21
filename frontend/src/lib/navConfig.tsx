@@ -1,3 +1,4 @@
+import type { ComponentType } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import {
   LayoutDashboard,
@@ -14,17 +15,22 @@ import {
   ScrollText,
   LineChart,
   UserCircle,
+  ShoppingCart,
 } from 'lucide-react';
+import { CartBadge } from '../components/CartBadge';
 
 export interface NavItem {
   path: string;
   label: string;
   Icon: LucideIcon;
+  /** Optional live badge (e.g. cart item count). */
+  Badge?: ComponentType<{ collapsed?: boolean }>;
 }
 
 export const kundeNavItems: NavItem[] = [
   { path: '/kunde', label: 'Dashboard', Icon: LayoutDashboard },
   { path: '/kunde/konto', label: 'Min konto', Icon: UserCircle },
+  { path: '/kunde/order/new', label: 'Ny bestilling', Icon: ShoppingCart, Badge: CartBadge },
   { path: '/kunde/orders', label: 'Ordrer', Icon: ClipboardList },
   { path: '/kunde/pricing', label: 'Mine priser', Icon: CircleDollarSign },
   { path: '/kunde/statistics', label: 'Statistikk', Icon: BarChart3 },

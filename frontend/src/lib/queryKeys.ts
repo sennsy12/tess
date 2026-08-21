@@ -40,6 +40,15 @@ export const productKeys = {
   ) => ['admin', 'products', page, filters, sortKey, sortDirection] as const,
 };
 
+export const catalogKeys = {
+  list: (
+    page: number,
+    filters: { search: string; varegruppe: string },
+    sortKey: string | null,
+    sortDirection: SortDirection,
+  ) => ['kunde', 'catalog', page, filters, sortKey, sortDirection] as const,
+};
+
 export const customerKeys = {
   groups: () => ['admin', 'customer-groups'] as const,
   list: (
@@ -70,11 +79,19 @@ export const auditKeys = {
 
 export const statisticsKeys = {
   list: (
+    scope: string,
     statType: string,
     page: number,
     dateRange: { startDate: string; endDate: string },
     filters: { kundenr: string; varegruppe: string },
-  ) => ['admin', 'statistics', statType, page, dateRange, filters] as const,
+  ) => [scope, 'statistics', statType, page, dateRange, filters] as const,
+  comparison: (
+    scope: string,
+    dateRange: { startDate: string; endDate: string },
+    compareEnabled: boolean,
+  ) => [scope, 'statistics', 'comparison', dateRange, compareEnabled] as const,
+  summary: (scope: string, dateRange: { startDate: string; endDate: string }) =>
+    [scope, 'statistics', 'summary', dateRange] as const,
 };
 
 export const statusKeys = {
@@ -82,7 +99,13 @@ export const statusKeys = {
 };
 
 export const etlKeys = {
+  all: () => ['admin', 'etl-jobs'] as const,
   jobs: (limit: number) => ['admin', 'etl-jobs', limit] as const,
+  tableCounts: () => ['admin', 'etl', 'table-counts'] as const,
+};
+
+export const schedulerKeys = {
+  jobs: () => ['admin', 'scheduler', 'jobs'] as const,
 };
 
 export const accountKeys = {
@@ -90,7 +113,40 @@ export const accountKeys = {
 };
 
 export const pricingKeys = {
+  all: () => ['admin', 'pricing'] as const,
+  groups: () => ['admin', 'pricing', 'groups'] as const,
+  lists: () => ['admin', 'pricing', 'lists'] as const,
+  rules: (listId: number) => ['admin', 'pricing', 'rules', listId] as const,
+  customersWithGroups: () => ['admin', 'pricing', 'customers-with-groups'] as const,
+  auditLog: (page: number, filters: Record<string, string>) =>
+    ['admin', 'pricing', 'audit-log', page, filters] as const,
   customerRules: (kundenr: string) => ['kunde', 'pricing', kundenr] as const,
+};
+
+export type AnalyticsScope = 'kunde-advanced-analytics' | 'admin-advanced-analytics';
+
+export type AnalyticsQueryConfig = {
+  metric: string;
+  dimension: string;
+  startDate: string;
+  endDate: string;
+  search: string;
+};
+
+export const analyticsKeys = {
+  custom: (scope: AnalyticsScope, config: AnalyticsQueryConfig) =>
+    [scope, config.metric, config.dimension, config.startDate, config.endDate, config.search] as const,
+};
+
+export const orderLineKeys = {
+  orders: () => ['admin', 'orderlines', 'orders'] as const,
+  linesRoot: (ordrenr: number) => ['admin', 'orderlines', ordrenr] as const,
+  lines: (ordrenr: number, page: number) => ['admin', 'orderlines', ordrenr, page] as const,
+  productSearch: (query: string) => ['admin', 'orderlines', 'products', query] as const,
+};
+
+export const reportKeys = {
+  all: () => ['reports'] as const,
 };
 
 export const queryKeys = {

@@ -52,7 +52,8 @@ CREATE TABLE IF NOT EXISTS public.vare
 (
     varekode text PRIMARY KEY,
     varenavn text,
-    varegruppe text
+    varegruppe text,
+    base_price double precision NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS public.ordre
@@ -67,8 +68,9 @@ CREATE TABLE IF NOT EXISTS public.ordre
     valutaid text,
     sum double precision,
     workflow_status text NOT NULL DEFAULT 'new'
-        CHECK (workflow_status IN ('new', 'processing', 'shipped', 'invoiced', 'cancelled')),
+        CHECK (workflow_status IN ('new', 'pending_approval', 'approved', 'rejected', 'processing', 'shipped', 'invoiced', 'cancelled')),
     status_updated_at TIMESTAMP,
+    idempotency_key text,
     FOREIGN KEY (kundenr) REFERENCES public.kunde(kundenr),
     FOREIGN KEY (firmaid) REFERENCES public.firma(firmaid),
     FOREIGN KEY (lagernavn, firmaid) REFERENCES public.lager(lagernavn, firmaid),

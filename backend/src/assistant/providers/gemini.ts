@@ -1,3 +1,4 @@
+import { withRetry, isRetryableHttpStatus } from '../../lib/asyncUtils.js';
 import { AppError } from '../../middleware/errorHandler.js';
 import type { CompletionParams } from './types.js';
 
@@ -29,28 +30,34 @@ export async function completeWithGemini(params: CompletionParams): Promise<stri
     },
   };
 
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(60_000),
-  });
+  return withRetry(
+    async () => {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(60_000),
+      });
 
-  const data = (await response.json()) as GeminiGenerateResponse;
+      const data = (await response.json()) as GeminiGenerateResponse;
 
-  if (!response.ok) {
-    const detail = data.error?.message;
-    const message =
-      process.env.NODE_ENV === 'development' && detail
-        ? `AI-tjeneste feilet: ${detail}`
-        : 'Kunne ikke nå AI-tjenesten. Prøv igjen senere.';
-    throw new AppError(message, 502);
-  }
+      if (!response.ok) {
+        const detail = data.error?.message;
+        const message =
+          process.env.NODE_ENV === 'development' && detail
+            ? `AI-tjeneste feilet: ${detail}`
+            : 'Kunne ikke nå AI-tjenesten. Prøv igjen senere.';
+        const error = new AppError(message, isRetryableHttpStatus(response.status) ? 502 : response.status);
+        throw error;
+      }
 
-  const reply = data.candidates?.[0]?.content?.parts?.map((p) => p.text ?? '').join('').trim();
-  if (!reply) {
-    throw new AppError('Tomt svar fra assistenten.', 502);
-  }
+      const reply = data.candidates?.[0]?.content?.parts?.map((p) => p.text ?? '').join('').trim();
+      if (!reply) {
+        throw new AppError('Tomt svar fra assistenten.', 502);
+      }
 
-  return reply;
+      return reply;
+    },
+    { attempts: 3, backoffMs: 500 },
+  );
 }

@@ -1,3 +1,5 @@
+import { FileDown, Image } from 'lucide-react';
+
 interface ExportButtonProps {
   targetRef: React.RefObject<HTMLElement>;
   filename: string;
@@ -46,13 +48,15 @@ export function ExportButton({ targetRef, filename }: ExportButtonProps) {
 
   return (
     <div className="flex flex-wrap gap-2">
-      <button onClick={exportToPDF} className="btn-secondary text-xs sm:text-sm flex-1 min-w-0 truncate">
-        <span className="sm:hidden">📄 PDF</span>
-        <span className="hidden sm:inline">📄 Eksporter PDF</span>
+      <button onClick={exportToPDF} className="btn-secondary text-xs sm:text-sm flex items-center gap-1.5">
+        <FileDown className="h-4 w-4" aria-hidden />
+        <span className="hidden sm:inline">Eksporter PDF</span>
+        <span className="sm:hidden">PDF</span>
       </button>
-      <button onClick={exportToImage} className="btn-secondary text-xs sm:text-sm flex-1 min-w-0 truncate">
-        <span className="sm:hidden">🖼️ Bilde</span>
-        <span className="hidden sm:inline">🖼️ Eksporter Bilde</span>
+      <button onClick={exportToImage} className="btn-secondary text-xs sm:text-sm flex items-center gap-1.5">
+        <Image className="h-4 w-4" aria-hidden />
+        <span className="hidden sm:inline">Eksporter Bilde</span>
+        <span className="sm:hidden">Bilde</span>
       </button>
     </div>
   );

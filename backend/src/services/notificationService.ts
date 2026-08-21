@@ -41,6 +41,43 @@ export async function notifyOrderStatusChange(input: {
   deliverExternalAlert({ type: 'order_status', title, message, metadata });
 }
 
+/** Notify admins that a customer submitted a new order for approval. */
+export async function notifyOrderSubmitted(input: {
+  ordrenr: number;
+  kundenr: string;
+  sum?: number;
+  lineCount?: number;
+  submittedBy?: string;
+}): Promise<void> {
+  const title = `Ny ordre til godkjenning: #${input.ordrenr}`;
+  const parts = [`Kunde ${input.kundenr} har sendt inn ordre #${input.ordrenr}.`];
+  if (typeof input.lineCount === 'number') {
+    parts.push(`${input.lineCount} linjer.`);
+  }
+  if (typeof input.sum === 'number') {
+    parts.push(`Sum: ${input.sum.toLocaleString('nb-NO', { minimumFractionDigits: 2 })}`);
+  }
+  const message = parts.join(' ');
+  const metadata = {
+    ordrenr: input.ordrenr,
+    kundenr: input.kundenr,
+    newStatus: 'pending_approval',
+    sum: input.sum,
+    lineCount: input.lineCount,
+    submittedBy: input.submittedBy,
+  };
+
+  await notificationModel.create({
+    type: 'order_submitted',
+    title,
+    message,
+    metadata,
+    audience: 'admin',
+  });
+
+  deliverExternalAlert({ type: 'order_submitted', title, message, metadata });
+}
+
 export async function notifyOrderDataRefresh(input: {
   table: string;
   insertedRows: number;

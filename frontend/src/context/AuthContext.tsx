@@ -1,8 +1,18 @@
-import { useState, useEffect, ReactNode, useCallback } from 'react';
+import { useState, useEffect, ReactNode, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { authApi } from '../lib/api';
-import { AUTH_TOKEN_KEY, clearAuthToken, setAuthToken } from '../lib/auth/tokenStore';
+import {
+  AUTH_TOKEN_KEY,
+  clearAuthToken,
+  clearRefreshToken,
+  clearSessionUser,
+  getRefreshToken,
+  getSessionUser,
+  setAuthToken,
+  setRefreshToken,
+  setSessionUser,
+} from '../lib/auth/tokenStore';
 import { onAuthUnauthorized } from '../lib/auth/authEvents';
 import { AuthContext } from './authContextInstance';
 import type { User } from './authTypes';
@@ -17,8 +27,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   const logout = useCallback(() => {
+    // Best-effort server-side revocation of the refresh token; local state
+    // is cleared regardless so the UI never depends on the network call.
+    const refreshToken = getRefreshToken();
+    if (refreshToken) {
+      void authApi.logout(refreshToken).catch(() => undefined);
+    }
     clearAuthToken();
-    sessionStorage.removeItem('user');
+    clearRefreshToken();
+    clearSessionUser();
     setToken(null);
     setUser(null);
     queryClient.clear();
@@ -26,7 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let isMounted = true;
-    const storedUser = sessionStorage.getItem('user');
+    const storedUser = getSessionUser() as User | null;
     const storedToken = sessionStorage.getItem(AUTH_TOKEN_KEY);
 
     const initAuth = async () => {
@@ -38,26 +55,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       if (storedUser) {
-        try {
-          const parsedUser = JSON.parse(storedUser) as User;
-          if (isMounted) {
-            setUser(parsedUser);
-          }
-        } catch {
-          sessionStorage.removeItem('user');
+        if (isMounted) {
+          setUser(storedUser);
         }
       }
 
       if (storedToken) {
+        // Capture the token before awaiting so that if the session was
+        // invalidated while the request was in flight (401 in another tab /
+        // another request, or the user logged in again), we do not
+        // resurrect stale auth state afterwards.
+        const tokenAtStart = storedToken;
         try {
           const response = await authApi.verify();
           const verifiedUser = response.data?.user as User | undefined;
-          if (verifiedUser && isMounted) {
+          const tokenUnchanged =
+            isMounted && sessionStorage.getItem(AUTH_TOKEN_KEY) === tokenAtStart;
+          if (verifiedUser && tokenUnchanged) {
             setUser(verifiedUser);
-            sessionStorage.setItem('user', JSON.stringify(verifiedUser));
+            setSessionUser(verifiedUser);
           }
         } catch {
-          if (isMounted) {
+          // Only log out if the session was not replaced while we awaited.
+          if (isMounted && sessionStorage.getItem(AUTH_TOKEN_KEY) === tokenAtStart) {
             logout();
           }
         }
@@ -83,47 +103,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [logout, navigate]);
 
-  const login = async (username: string, password: string) => {
-    const response = await authApi.login(username, password);
-    const { token: newToken, user: newUser } = response.data;
+  const authenticate = useCallback(
+    async (
+      request: () => Promise<{ data: { token: string; refreshToken?: string; user: User } }>
+    ): Promise<User> => {
+      const response = await request();
+      const { token: newToken, refreshToken: newRefreshToken, user: newUser } = response.data;
 
-    queryClient.clear();
+      queryClient.clear();
 
-    setAuthToken(newToken);
-    sessionStorage.setItem('user', JSON.stringify(newUser));
-    setToken(newToken);
-    setUser(newUser);
-    return newUser;
-  };
+      setAuthToken(newToken);
+      setRefreshToken(newRefreshToken ?? null);
+      setSessionUser(newUser);
+      setToken(newToken);
+      setUser(newUser);
+      return newUser;
+    },
+    [queryClient]
+  );
 
-  const loginKunde = async (kundenr: string, password: string) => {
-    const response = await authApi.loginKunde(kundenr, password);
-    const { token: newToken, user: newUser } = response.data;
+  const login = useCallback(
+    (username: string, password: string) =>
+      authenticate(() => authApi.login(username, password)),
+    [authenticate]
+  );
 
-    queryClient.clear();
-
-    setAuthToken(newToken);
-    sessionStorage.setItem('user', JSON.stringify(newUser));
-    setToken(newToken);
-    setUser(newUser);
-    return newUser;
-  };
+  const loginKunde = useCallback(
+    (kundenr: string, password: string) =>
+      authenticate(() => authApi.loginKunde(kundenr, password)),
+    [authenticate]
+  );
 
   const isAuthenticated = Boolean(token && user);
 
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        token,
-        isLoading,
-        isAuthenticated,
-        login,
-        loginKunde,
-        logout,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
+  const value = useMemo(
+    () => ({
+      user,
+      token,
+      isLoading,
+      isAuthenticated,
+      login,
+      loginKunde,
+      logout,
+    }),
+    [user, token, isLoading, isAuthenticated, login, loginKunde, logout]
   );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

@@ -1,0 +1,556 @@
+
+<!doctype html>
+<html lang="en">
+
+<head>
+    <title>Code coverage report for services/pricingSimulatorService.ts</title>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="../prettify.css" />
+    <link rel="stylesheet" href="../base.css" />
+    <link rel="shortcut icon" type="image/x-icon" href="../favicon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style type='text/css'>
+        .coverage-summary .sorter {
+            background-image: url(../sort-arrow-sprite.png);
+        }
+    </style>
+</head>
+    
+<body>
+<div class='wrapper'>
+    <div class='pad1'>
+        <h1><a href="../index.html">All files</a> / <a href="index.html">services</a> pricingSimulatorService.ts</h1>
+        <div class='clearfix'>
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">7.01% </span>
+                <span class="quiet">Statements</span>
+                <span class='fraction'>4/57</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">0% </span>
+                <span class="quiet">Branches</span>
+                <span class='fraction'>0/14</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">0% </span>
+                <span class="quiet">Functions</span>
+                <span class='fraction'>0/1</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">7.01% </span>
+                <span class="quiet">Lines</span>
+                <span class='fraction'>4/57</span>
+            </div>
+        
+            
+        </div>
+        <p class="quiet">
+            Press <em>n</em> or <em>j</em> to go to the next uncovered block, <em>b</em>, <em>p</em> or <em>k</em> for the previous block.
+        </p>
+        <template id="filterTemplate">
+            <div class="quiet">
+                Filter:
+                <input type="search" id="fileSearch">
+            </div>
+        </template>
+    </div>
+    <div class='status-line low'></div>
+    <pre><table class="coverage">
+<tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
+<a name='L2'></a><a href='#L2'>2</a>
+<a name='L3'></a><a href='#L3'>3</a>
+<a name='L4'></a><a href='#L4'>4</a>
+<a name='L5'></a><a href='#L5'>5</a>
+<a name='L6'></a><a href='#L6'>6</a>
+<a name='L7'></a><a href='#L7'>7</a>
+<a name='L8'></a><a href='#L8'>8</a>
+<a name='L9'></a><a href='#L9'>9</a>
+<a name='L10'></a><a href='#L10'>10</a>
+<a name='L11'></a><a href='#L11'>11</a>
+<a name='L12'></a><a href='#L12'>12</a>
+<a name='L13'></a><a href='#L13'>13</a>
+<a name='L14'></a><a href='#L14'>14</a>
+<a name='L15'></a><a href='#L15'>15</a>
+<a name='L16'></a><a href='#L16'>16</a>
+<a name='L17'></a><a href='#L17'>17</a>
+<a name='L18'></a><a href='#L18'>18</a>
+<a name='L19'></a><a href='#L19'>19</a>
+<a name='L20'></a><a href='#L20'>20</a>
+<a name='L21'></a><a href='#L21'>21</a>
+<a name='L22'></a><a href='#L22'>22</a>
+<a name='L23'></a><a href='#L23'>23</a>
+<a name='L24'></a><a href='#L24'>24</a>
+<a name='L25'></a><a href='#L25'>25</a>
+<a name='L26'></a><a href='#L26'>26</a>
+<a name='L27'></a><a href='#L27'>27</a>
+<a name='L28'></a><a href='#L28'>28</a>
+<a name='L29'></a><a href='#L29'>29</a>
+<a name='L30'></a><a href='#L30'>30</a>
+<a name='L31'></a><a href='#L31'>31</a>
+<a name='L32'></a><a href='#L32'>32</a>
+<a name='L33'></a><a href='#L33'>33</a>
+<a name='L34'></a><a href='#L34'>34</a>
+<a name='L35'></a><a href='#L35'>35</a>
+<a name='L36'></a><a href='#L36'>36</a>
+<a name='L37'></a><a href='#L37'>37</a>
+<a name='L38'></a><a href='#L38'>38</a>
+<a name='L39'></a><a href='#L39'>39</a>
+<a name='L40'></a><a href='#L40'>40</a>
+<a name='L41'></a><a href='#L41'>41</a>
+<a name='L42'></a><a href='#L42'>42</a>
+<a name='L43'></a><a href='#L43'>43</a>
+<a name='L44'></a><a href='#L44'>44</a>
+<a name='L45'></a><a href='#L45'>45</a>
+<a name='L46'></a><a href='#L46'>46</a>
+<a name='L47'></a><a href='#L47'>47</a>
+<a name='L48'></a><a href='#L48'>48</a>
+<a name='L49'></a><a href='#L49'>49</a>
+<a name='L50'></a><a href='#L50'>50</a>
+<a name='L51'></a><a href='#L51'>51</a>
+<a name='L52'></a><a href='#L52'>52</a>
+<a name='L53'></a><a href='#L53'>53</a>
+<a name='L54'></a><a href='#L54'>54</a>
+<a name='L55'></a><a href='#L55'>55</a>
+<a name='L56'></a><a href='#L56'>56</a>
+<a name='L57'></a><a href='#L57'>57</a>
+<a name='L58'></a><a href='#L58'>58</a>
+<a name='L59'></a><a href='#L59'>59</a>
+<a name='L60'></a><a href='#L60'>60</a>
+<a name='L61'></a><a href='#L61'>61</a>
+<a name='L62'></a><a href='#L62'>62</a>
+<a name='L63'></a><a href='#L63'>63</a>
+<a name='L64'></a><a href='#L64'>64</a>
+<a name='L65'></a><a href='#L65'>65</a>
+<a name='L66'></a><a href='#L66'>66</a>
+<a name='L67'></a><a href='#L67'>67</a>
+<a name='L68'></a><a href='#L68'>68</a>
+<a name='L69'></a><a href='#L69'>69</a>
+<a name='L70'></a><a href='#L70'>70</a>
+<a name='L71'></a><a href='#L71'>71</a>
+<a name='L72'></a><a href='#L72'>72</a>
+<a name='L73'></a><a href='#L73'>73</a>
+<a name='L74'></a><a href='#L74'>74</a>
+<a name='L75'></a><a href='#L75'>75</a>
+<a name='L76'></a><a href='#L76'>76</a>
+<a name='L77'></a><a href='#L77'>77</a>
+<a name='L78'></a><a href='#L78'>78</a>
+<a name='L79'></a><a href='#L79'>79</a>
+<a name='L80'></a><a href='#L80'>80</a>
+<a name='L81'></a><a href='#L81'>81</a>
+<a name='L82'></a><a href='#L82'>82</a>
+<a name='L83'></a><a href='#L83'>83</a>
+<a name='L84'></a><a href='#L84'>84</a>
+<a name='L85'></a><a href='#L85'>85</a>
+<a name='L86'></a><a href='#L86'>86</a>
+<a name='L87'></a><a href='#L87'>87</a>
+<a name='L88'></a><a href='#L88'>88</a>
+<a name='L89'></a><a href='#L89'>89</a>
+<a name='L90'></a><a href='#L90'>90</a>
+<a name='L91'></a><a href='#L91'>91</a>
+<a name='L92'></a><a href='#L92'>92</a>
+<a name='L93'></a><a href='#L93'>93</a>
+<a name='L94'></a><a href='#L94'>94</a>
+<a name='L95'></a><a href='#L95'>95</a>
+<a name='L96'></a><a href='#L96'>96</a>
+<a name='L97'></a><a href='#L97'>97</a>
+<a name='L98'></a><a href='#L98'>98</a>
+<a name='L99'></a><a href='#L99'>99</a>
+<a name='L100'></a><a href='#L100'>100</a>
+<a name='L101'></a><a href='#L101'>101</a>
+<a name='L102'></a><a href='#L102'>102</a>
+<a name='L103'></a><a href='#L103'>103</a>
+<a name='L104'></a><a href='#L104'>104</a>
+<a name='L105'></a><a href='#L105'>105</a>
+<a name='L106'></a><a href='#L106'>106</a>
+<a name='L107'></a><a href='#L107'>107</a>
+<a name='L108'></a><a href='#L108'>108</a>
+<a name='L109'></a><a href='#L109'>109</a>
+<a name='L110'></a><a href='#L110'>110</a>
+<a name='L111'></a><a href='#L111'>111</a>
+<a name='L112'></a><a href='#L112'>112</a>
+<a name='L113'></a><a href='#L113'>113</a>
+<a name='L114'></a><a href='#L114'>114</a>
+<a name='L115'></a><a href='#L115'>115</a>
+<a name='L116'></a><a href='#L116'>116</a>
+<a name='L117'></a><a href='#L117'>117</a>
+<a name='L118'></a><a href='#L118'>118</a>
+<a name='L119'></a><a href='#L119'>119</a>
+<a name='L120'></a><a href='#L120'>120</a>
+<a name='L121'></a><a href='#L121'>121</a>
+<a name='L122'></a><a href='#L122'>122</a>
+<a name='L123'></a><a href='#L123'>123</a>
+<a name='L124'></a><a href='#L124'>124</a>
+<a name='L125'></a><a href='#L125'>125</a>
+<a name='L126'></a><a href='#L126'>126</a>
+<a name='L127'></a><a href='#L127'>127</a>
+<a name='L128'></a><a href='#L128'>128</a>
+<a name='L129'></a><a href='#L129'>129</a>
+<a name='L130'></a><a href='#L130'>130</a>
+<a name='L131'></a><a href='#L131'>131</a>
+<a name='L132'></a><a href='#L132'>132</a>
+<a name='L133'></a><a href='#L133'>133</a>
+<a name='L134'></a><a href='#L134'>134</a>
+<a name='L135'></a><a href='#L135'>135</a>
+<a name='L136'></a><a href='#L136'>136</a>
+<a name='L137'></a><a href='#L137'>137</a>
+<a name='L138'></a><a href='#L138'>138</a>
+<a name='L139'></a><a href='#L139'>139</a>
+<a name='L140'></a><a href='#L140'>140</a>
+<a name='L141'></a><a href='#L141'>141</a>
+<a name='L142'></a><a href='#L142'>142</a>
+<a name='L143'></a><a href='#L143'>143</a>
+<a name='L144'></a><a href='#L144'>144</a>
+<a name='L145'></a><a href='#L145'>145</a>
+<a name='L146'></a><a href='#L146'>146</a>
+<a name='L147'></a><a href='#L147'>147</a>
+<a name='L148'></a><a href='#L148'>148</a>
+<a name='L149'></a><a href='#L149'>149</a>
+<a name='L150'></a><a href='#L150'>150</a>
+<a name='L151'></a><a href='#L151'>151</a>
+<a name='L152'></a><a href='#L152'>152</a>
+<a name='L153'></a><a href='#L153'>153</a>
+<a name='L154'></a><a href='#L154'>154</a>
+<a name='L155'></a><a href='#L155'>155</a>
+<a name='L156'></a><a href='#L156'>156</a>
+<a name='L157'></a><a href='#L157'>157</a>
+<a name='L158'></a><a href='#L158'>158</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">3x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">3x</span>
+<span class="cline-any cline-yes">3x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">3x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">/**
+ * Pricing Simulator Service
+ *
+ * Implements the "What-If" analysis engine. Given a proposed pricing
+ * rule change, the service:
+ *   1. Fetches a sample of recent order lines with their base prices
+ *   2. Calculates current revenue using the live pricing rules
+ *   3. Temporarily overlays the proposed rule and recalculates
+ *   4. Returns a detailed before/after comparison
+ *
+ * The simulation is **read-only** — no data is modified.
+ *
+ * Split into single-responsibility modules under `pricingSimulator/`;
+ * this file keeps the public service object so the API is unchanged.
+ *
+ * @module services/pricingSimulatorService
+ */
+&nbsp;
+import type {
+  SimulationRequest,
+  SimulationResult,
+} from '../types/simulation.js';
+import {
+  applyProposedRule,
+  createBucket,
+  emptyResult,
+  pctChange,
+  round2,
+  ruleMatchesLine,
+  toDateKey,
+} from './pricingSimulator/helpers.js';
+import { fetchSampleLines } from './pricingSimulator/sampleQuery.js';
+import { buildTopCustomers, buildTopProducts, buildTrend } from './pricingSimulator/aggregations.js';
+&nbsp;
+// ────────────────────────────────────────────────────────────
+// Service
+// ────────────────────────────────────────────────────────────
+&nbsp;
+export const pricingSimulatorService = {
+  /**
+   * Run a full simulation of a proposed rule change against historical
+   * order data and return the before/after revenue comparison.
+   */
+  simulate: <span class="fstat-no" title="function not covered" >async </span>(request: SimulationRequest): Promise&lt;SimulationResult&gt; =&gt; {
+    const start = <span class="cstat-no" title="statement not covered" >Date.now();</span>
+    const { proposed_rule, start_date, end_date } = <span class="cstat-no" title="statement not covered" >request;</span>
+    const sampleSize = <span class="cstat-no" title="statement not covered" >Math.min(request.sample_size ?? 1000, 5000);</span>
+&nbsp;
+    // ── 1. Fetch sample order lines ────────────────────────
+    const lines = <span class="cstat-no" title="statement not covered" >await fetchSampleLines(start_date, end_date, sampleSize);</span>
+&nbsp;
+<span class="cstat-no" title="statement not covered" >    if (lines.length === 0) {</span>
+<span class="cstat-no" title="statement not covered" >      return emptyResult(Date.now() - start);</span>
+    }
+&nbsp;
+    // ── 2. Calculate current &amp; simulated totals ────────────
+    const currentBucket = <span class="cstat-no" title="statement not covered" >createBucket();</span>
+    const simulatedBucket = <span class="cstat-no" title="statement not covered" >createBucket();</span>
+&nbsp;
+    // Accumulators for per-customer, per-product, and per-date breakdowns
+    const customerMap = <span class="cstat-no" title="statement not covered" >new Map&lt;string, { kundenavn: string; current: number; simulated: number }&gt;();</span>
+    const productMap = <span class="cstat-no" title="statement not covered" >new Map&lt;string, { varenavn: string; current: number; simulated: number }&gt;();</span>
+    const trendMap = <span class="cstat-no" title="statement not covered" >new Map&lt;string, { current: number; simulated: number }&gt;();</span>
+    const orderSet = <span class="cstat-no" title="statement not covered" >new Set&lt;number&gt;();</span>
+&nbsp;
+<span class="cstat-no" title="statement not covered" >    for (const line of lines) {</span>
+      const currentLineTotal = <span class="cstat-no" title="statement not covered" >Number(line.linjesum);</span>
+<span class="cstat-no" title="statement not covered" >      orderSet.add(line.ordrenr);</span>
+&nbsp;
+      // Current side
+<span class="cstat-no" title="statement not covered" >      currentBucket.total_revenue += currentLineTotal;</span>
+<span class="cstat-no" title="statement not covered" >      currentBucket.affected_lines++;</span>
+&nbsp;
+      // Simulated side: check if the proposed rule matches this line
+      let simulatedLineTotal = <span class="cstat-no" title="statement not covered" >currentLineTotal;</span>
+&nbsp;
+      // Logic: 
+      // 1. If the proposed rule matches this line, it might change the price.
+      // 2. However, we only care if the proposed rule is BETTER (or different) than what was applied.
+      // 3. For the simulator, we assume the proposed rule "wins" if it matches, to show the impact
+      //    of that specific rule change.
+      
+<span class="cstat-no" title="statement not covered" >      if (ruleMatchesLine(proposed_rule, line)) {</span>
+<span class="cstat-no" title="statement not covered" >        simulatedLineTotal = applyProposedRule(</span>
+          proposed_rule,
+          Number(line.nettpris),
+          Number(line.antall),
+        );
+        
+        // Only count as "affected" if the price actually changes from the current actual price
+<span class="cstat-no" title="statement not covered" >        if (Math.abs(simulatedLineTotal - currentLineTotal) &gt; 0.01) {</span>
+<span class="cstat-no" title="statement not covered" >          simulatedBucket.affected_lines++;</span>
+        }
+      }
+&nbsp;
+<span class="cstat-no" title="statement not covered" >      simulatedBucket.total_revenue += simulatedLineTotal;</span>
+&nbsp;
+      // Discount deltas
+      // Current discount is the difference between base price (nettpris) and what was actually paid (linjesum)
+      const currentDiscount = <span class="cstat-no" title="statement not covered" >Number(line.nettpris) * Number(line.antall) - currentLineTotal;</span>
+      const simulatedDiscount = <span class="cstat-no" title="statement not covered" >Number(line.nettpris) * Number(line.antall) - simulatedLineTotal;</span>
+<span class="cstat-no" title="statement not covered" >      currentBucket.total_discount += Math.max(0, currentDiscount);</span>
+<span class="cstat-no" title="statement not covered" >      simulatedBucket.total_discount += Math.max(0, simulatedDiscount);</span>
+&nbsp;
+      // Per-customer accumulation
+      const cKey = <span class="cstat-no" title="statement not covered" >line.kundenr;</span>
+      const cEntry = <span class="cstat-no" title="statement not covered" >customerMap.get(cKey) ?? { kundenavn: line.kundenavn, current: 0, simulated: 0 };</span>
+<span class="cstat-no" title="statement not covered" >      cEntry.current += currentLineTotal;</span>
+<span class="cstat-no" title="statement not covered" >      cEntry.simulated += simulatedLineTotal;</span>
+<span class="cstat-no" title="statement not covered" >      customerMap.set(cKey, cEntry);</span>
+&nbsp;
+      // Per-product accumulation
+      const pKey = <span class="cstat-no" title="statement not covered" >line.varekode;</span>
+      const pEntry = <span class="cstat-no" title="statement not covered" >productMap.get(pKey) ?? { varenavn: line.varekode, current: 0, simulated: 0 };</span>
+<span class="cstat-no" title="statement not covered" >      pEntry.current += currentLineTotal;</span>
+<span class="cstat-no" title="statement not covered" >      pEntry.simulated += simulatedLineTotal;</span>
+<span class="cstat-no" title="statement not covered" >      productMap.set(pKey, pEntry);</span>
+&nbsp;
+      // Per-date accumulation (for trend chart)
+      const dateKey = <span class="cstat-no" title="statement not covered" >toDateKey(line.dato);</span>
+      const tEntry = <span class="cstat-no" title="statement not covered" >trendMap.get(dateKey) ?? { current: 0, simulated: 0 };</span>
+<span class="cstat-no" title="statement not covered" >      tEntry.current += currentLineTotal;</span>
+<span class="cstat-no" title="statement not covered" >      tEntry.simulated += simulatedLineTotal;</span>
+<span class="cstat-no" title="statement not covered" >      trendMap.set(dateKey, tEntry);</span>
+    }
+&nbsp;
+<span class="cstat-no" title="statement not covered" >    currentBucket.affected_orders = orderSet.size;</span>
+<span class="cstat-no" title="statement not covered" >    simulatedBucket.affected_orders = orderSet.size;</span>
+&nbsp;
+    // Round totals
+<span class="cstat-no" title="statement not covered" >    currentBucket.total_revenue = round2(currentBucket.total_revenue);</span>
+<span class="cstat-no" title="statement not covered" >    currentBucket.total_discount = round2(currentBucket.total_discount);</span>
+<span class="cstat-no" title="statement not covered" >    simulatedBucket.total_revenue = round2(simulatedBucket.total_revenue);</span>
+<span class="cstat-no" title="statement not covered" >    simulatedBucket.total_discount = round2(simulatedBucket.total_discount);</span>
+&nbsp;
+    // ── 3. Build top-movers lists ──────────────────────────
+    const topCustomers = <span class="cstat-no" title="statement not covered" >buildTopCustomers(customerMap, 10);</span>
+    const topProducts = <span class="cstat-no" title="statement not covered" >buildTopProducts(productMap, 10);</span>
+&nbsp;
+    // ── 4. Build trend time-series ─────────────────────────
+    const trend = <span class="cstat-no" title="statement not covered" >buildTrend(trendMap);</span>
+&nbsp;
+    const revenueDiff = <span class="cstat-no" title="statement not covered" >round2(simulatedBucket.total_revenue - currentBucket.total_revenue);</span>
+&nbsp;
+<span class="cstat-no" title="statement not covered" >    return {</span>
+      current: currentBucket,
+      simulated: simulatedBucket,
+      revenue_difference: revenueDiff,
+      revenue_difference_pct: pctChange(currentBucket.total_revenue, simulatedBucket.total_revenue),
+      orders_analysed: orderSet.size,
+      top_customers: topCustomers,
+      top_products: topProducts,
+      trend,
+      computation_time_ms: Date.now() - start,
+    };
+  },
+};
+&nbsp;</pre></td></tr></table></pre>
+
+                <div class='push'></div><!-- for sticky footer -->
+            </div><!-- /wrapper -->
+            <div class='footer quiet pad2 space-top1 center small'>
+                Code coverage generated by
+                <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
+                at 2026-08-21T20:41:49.408Z
+            </div>
+        <script src="../prettify.js"></script>
+        <script>
+            window.onload = function () {
+                prettyPrint();
+            };
+        </script>
+        <script src="../sorter.js"></script>
+        <script src="../block-navigation.js"></script>
+    </body>
+</html>
+    

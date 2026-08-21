@@ -114,7 +114,7 @@ export function prefetchRoute(queryClient: QueryClient, path: string) {
     const dateRange = { startDate: '', endDate: '' };
     const filters = { kundenr: '', varegruppe: '' };
     void queryClient.prefetchQuery({
-      queryKey: statisticsKeys.list('kunde', 1, dateRange, filters),
+      queryKey: statisticsKeys.list('admin-statistics', 'kunde', 1, dateRange, filters),
       queryFn: () => statisticsApi.byKunde(DEFAULT_STATS_PARAMS).then((r) => r.data),
       staleTime: 60_000,
     });

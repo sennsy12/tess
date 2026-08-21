@@ -7,7 +7,7 @@ export const statusController = {
     try {
       const status = await statusModel.getSystemStatus();
       res.json(status);
-    } catch (error) {
+    } catch {
       res.status(500).json({
         status: 'unhealthy',
         timestamp: new Date().toISOString(),

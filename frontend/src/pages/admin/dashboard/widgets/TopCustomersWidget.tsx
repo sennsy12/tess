@@ -1,6 +1,8 @@
 import { useMemo } from 'react';
 
 import { TopCustomersWidgetProps } from '../../../../types/dashboard';
+import { formatCurrencyNok } from '../../../../lib/formatters';
+import { topN } from '../../../../lib/chartUtils';
 import { WidgetError } from './WidgetError';
 
 export function TopCustomersWidget({ data, isLoading, isError, onRetry }: TopCustomersWidgetProps) {
@@ -12,8 +14,7 @@ export function TopCustomersWidget({ data, isLoading, isError, onRetry }: TopCus
       </div>
     );
   }
-  const formatCurrency = (value: number) =>
-    new Intl.NumberFormat('nb-NO', { style: 'currency', currency: 'NOK', maximumFractionDigits: 0 }).format(value);
+  const formatCurrency = formatCurrencyNok;
 
   const formatDate = (dateStr: string) => {
     if (!dateStr) return '-';
@@ -21,6 +22,10 @@ export function TopCustomersWidget({ data, isLoading, isError, onRetry }: TopCus
   };
 
   const maxRevenue = useMemo(() => Math.max(...data.map(c => Number(c.total_revenue) || 0), 1), [data]);
+  const topCustomers = useMemo(
+    () => topN(data, 10, (customer) => Number(customer.total_revenue) || 0),
+    [data],
+  );
 
   if (isLoading) {
     return (
@@ -39,7 +44,7 @@ export function TopCustomersWidget({ data, isLoading, isError, onRetry }: TopCus
     <div className="card">
       <h3 className="text-lg font-semibold mb-4">👥 Topp 10 Kunder</h3>
       <div className="space-y-3">
-        {data.slice(0, 10).map((customer, index) => (
+        {topCustomers.map((customer, index) => (
           <div key={customer.kundenr} className="flex items-center gap-3">
             <span className="text-sm font-bold text-dark-400 w-6">{index + 1}.</span>
             <div className="flex-1 min-w-0">

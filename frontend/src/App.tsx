@@ -1,8 +1,9 @@
 import { Suspense, lazy } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'react-hot-toast'
 import { AuthProvider } from './context/AuthContext.tsx'
+import { CartProvider } from './context/CartProvider.tsx'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { RouteErrorBoundary } from './components/RouteErrorBoundary'
 
@@ -11,6 +12,7 @@ const Settings = lazy(() => import('./pages/Settings').then((m) => ({ default: m
 
 const KundeDashboard = lazy(() => import('./pages/kunde/Dashboard').then((m) => ({ default: m.KundeDashboard })))
 const KundeOrders = lazy(() => import('./pages/kunde/Orders').then((m) => ({ default: m.KundeOrders })))
+const KundeNewOrder = lazy(() => import('./pages/kunde/NewOrder').then((m) => ({ default: m.NewOrder })))
 const KundeOrderDetail = lazy(() => import('./pages/kunde/OrderDetail').then((m) => ({ default: m.KundeOrderDetail })))
 const KundePricing = lazy(() => import('./pages/kunde/Pricing').then((m) => ({ default: m.KundePricing })))
 const KundeAccount = lazy(() => import('./pages/kunde/Account').then((m) => ({ default: m.KundeAccount })))
@@ -52,11 +54,22 @@ function PageLoader() {
   )
 }
 
+function ProtectedLayout({ allowedRoles }: { allowedRoles: string[] }) {
+  return (
+    <ProtectedRoute allowedRoles={allowedRoles}>
+      <Suspense fallback={<PageLoader />}>
+        <Outlet />
+      </Suspense>
+    </ProtectedRoute>
+  )
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <AuthProvider>
+          <CartProvider>
           <RouteErrorBoundary>
           <Toaster
             position="bottom-right"
@@ -77,143 +90,53 @@ function App() {
               },
             }}
           />
-          <Suspense fallback={<PageLoader />}>
           <Routes>
-          <Route path="/login" element={<Login />} />
-          
-          <Route path="/kunde" element={
-            <ProtectedRoute allowedRoles={['kunde', 'admin']}>
-              <KundeDashboard />
-            </ProtectedRoute>
+          <Route path="/login" element={
+            <Suspense fallback={<PageLoader />}>
+              <Login />
+            </Suspense>
           } />
-          <Route path="/kunde/orders" element={
-            <ProtectedRoute allowedRoles={['kunde', 'admin']}>
-              <KundeOrders />
-            </ProtectedRoute>
-          } />
-          <Route path="/kunde/orders/:ordrenr" element={
-            <ProtectedRoute allowedRoles={['kunde', 'admin']}>
-              <KundeOrderDetail />
-            </ProtectedRoute>
-          } />
-          <Route path="/kunde/konto" element={
-            <ProtectedRoute allowedRoles={['kunde', 'admin']}>
-              <KundeAccount />
-            </ProtectedRoute>
-          } />
-          <Route path="/kunde/pricing" element={
-            <ProtectedRoute allowedRoles={['kunde', 'admin']}>
-              <KundePricing />
-            </ProtectedRoute>
-          } />
-          <Route path="/kunde/analytics" element={
-            <ProtectedRoute allowedRoles={['kunde', 'admin']}>
-              <AdvancedAnalytics />
-            </ProtectedRoute>
-          } />
-          <Route path="/kunde/statistics" element={
-            <ProtectedRoute allowedRoles={['kunde', 'admin']}>
-              <KundeStatistics />
-            </ProtectedRoute>
-          } />
-          <Route path="/kunde/settings" element={
-            <ProtectedRoute allowedRoles={['kunde', 'admin']}>
-              <Settings />
-            </ProtectedRoute>
-          } />
-          
-          <Route path="/analyse" element={
-            <ProtectedRoute allowedRoles={['analyse', 'admin']}>
-              <AnalyseDashboard />
-            </ProtectedRoute>
-          } />
-          <Route path="/analyse/statistics" element={
-            <ProtectedRoute allowedRoles={['analyse', 'admin']}>
-              <AnalyseStatistics />
-            </ProtectedRoute>
-          } />
-          <Route path="/analyse/settings" element={
-            <ProtectedRoute allowedRoles={['analyse', 'admin']}>
-              <Settings />
-            </ProtectedRoute>
-          } />
-          
-          <Route path="/admin" element={
-            <ProtectedRoute allowedRoles={['admin']}>
-              <AdminDashboard />
-            </ProtectedRoute>
-          } />
-          <Route path="/admin/orderlines" element={
-            <ProtectedRoute allowedRoles={['admin']}>
-              <AdminOrderLines />
-            </ProtectedRoute>
-          } />
-          <Route path="/admin/status" element={
-            <ProtectedRoute allowedRoles={['admin']}>
-              <AdminStatus />
-            </ProtectedRoute>
-          } />
-          <Route path="/admin/etl" element={
-            <ProtectedRoute allowedRoles={['admin']}>
-              <AdminETL />
-            </ProtectedRoute>
-          } />
-          <Route path="/admin/pricing" element={
-            <ProtectedRoute allowedRoles={['admin']}>
-              <AdminPricing />
-            </ProtectedRoute>
-          } />
-          <Route path="/admin/statistics" element={
-            <ProtectedRoute allowedRoles={['admin']}>
-              <AdminStatistics />
-            </ProtectedRoute>
-          } />
-          <Route path="/admin/orders" element={
-            <ProtectedRoute allowedRoles={['admin']}>
-              <AdminOrders />
-            </ProtectedRoute>
-          } />
-          <Route path="/admin/orders/:ordrenr" element={
-            <ProtectedRoute allowedRoles={['admin']}>
-              <AdminOrderDetail />
-            </ProtectedRoute>
-          } />
-          <Route path="/admin/analytics" element={
-            <ProtectedRoute allowedRoles={['admin']}>
-              <AdminAdvancedAnalytics />
-            </ProtectedRoute>
-          } />
-          <Route path="/admin/users" element={
-            <ProtectedRoute allowedRoles={['admin']}>
-              <AdminUsers />
-            </ProtectedRoute>
-          } />
-          <Route path="/admin/customers" element={
-            <ProtectedRoute allowedRoles={['admin']}>
-              <AdminCustomers />
-            </ProtectedRoute>
-          } />
-          <Route path="/admin/products" element={
-            <ProtectedRoute allowedRoles={['admin']}>
-              <AdminProducts />
-            </ProtectedRoute>
-          } />
-          <Route path="/admin/audit" element={
-            <ProtectedRoute allowedRoles={['admin']}>
-              <AdminAudit />
-            </ProtectedRoute>
-          } />
-          <Route path="/admin/settings" element={
-            <ProtectedRoute allowedRoles={['admin']}>
-              <Settings />
-            </ProtectedRoute>
-          } />
-          
+
+          <Route element={<ProtectedLayout allowedRoles={['kunde', 'admin']} />}>
+            <Route path="/kunde" element={<KundeDashboard />} />
+            <Route path="/kunde/order/new" element={<KundeNewOrder />} />
+            <Route path="/kunde/orders" element={<KundeOrders />} />
+            <Route path="/kunde/orders/:ordrenr" element={<KundeOrderDetail />} />
+            <Route path="/kunde/konto" element={<KundeAccount />} />
+            <Route path="/kunde/pricing" element={<KundePricing />} />
+            <Route path="/kunde/analytics" element={<AdvancedAnalytics />} />
+            <Route path="/kunde/statistics" element={<KundeStatistics />} />
+            <Route path="/kunde/settings" element={<Settings />} />
+          </Route>
+
+          <Route element={<ProtectedLayout allowedRoles={['analyse', 'admin']} />}>
+            <Route path="/analyse" element={<AnalyseDashboard />} />
+            <Route path="/analyse/statistics" element={<AnalyseStatistics />} />
+            <Route path="/analyse/settings" element={<Settings />} />
+          </Route>
+
+          <Route element={<ProtectedLayout allowedRoles={['admin']} />}>
+            <Route path="/admin" element={<AdminDashboard />} />
+            <Route path="/admin/orderlines" element={<AdminOrderLines />} />
+            <Route path="/admin/status" element={<AdminStatus />} />
+            <Route path="/admin/etl" element={<AdminETL />} />
+            <Route path="/admin/pricing" element={<AdminPricing />} />
+            <Route path="/admin/statistics" element={<AdminStatistics />} />
+            <Route path="/admin/orders" element={<AdminOrders />} />
+            <Route path="/admin/orders/:ordrenr" element={<AdminOrderDetail />} />
+            <Route path="/admin/analytics" element={<AdminAdvancedAnalytics />} />
+            <Route path="/admin/users" element={<AdminUsers />} />
+            <Route path="/admin/customers" element={<AdminCustomers />} />
+            <Route path="/admin/products" element={<AdminProducts />} />
+            <Route path="/admin/audit" element={<AdminAudit />} />
+            <Route path="/admin/settings" element={<Settings />} />
+          </Route>
+
           <Route path="/" element={<Navigate to="/login" replace />} />
           <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
-          </Suspense>
           </RouteErrorBoundary>
+          </CartProvider>
         </AuthProvider>
       </BrowserRouter>
     </QueryClientProvider>

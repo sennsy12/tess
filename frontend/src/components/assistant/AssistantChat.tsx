@@ -45,7 +45,7 @@ export function AssistantChat({ elevatedBottom = false }: AssistantChatProps) {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className={`fixed ${fabBottom} right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-primary-600 to-primary-500 text-white shadow-lg shadow-primary-500/30 hover:shadow-primary-500/50 border border-primary-400/30 transition-transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:ring-offset-2 focus:ring-offset-dark-950`}
+        className={`fixed ${fabBottom} right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-primary-600 text-white shadow-lg hover:bg-primary-500 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-400 focus:ring-offset-2 focus:ring-offset-dark-950`}
         aria-expanded={open}
         aria-controls="assistant-panel"
         aria-label={open ? 'Lukk TESS-assistent' : 'Åpne TESS-assistent'}

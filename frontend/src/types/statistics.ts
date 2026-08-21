@@ -38,6 +38,7 @@ export interface StatsFiltersProps {
   compareEnabled: boolean;
   setCompareEnabled: (enabled: boolean) => void;
   chartRef: React.RefObject<HTMLDivElement>;
+  exportFilenamePrefix?: string;
 }
 
 export interface StatsChartsProps {

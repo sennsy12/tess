@@ -1,6 +1,8 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
+import toast from 'react-hot-toast';
+import { Pencil } from 'lucide-react';
 import { Layout } from '../../components/Layout';
 import { QueryErrorBanner } from '../../components/QueryErrorBanner';
 import { QueryRefetchBar } from '../../components/QueryRefetchBar';
@@ -13,11 +15,13 @@ import { EmptyState } from '../../components/EmptyState';
 import { DataTable, type DataTableState } from '../../components/DataTable';
 import { PageHeader, FilterBar, TableSkeleton, Pagination } from '../../components/admin';
 import { productsApi } from '../../lib/api';
+import { getApiError } from '../../lib/apiErrors';
 
 interface Product {
   varekode: string;
   varenavn: string;
   varegruppe: string | null;
+  base_price: number;
 }
 
 const PAGE_SIZE = 25;
@@ -37,15 +41,17 @@ const EMPTY_FILTERS: ProductFilters = { search: '', groupFilter: '' };
 
 export function AdminProducts() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const queryClient = useQueryClient();
   const hasHydratedUrl = useRef(false);
   const [page, setPage] = useState(1);
   const [draftFilters, setDraftFilters] = useState<ProductFilters>(EMPTY_FILTERS);
   const [appliedFilters, setAppliedFilters] = useState<ProductFilters>(EMPTY_FILTERS);
+  const [editingPrice, setEditingPrice] = useState<{ product: Product; value: string } | null>(null);
   const [tableState, setTableState] = useState<DataTableState>({
     sortKey: 'varenavn',
     sortDirection: 'asc',
     currentPage: 1,
-    visibleColumnKeys: ['varekode', 'varenavn', 'varegruppe'],
+    visibleColumnKeys: ['varekode', 'varenavn', 'varegruppe', 'base_price'],
   });
 
   useEffect(() => {
@@ -158,6 +164,28 @@ export function AdminProducts() {
   const showSkeleton = isLoading && !productsData;
   const showRefetchBar = isFetching && !!productsData;
 
+  const priceMutation = useMutation({
+    mutationFn: ({ varekode, base_price }: { varekode: string; base_price: number }) =>
+      productsApi.updateBasePrice(varekode, base_price),
+    onSuccess: (_data, variables) => {
+      toast.success(`Pris oppdatert for ${variables.varekode}`);
+      setEditingPrice(null);
+      void queryClient.invalidateQueries({ queryKey: ['admin', 'products'] });
+      void queryClient.invalidateQueries({ queryKey: ['kunde', 'catalog'] });
+    },
+    onError: (err) => toast.error(getApiError(err, 'Kunne ikke oppdatere pris')),
+  });
+
+  const submitPriceEdit = () => {
+    if (!editingPrice) return;
+    const value = parseFloat(editingPrice.value.replace(',', '.'));
+    if (!Number.isFinite(value) || value < 0) {
+      toast.error('Ugyldig pris');
+      return;
+    }
+    priceMutation.mutate({ varekode: editingPrice.product.varekode, base_price: value });
+  };
+
   const hasActiveFilters = Boolean(appliedFilters.search.trim() || appliedFilters.groupFilter);
   const errorMessage =
     (error as { response?: { data?: { error?: string } } })?.response?.data?.error ||
@@ -188,6 +216,24 @@ export function AdminProducts() {
             </span>
           );
         },
+      },
+      {
+        key: 'base_price',
+        header: 'Basispris',
+        render: (value: number | undefined, product: Product) => (
+          <button
+            type="button"
+            className="inline-flex items-center gap-2 text-sm hover:text-primary-300 transition-colors group/pr"
+            onClick={(e) => {
+              e.stopPropagation();
+              setEditingPrice({ product, value: String(product.base_price ?? 0) });
+            }}
+            title="Rediger basispris"
+          >
+            {new Intl.NumberFormat('nb-NO', { style: 'currency', currency: 'NOK' }).format(value ?? 0)}
+            <Pencil className="h-3 w-3 opacity-0 group-hover/pr:opacity-100 text-primary-400" aria-hidden />
+          </button>
+        ),
       },
     ],
     [groupColorIndex],
@@ -294,6 +340,43 @@ export function AdminProducts() {
             </>
           )}
         </div>
+
+        {/* Base price edit modal */}
+        {editingPrice && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <div
+              className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+              onClick={() => !priceMutation.isPending && setEditingPrice(null)}
+              role="presentation"
+            />
+            <div className="relative card w-full max-w-sm z-10" role="dialog" aria-modal="true" aria-label="Rediger basispris">
+              <h3 className="text-lg font-semibold mb-1">Basispris</h3>
+              <p className="text-sm text-dark-400 mb-4 truncate">{editingPrice.product.varenavn || editingPrice.product.varekode}</p>
+              <label className="label" htmlFor="basePriceInput">
+                Pris (eks. mva)
+              </label>
+              <input
+                id="basePriceInput"
+                type="number"
+                min={0}
+                step="0.01"
+                autoFocus
+                className="input w-full mb-5"
+                value={editingPrice.value}
+                onChange={(e) => setEditingPrice({ ...editingPrice, value: e.target.value })}
+                onKeyDown={(e) => e.key === 'Enter' && submitPriceEdit()}
+              />
+              <div className="flex justify-end gap-3">
+                <button type="button" className="btn-secondary" disabled={priceMutation.isPending} onClick={() => setEditingPrice(null)}>
+                  Avbryt
+                </button>
+                <button type="button" className="btn-primary" disabled={priceMutation.isPending} onClick={submitPriceEdit}>
+                  {priceMutation.isPending ? 'Lagrer…' : 'Lagre'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </Layout>
   );

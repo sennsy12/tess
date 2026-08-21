@@ -38,6 +38,15 @@ export default {
           900: '#0f172a',
           950: '#020617',
         },
+        // Champagne gold — secondary accent for "quiet luxury" details.
+        // Used sparingly: active indicators, key figures, status dots.
+        gold: {
+          300: '#e3d5ac',
+          400: '#d4bf85',
+          500: '#c9a962',
+          600: '#8a7a4a',
+          700: '#5f5535',
+        },
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],

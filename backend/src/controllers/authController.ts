@@ -1,12 +1,36 @@
 import { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import { userModel } from '../models/userModel.js';
+import {
+  refreshTokenModel,
+  REFRESH_TOKEN_TTL_MS,
+} from '../models/refreshTokenModel.js';
 import { ValidationError, UnauthorizedError } from '../middleware/errorHandler.js';
-import type { AuthRequest } from '../middleware/auth.js';
-import { getJwtSecret } from '../lib/jwt.js';
+import { jwtPayloadSchema, invalidateTokenVersionCache, type AuthRequest } from '../middleware/auth.js';
+import { getJwtSecret, JWT_ALGORITHMS } from '../lib/jwt.js';
 import { hashPassword, verifyPassword } from '../lib/password.js';
 
+/** Access tokens are short-lived; refresh tokens extend the session. */
+const ACCESS_TOKEN_EXPIRES_IN = '1h';
+
 function jwtClaimsFromUser(user: {
+  id: number;
+  username: string;
+  role: string;
+  kundenr?: string | null;
+  token_version?: number;
+}) {
+  return {
+    id: user.id,
+    username: user.username,
+    role: user.role,
+    ...(user.kundenr != null ? { kundenr: user.kundenr } : {}),
+    // Checked against the DB on every request; a bump invalidates old tokens
+    tokenVersion: user.token_version ?? 0,
+  };
+}
+
+function publicUserFromRecord(user: {
   id: number;
   username: string;
   role: string;
@@ -20,13 +44,27 @@ function jwtClaimsFromUser(user: {
   };
 }
 
-function publicUserFromRecord(user: {
-  id: number;
-  username: string;
-  role: string;
-  kundenr?: string | null;
-}) {
-  return jwtClaimsFromUser(user);
+/**
+ * Pre-computed bcrypt hash of a random password. Compared against whenever a
+ * login lookup fails so that response time does not reveal whether the
+ * username/kundenr exists (timing side-channel / user enumeration).
+ */
+const DUMMY_PASSWORD_HASH = '$2b$10$CwTycUXWue0Thq9StjUM0uJ8.PxHqXn5rj1FJQKfTZpxGVoLkOV7W';
+
+async function verifyPasswordOrDummy(password: string, hash: string | null): Promise<boolean> {
+  return verifyPassword(password, hash ?? DUMMY_PASSWORD_HASH);
+}
+
+/** Issue an access + refresh token pair after successful credential checks. */
+async function issueTokenPair(
+  user: Parameters<typeof jwtClaimsFromUser>[0]
+): Promise<{ token: string; refreshToken: string }> {
+  const token = jwt.sign(jwtClaimsFromUser(user), getJwtSecret(), {
+    expiresIn: ACCESS_TOKEN_EXPIRES_IN,
+    algorithm: 'HS256',
+  });
+  const issued = await refreshTokenModel.create(user.id);
+  return { token, refreshToken: issued.token };
 }
 
 export const authController = {
@@ -40,6 +78,8 @@ export const authController = {
     const user = await userModel.findByUsername(username);
 
     if (!user) {
+      // Burn the same bcrypt time as a real check to prevent user enumeration
+      await verifyPasswordOrDummy(password, null);
       throw new UnauthorizedError('Invalid credentials');
     }
 
@@ -49,12 +89,8 @@ export const authController = {
       throw new UnauthorizedError('Invalid credentials');
     }
 
-    const token = jwt.sign(jwtClaimsFromUser(user), getJwtSecret(), { expiresIn: '24h' });
-
-    res.json({
-      token,
-      user: publicUserFromRecord(user),
-    });
+    const { token, refreshToken } = await issueTokenPair(user);
+    res.json({ token, refreshToken, user: publicUserFromRecord(user) });
   },
 
   loginKunde: async (req: Request, res: Response) => {
@@ -67,6 +103,8 @@ export const authController = {
     const user = await userModel.findByKundenr(kundenr);
 
     if (!user) {
+      // Burn the same bcrypt time as a real check to prevent kundenr enumeration
+      await verifyPasswordOrDummy(password, null);
       throw new UnauthorizedError('Invalid credentials');
     }
 
@@ -76,12 +114,54 @@ export const authController = {
       throw new UnauthorizedError('Invalid credentials');
     }
 
-    const token = jwt.sign(jwtClaimsFromUser(user), getJwtSecret(), { expiresIn: '24h' });
+    const { token, refreshToken } = await issueTokenPair(user);
+    res.json({ token, refreshToken, user: publicUserFromRecord(user) });
+  },
+
+  /**
+   * Exchange a valid refresh token for a fresh access + refresh pair.
+   * The presented token is consumed (rotated); reuse of a rotated token
+   * fails and forces a new login.
+   */
+  refresh: async (req: Request, res: Response) => {
+    const { refreshToken } = req.body as { refreshToken?: string };
+    if (!refreshToken) {
+      throw new ValidationError('Refresh token is required');
+    }
+
+    const rotated = await refreshTokenModel.rotate(refreshToken);
+    if (!rotated) {
+      throw new UnauthorizedError('Invalid or expired refresh token');
+    }
+
+    // Reload claims so role/kundenr/token_version changes are picked up
+    // instead of replaying stale data from the old access token.
+    const user = await userModel.findByIdWithHash(rotated.userId);
+    if (!user) {
+      throw new UnauthorizedError('User no longer exists');
+    }
+
+    const token = jwt.sign(jwtClaimsFromUser(user), getJwtSecret(), {
+      expiresIn: ACCESS_TOKEN_EXPIRES_IN,
+      algorithm: 'HS256',
+    });
 
     res.json({
       token,
-      user: publicUserFromRecord(user),
+      refreshToken: rotated.token,
+      expiresIn: ACCESS_TOKEN_EXPIRES_IN,
+      tokenType: 'Bearer',
+      refreshExpiresInMs: REFRESH_TOKEN_TTL_MS,
     });
+  },
+
+  /** Revoke a refresh token (logout). Idempotent — safe to call repeatedly. */
+  logout: async (req: Request, res: Response) => {
+    const { refreshToken } = req.body as { refreshToken?: string };
+    if (refreshToken) {
+      await refreshTokenModel.revoke(refreshToken);
+    }
+    res.json({ success: true });
   },
 
   changePassword: async (req: AuthRequest, res: Response) => {
@@ -108,7 +188,18 @@ export const authController = {
     const passwordHash = await hashPassword(newPassword);
     await userModel.update(userId, { passwordHash });
 
-    res.json({ success: true, message: 'Password updated' });
+    // Invalidate every existing session for this user:
+    // - bump token_version → all previously issued access tokens fail the
+    //   version check in auth middleware immediately
+    // - revoke all refresh tokens → no new access tokens can be obtained
+    await userModel.bumpTokenVersion(userId);
+    invalidateTokenVersionCache(userId);
+    await refreshTokenModel.revokeAllForUser(userId);
+
+    res.json({
+      success: true,
+      message: 'Password updated. All sessions have been signed out.',
+    });
   },
 
   verify: async (req: AuthRequest, res: Response) => {
@@ -119,7 +210,23 @@ export const authController = {
     }
 
     const token = authHeader.split(' ')[1];
-    const decoded = jwt.verify(token, getJwtSecret());
-    res.json({ valid: true, user: decoded });
+
+    // Invalid/expired tokens are a client error (401), not a server error —
+    // jwt.verify throws, so catch and map to UnauthorizedError.
+    let decoded: jwt.JwtPayload | string;
+    try {
+      decoded = jwt.verify(token, getJwtSecret(), {
+        algorithms: [...JWT_ALGORITHMS],
+      });
+    } catch {
+      throw new UnauthorizedError('Invalid or expired token');
+    }
+
+    const parsed = jwtPayloadSchema.safeParse(decoded);
+    if (!parsed.success) {
+      throw new UnauthorizedError('Invalid token payload');
+    }
+
+    res.json({ valid: true, user: parsed.data });
   },
 };

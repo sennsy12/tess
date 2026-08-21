@@ -17,6 +17,7 @@ export interface User {
   password_hash: string;
   role: string;
   kundenr?: string;
+  token_version?: number;
   created_at?: string;
 }
 
@@ -39,7 +40,7 @@ export const userModel = {
    */
   findByUsername: async (username: string): Promise<User | null> => {
     const result = await query(
-      'SELECT id, username, password_hash, role, kundenr FROM users WHERE username = $1',
+      'SELECT id, username, password_hash, role, kundenr, token_version FROM users WHERE username = $1',
       [username]
     );
     return result.rows[0] || null;
@@ -53,10 +54,34 @@ export const userModel = {
    */
   findByKundenr: async (kundenr: string): Promise<User | null> => {
     const result = await query(
-      'SELECT id, username, password_hash, role, kundenr FROM users WHERE kundenr = $1',
+      'SELECT id, username, password_hash, role, kundenr, token_version FROM users WHERE kundenr = $1',
       [kundenr]
     );
     return result.rows[0] || null;
+  },
+
+  /**
+   * Current token version for a user. Embedded in access tokens and checked
+   * on every authenticated request so a bump instantly invalidates old tokens.
+   */
+  getTokenVersion: async (id: number): Promise<number | null> => {
+    const result = await query('SELECT token_version FROM users WHERE id = $1', [id]);
+    return result.rows[0]?.token_version ?? null;
+  },
+
+  /**
+   * Atomically increment the user's token version. All previously issued
+   * access tokens for this user become invalid (claims no longer match).
+   * Call after password changes or other credential resets.
+   *
+   * @returns The new token version
+   */
+  bumpTokenVersion: async (id: number): Promise<number> => {
+    const result = await query(
+      'UPDATE users SET token_version = token_version + 1 WHERE id = $1 RETURNING token_version',
+      [id]
+    );
+    return result.rows[0]?.token_version ?? 0;
   },
 
   /**

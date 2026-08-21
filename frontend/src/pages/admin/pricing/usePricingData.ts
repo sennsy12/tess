@@ -1,6 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
-import toast from 'react-hot-toast';
-import { pricingApi, productsApi } from '../../../lib/api';
+import { useState } from 'react';
 import {
   CustomerGroup,
   PriceList,
@@ -13,19 +11,18 @@ import {
   INITIAL_LIST_FORM,
   INITIAL_RULE_FORM,
 } from '../../../types/pricing';
+import { usePricingMutations } from '../../../hooks/pricing/usePricingMutations';
+import {
+  useCustomersWithGroups,
+  usePricingGroups,
+  usePricingLists,
+  usePricingProductGroups,
+  usePricingRules,
+} from '../../../hooks/pricing/usePricingQueries';
 
 export function usePricingData() {
-  const [isLoading, setIsLoading] = useState(true);
-
-  // Data states
-  const [groups, setGroups] = useState<CustomerGroup[]>([]);
-  const [lists, setLists] = useState<PriceList[]>([]);
-  const [rules, setRules] = useState<PriceRule[]>([]);
-  const [customersWithGroups, setCustomersWithGroups] = useState<CustomerWithGroup[]>([]);
-  const [productGroups, setProductGroups] = useState<string[]>([]);
   const [selectedListId, setSelectedListId] = useState<number | null>(null);
 
-  // Form states
   const [showGroupForm, setShowGroupForm] = useState(false);
   const [showListForm, setShowListForm] = useState(false);
   const [showRuleForm, setShowRuleForm] = useState(false);
@@ -33,243 +30,107 @@ export function usePricingData() {
   const [editingList, setEditingList] = useState<PriceList | null>(null);
   const [editingRule, setEditingRule] = useState<PriceRule | null>(null);
 
-  // Form values
   const [groupForm, setGroupForm] = useState<GroupFormData>(INITIAL_GROUP_FORM);
   const [listForm, setListForm] = useState<ListFormData>(INITIAL_LIST_FORM);
   const [ruleForm, setRuleForm] = useState<RuleFormData>(INITIAL_RULE_FORM);
 
-  const loadData = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      const [groupsRes, listsRes, customersRes, productGroupsRes] = await Promise.all([
-        pricingApi.getGroups(),
-        pricingApi.getLists(),
-        pricingApi.getCustomersWithGroups(),
-        productsApi.getGroups(),
-      ]);
-      setGroups(groupsRes.data);
-      setLists(listsRes.data);
-      setCustomersWithGroups(customersRes.data);
-      setProductGroups(productGroupsRes.data);
-    } catch (err) {
-      console.error('Failed to load data:', err);
-      toast.error('Kunne ikke laste data');
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+  const groupsQuery = usePricingGroups();
+  const listsQuery = usePricingLists();
+  const customersQuery = useCustomersWithGroups();
+  const productGroupsQuery = usePricingProductGroups();
+  const rulesQuery = usePricingRules(selectedListId);
+  const isLoading =
+    groupsQuery.isLoading ||
+    listsQuery.isLoading ||
+    customersQuery.isLoading ||
+    productGroupsQuery.isLoading;
 
-  const loadRules = useCallback(async (listId: number) => {
-    try {
-      const res = await pricingApi.getRules(listId);
-      setRules(res.data);
-      setSelectedListId(listId);
-    } catch (err) {
-      console.error('Failed to load rules:', err);
-      toast.error('Kunne ikke laste regler');
-    }
-  }, []);
+  const mutations = usePricingMutations(selectedListId);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  const loadRules = (listId: number) => {
+    setSelectedListId(listId);
+  };
 
-  // Group handlers
   const handleCreateGroup = async (e: React.FormEvent) => {
     e.preventDefault();
-    try {
-      await pricingApi.createGroup(groupForm);
-      toast.success('Gruppe opprettet');
-      setShowGroupForm(false);
-      setGroupForm(INITIAL_GROUP_FORM);
-      loadData();
-    } catch (err: any) {
-      toast.error(err.response?.data?.error || 'Kunne ikke opprette gruppe');
-    }
+    await mutations.createGroup.mutateAsync(groupForm);
+    setShowGroupForm(false);
+    setGroupForm(INITIAL_GROUP_FORM);
   };
 
   const handleUpdateGroup = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingGroup) return;
-    try {
-      await pricingApi.updateGroup(editingGroup.id, groupForm);
-      toast.success('Gruppe oppdatert');
-      setEditingGroup(null);
-      setGroupForm(INITIAL_GROUP_FORM);
-      loadData();
-    } catch (err: any) {
-      toast.error(err.response?.data?.error || 'Kunne ikke oppdatere gruppe');
-    }
+    await mutations.updateGroup.mutateAsync({ id: editingGroup.id, data: groupForm });
+    setEditingGroup(null);
+    setGroupForm(INITIAL_GROUP_FORM);
   };
 
   const handleDeleteGroup = async (id: number) => {
     if (!confirm('Er du sikker på at du vil slette denne gruppen?')) return;
-    try {
-      await pricingApi.deleteGroup(id);
-      toast.success('Gruppe slettet');
-      loadData();
-    } catch (err: any) {
-      toast.error(err.response?.data?.error || 'Kunne ikke slette gruppe');
-    }
+    await mutations.deleteGroup.mutateAsync(id);
   };
 
-  // List handlers
   const handleCreateList = async (e: React.FormEvent) => {
     e.preventDefault();
-    try {
-      await pricingApi.createList({
-        ...listForm,
-        valid_from: listForm.valid_from ? `${listForm.valid_from}T00:00:00Z` : undefined,
-        valid_to: listForm.valid_to ? `${listForm.valid_to}T23:59:59Z` : undefined,
-      });
-      toast.success('Prisliste opprettet');
-      setShowListForm(false);
-      setListForm(INITIAL_LIST_FORM);
-      loadData();
-    } catch (err: any) {
-      toast.error(err.response?.data?.error || 'Kunne ikke opprette prisliste');
-    }
+    await mutations.createList.mutateAsync(listForm);
+    setShowListForm(false);
+    setListForm(INITIAL_LIST_FORM);
   };
 
   const handleUpdateList = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingList) return;
-    try {
-      await pricingApi.updateList(editingList.id, {
-        ...listForm,
-        valid_from: listForm.valid_from ? `${listForm.valid_from}T00:00:00Z` : null,
-        valid_to: listForm.valid_to ? `${listForm.valid_to}T23:59:59Z` : null,
-      });
-      toast.success('Prisliste oppdatert');
-      setEditingList(null);
-      setListForm(INITIAL_LIST_FORM);
-      loadData();
-    } catch (err: any) {
-      toast.error(err.response?.data?.error || 'Kunne ikke oppdatere prisliste');
-    }
+    await mutations.updateList.mutateAsync({ id: editingList.id, data: listForm });
+    setEditingList(null);
+    setListForm(INITIAL_LIST_FORM);
   };
 
   const handleDeleteList = async (id: number) => {
     if (!confirm('Er du sikker på at du vil slette denne prislisten? Alle regler vil også bli slettet.')) return;
-    try {
-      await pricingApi.deleteList(id);
-      toast.success('Prisliste slettet');
-      if (selectedListId === id) {
-        setSelectedListId(null);
-        setRules([]);
-      }
-      loadData();
-    } catch (err: any) {
-      toast.error(err.response?.data?.error || 'Kunne ikke slette prisliste');
+    await mutations.deleteList.mutateAsync(id);
+    if (selectedListId === id) {
+      setSelectedListId(null);
     }
   };
 
   const handleToggleListActive = async (list: PriceList) => {
-    try {
-      await pricingApi.updateList(list.id, { is_active: !list.is_active });
-      loadData();
-    } catch (err: any) {
-      toast.error(err.response?.data?.error || 'Kunne ikke oppdatere status');
-    }
+    await mutations.toggleListActive.mutateAsync({ id: list.id, isActive: !list.is_active });
   };
 
-  // Rule handlers
   const handleCreateRule = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedListId) return;
-
-    try {
-      const data: any = {
-        price_list_id: selectedListId,
-        min_quantity: ruleForm.min_quantity,
-      };
-
-      if (ruleForm.varekode) data.varekode = ruleForm.varekode;
-      if (ruleForm.varegruppe) data.varegruppe = ruleForm.varegruppe;
-      if (ruleForm.kundenr) data.kundenr = ruleForm.kundenr;
-      if (ruleForm.customer_group_id) data.customer_group_id = parseInt(ruleForm.customer_group_id);
-
-      if (ruleForm.discount_type === 'percent' && ruleForm.discount_percent) {
-        data.discount_percent = parseFloat(ruleForm.discount_percent);
-      } else if (ruleForm.discount_type === 'fixed' && ruleForm.fixed_price) {
-        data.fixed_price = parseFloat(ruleForm.fixed_price);
-      }
-
-      await pricingApi.createRule(data);
-      toast.success('Regel opprettet');
-      setShowRuleForm(false);
-      setRuleForm(INITIAL_RULE_FORM);
-      loadRules(selectedListId);
-    } catch (err: any) {
-      toast.error(err.response?.data?.error || 'Kunne ikke opprette regel');
-    }
+    await mutations.createRule.mutateAsync({ listId: selectedListId, ruleForm });
+    setShowRuleForm(false);
+    setRuleForm(INITIAL_RULE_FORM);
   };
 
   const handleUpdateRule = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingRule || !selectedListId) return;
-
-    try {
-      const data: any = {
-        min_quantity: ruleForm.min_quantity,
-        varekode: ruleForm.varekode || null,
-        varegruppe: ruleForm.varegruppe || null,
-        kundenr: ruleForm.kundenr || null,
-        customer_group_id: ruleForm.customer_group_id ? parseInt(ruleForm.customer_group_id) : null,
-      };
-
-      if (ruleForm.discount_type === 'percent' && ruleForm.discount_percent) {
-        data.discount_percent = parseFloat(ruleForm.discount_percent);
-        data.fixed_price = null;
-      } else if (ruleForm.discount_type === 'fixed' && ruleForm.fixed_price) {
-        data.fixed_price = parseFloat(ruleForm.fixed_price);
-        data.discount_percent = null;
-      }
-
-      await pricingApi.updateRule(editingRule.id, data);
-      toast.success('Regel oppdatert');
-      setShowRuleForm(false);
-      setEditingRule(null);
-      setRuleForm(INITIAL_RULE_FORM);
-      loadRules(selectedListId);
-    } catch (err: any) {
-      toast.error(err.response?.data?.error || 'Kunne ikke oppdatere regel');
-    }
+    await mutations.updateRule.mutateAsync({ id: editingRule.id, ruleForm });
+    setShowRuleForm(false);
+    setEditingRule(null);
+    setRuleForm(INITIAL_RULE_FORM);
   };
 
   const handleDeleteRule = async (id: number) => {
     if (!confirm('Er du sikker på at du vil slette denne regelen?')) return;
-    try {
-      await pricingApi.deleteRule(id);
-      toast.success('Regel slettet');
-      if (selectedListId) loadRules(selectedListId);
-    } catch (err: any) {
-      toast.error(err.response?.data?.error || 'Kunne ikke slette regel');
-    }
+    await mutations.deleteRule.mutateAsync(id);
   };
 
-  // Customer handlers
   const handleAssignCustomer = async (kundenr: string, groupId: number | null) => {
-    try {
-      if (groupId) {
-        await pricingApi.assignCustomer(groupId, kundenr);
-      } else {
-        await pricingApi.removeCustomerFromGroup(kundenr);
-      }
-      loadData();
-    } catch (err: any) {
-      toast.error(err.response?.data?.error || 'Kunne ikke oppdatere kunde');
-    }
+    await mutations.assignCustomer.mutateAsync({ kundenr, groupId });
   };
 
   return {
-    // State
     isLoading,
-    groups,
-    lists,
-    rules,
-    customersWithGroups,
-    productGroups,
+    groups: groupsQuery.data ?? ([] as CustomerGroup[]),
+    lists: listsQuery.data ?? ([] as PriceList[]),
+    rules: rulesQuery.data ?? ([] as PriceRule[]),
+    customersWithGroups: customersQuery.data ?? ([] as CustomerWithGroup[]),
+    productGroups: productGroupsQuery.data ?? ([] as string[]),
     selectedListId,
     showGroupForm,
     showListForm,
@@ -280,8 +141,6 @@ export function usePricingData() {
     groupForm,
     listForm,
     ruleForm,
-
-    // Setters
     setShowGroupForm,
     setShowListForm,
     setShowRuleForm,
@@ -291,8 +150,6 @@ export function usePricingData() {
     setGroupForm,
     setListForm,
     setRuleForm,
-
-    // Actions
     loadRules,
     handleCreateGroup,
     handleUpdateGroup,

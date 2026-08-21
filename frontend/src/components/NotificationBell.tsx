@@ -9,18 +9,18 @@ import {
 } from '../hooks/useNotifications';
 import { useAuth } from '../context/useAuth';
 import {
-  getOrderPathFromNotification,
+  buildDeepLink,
+  formatNotificationTitle,
   isNotificationClickable,
 } from '../lib/notificationNavigation';
+import { formatRelativeTimeNb } from '../lib/formatters';
 import type { AppNotification } from '../types/notification';
 
 function formatWhen(iso: string): string {
-  const d = new Date(iso);
-  const now = Date.now();
-  const diffMs = now - d.getTime();
+  const date = new Date(iso);
+  const diffMs = Date.now() - date.getTime();
   if (diffMs < 60_000) return 'Nå';
-  if (diffMs < 3_600_000) return `${Math.floor(diffMs / 60_000)} min siden`;
-  return d.toLocaleString('nb-NO', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  return formatRelativeTimeNb(date);
 }
 
 function NotificationItem({
@@ -43,7 +43,9 @@ function NotificationItem({
       } ${clickable ? 'cursor-pointer' : 'cursor-default'}`}
     >
       <div className="flex items-start justify-between gap-2">
-        <p className={`text-sm font-medium ${unread ? 'text-white' : 'text-dark-200'}`}>{item.title}</p>
+        <p className={`text-sm font-medium ${unread ? 'text-white' : 'text-dark-200'}`}>
+          {formatNotificationTitle(item)}
+        </p>
         <div className="flex items-center gap-1.5 shrink-0">
           {unread && <span className="h-2 w-2 rounded-full bg-primary-500" aria-hidden />}
           {clickable && (
@@ -89,7 +91,7 @@ export function NotificationBell() {
       markRead.mutate([item.id]);
     }
 
-    const path = getOrderPathFromNotification(item, user?.role);
+    const path = buildDeepLink(item, user?.role);
     if (path) {
       setOpen(false);
       navigate(path);

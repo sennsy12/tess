@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useMemo, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Layout } from '../../components/Layout';
@@ -10,6 +10,7 @@ import { AnimatedStatCard } from '../../components/dashboard/AnimatedStatCard';
 import { StatCardSkeleton, ChartSkeleton } from '../../components/admin';
 import { QueryErrorBanner } from '../../components/QueryErrorBanner';
 import { revenueTrendSummary } from '../../lib/chartSummary';
+import { fillMissingPeriods } from '../../lib/chartUtils';
 
 export function KundeDashboard() {
   const { user } = useAuth();
@@ -46,7 +47,10 @@ export function KundeDashboard() {
   const summary = summaryQuery.data;
   const recentOrders = recentOrdersQuery.data ?? [];
   const varegruppeStats = varegruppeQuery.data ?? [];
-  const timeSeries = timeSeriesQuery.data ?? [];
+  const timeSeries = useMemo(
+    () => fillMissingPeriods(timeSeriesQuery.data ?? [], 'month'),
+    [timeSeriesQuery.data],
+  );
 
   const isLoading =
     summaryQuery.isLoading ||
@@ -91,12 +95,23 @@ export function KundeDashboard() {
         )}
         {/* Welcome message */}
         <div className="card bg-gradient-to-r from-primary-600/20 to-primary-800/20 border-primary-700/50 animate-fade-in">
-          <h3 className="text-xl font-semibold text-dark-50">
-            Velkommen, {user?.kundenr || user?.username}! 👋
-          </h3>
-          <p className="text-dark-300 mt-1">
-            Her er en oversikt over dine ordrer og statistikk.
-          </p>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <h3 className="text-xl font-semibold text-dark-50">
+                Velkommen, {user?.kundenr || user?.username}! 👋
+              </h3>
+              <p className="text-dark-300 mt-1">
+                Her er en oversikt over dine ordrer og statistikk.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => navigate('/kunde/order/new')}
+              className="btn-primary whitespace-nowrap self-start sm:self-auto"
+            >
+              + Ny bestilling
+            </button>
+          </div>
         </div>
 
         {/* Stats cards */}

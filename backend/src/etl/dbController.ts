@@ -1,6 +1,4 @@
 import { query } from '../db/index.js';
-import fs from 'fs';
-import path from 'path';
 
 /**
  * Creates database tables based on schema

@@ -5,37 +5,45 @@ interface OrderTimelineProps {
   order: OrderDetail;
 }
 
-const WORKFLOW_STEP_ORDER: OrderWorkflowStatus[] = [
-  'new',
+/** Legacy (imported) orders follow the linear fulfilment flow. */
+const LEGACY_STEP_ORDER: OrderWorkflowStatus[] = ['new', 'processing', 'shipped', 'invoiced'];
+
+/** Customer-placed orders pass through approval before fulfilment. */
+const APPROVAL_STEP_ORDER: OrderWorkflowStatus[] = [
+  'pending_approval',
+  'approved',
   'processing',
   'shipped',
   'invoiced',
 ];
 
+const STEP_DETAILS: Partial<Record<OrderWorkflowStatus, (order: OrderDetail) => string>> = {
+  new: (order) => new Date(order.dato).toLocaleDateString('nb-NO'),
+  pending_approval: (order) =>
+    `Sendt ${new Date(order.status_updated_at || order.dato).toLocaleDateString('nb-NO')} – venter på godkjenning`,
+  approved: () => 'Godkjent – klar for behandling',
+  processing: (order) => `${order.lines.filter((l) => l.linjestatus === 1).length} av ${order.lines.length} aktive linjer`,
+  shipped: (order) => order.lagernavn || 'Sendt fra lager',
+  invoiced: (order) =>
+    new Intl.NumberFormat('nb-NO', { style: 'currency', currency: order.valutaid || 'NOK' }).format(order.sum),
+};
+
 /** Visual order progress from workflow status and line data. */
 export function OrderTimeline({ order }: OrderTimelineProps) {
   const workflow = (order.workflow_status ?? 'new') as OrderWorkflowStatus;
-  const workflowIndex = WORKFLOW_STEP_ORDER.indexOf(workflow);
+
+  const usesApprovalFlow = ['pending_approval', 'approved', 'rejected'].includes(workflow);
+  const stepOrder = usesApprovalFlow ? APPROVAL_STEP_ORDER : LEGACY_STEP_ORDER;
+
   const isCancelled = workflow === 'cancelled';
+  const isRejected = workflow === 'rejected';
 
-  const activeLines = order.lines.filter((l) => l.linjestatus === 1).length;
-  const totalLines = order.lines.length;
-
-  const steps = WORKFLOW_STEP_ORDER.map((status, index) => ({
+  const workflowIndex = stepOrder.indexOf(workflow);
+  const steps = stepOrder.map((status, index) => ({
     id: status,
     label: ORDER_WORKFLOW_LABELS[status],
-    detail:
-      status === 'new'
-        ? new Date(order.dato).toLocaleDateString('nb-NO')
-        : status === 'processing'
-          ? `${activeLines} av ${totalLines} aktive linjer`
-          : status === 'shipped'
-            ? order.lagernavn || 'Sendt fra lager'
-            : new Intl.NumberFormat('nb-NO', {
-                style: 'currency',
-                currency: order.valutaid || 'NOK',
-              }).format(order.sum),
-    done: isCancelled ? false : workflowIndex >= index,
+    detail: STEP_DETAILS[status]?.(order) ?? '',
+    done: isCancelled || isRejected ? false : workflowIndex >= index,
   }));
 
   if (isCancelled) {
@@ -43,6 +51,15 @@ export function OrderTimeline({ order }: OrderTimelineProps) {
       id: 'cancelled',
       label: ORDER_WORKFLOW_LABELS.cancelled,
       detail: 'Ordren er kansellert',
+      done: true,
+    });
+  }
+
+  if (isRejected) {
+    steps.push({
+      id: 'rejected',
+      label: ORDER_WORKFLOW_LABELS.rejected,
+      detail: 'Ordren ble avvist – opprett gjerne en ny bestilling',
       done: true,
     });
   }

@@ -43,8 +43,9 @@ export function GroupsTab({
         >
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1">Navn</label>
+              <label htmlFor="group-name" className="block text-sm font-medium text-dark-300 mb-1">Navn</label>
               <input
+                id="group-name"
                 type="text"
                 value={groupForm.name}
                 onChange={(e) => setGroupForm({ ...groupForm, name: e.target.value })}
@@ -53,8 +54,9 @@ export function GroupsTab({
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1">Beskrivelse</label>
+              <label htmlFor="group-description" className="block text-sm font-medium text-dark-300 mb-1">Beskrivelse</label>
               <input
+                id="group-description"
                 type="text"
                 value={groupForm.description}
                 onChange={(e) => setGroupForm({ ...groupForm, description: e.target.value })}

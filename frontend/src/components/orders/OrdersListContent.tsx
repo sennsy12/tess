@@ -1,15 +1,17 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Search, RotateCcw } from 'lucide-react';
 import { DataTable } from '../DataTable';
 import { AutocompleteInput } from '../AutocompleteInput';
 import { SavedViewsPanel } from '../SavedViewsPanel';
-import { FilterBar, Pagination, TableSkeleton } from '../admin';
+import { Pagination, TableSkeleton } from '../admin';
 import { QueryErrorBanner } from '../QueryErrorBanner';
 import { QueryRefetchBar } from '../QueryRefetchBar';
 import { ActiveFilterChips } from '../ActiveFilterChips';
 import { EmptyState } from '../EmptyState';
 import { OrderWorkflowBadge } from './OrderWorkflowBadge';
 import { OrderMobileCard } from './OrderMobileCard';
+import { OrderStatsStrip } from './OrderStatsStrip';
 import { useSavedViews } from '../../hooks/useSavedViews';
 import { useServerListPage } from '../../hooks/useServerListPage';
 import { ordersApi, suggestionsApi } from '../../lib/api';
@@ -20,12 +22,6 @@ import { ORDER_WORKFLOW_LABELS, type OrderWorkflowStatus } from '../../types/not
 import type { Suggestion } from '../../types/order';
 
 const PAGE_LIMIT = 50;
-
-const FILTER_FIELDS = [
-  { key: 'ordrenr', label: 'Ordrenummer', placeholder: 'F.eks. 1001' },
-  { key: 'startDate', label: 'Fra dato', type: 'date' as const },
-  { key: 'endDate', label: 'Til dato', type: 'date' as const },
-] as const;
 
 const COLUMNS = [
   {
@@ -116,16 +112,18 @@ export function OrdersListContent({ variant }: OrdersListContentProps) {
       orderKeys.list(variant, p, filters, sortKey, sortDirection),
     queryFn: async ({ page: p, filters, sortKey, sortDirection }) => {
       const queryParams: Record<string, string | number> = {
-        ...filters,
         page: p,
         limit: PAGE_LIMIT,
       };
+      // Only send non-empty filters — empty strings would fail enum validation
+      for (const [key, value] of Object.entries(filters)) {
+        if (typeof value === 'string' && value.trim()) {
+          queryParams[key] = value.trim();
+        }
+      }
       if (isAdmin && sortKey && sortDirection) {
         queryParams.sortBy = sortKey;
         queryParams.sortDir = sortDirection;
-      }
-      if (filters.workflowStatus) {
-        queryParams.workflowStatus = filters.workflowStatus;
       }
       const response = await ordersApi.getAll(queryParams);
       return {
@@ -200,66 +198,116 @@ export function OrdersListContent({ variant }: OrdersListContentProps) {
 
   return (
     <div className="space-y-6">
-      <SavedViewsPanel
-        title={isAdmin ? 'Arbeidsflater' : 'Mine arbeidsflater'}
-        description={
-          isAdmin
-            ? 'Lagre filter, sortering og kolonneoppsett. Delte visninger kan brukes av andre administratorer.'
-            : 'Lagre søk, sortering og kolonneoppsett for orderoversikten.'
-        }
-        views={views}
-        isLoading={viewsLoading}
-        canShare={canUseShared}
-        onApply={(view) => {
-          setDraftFilters(view.state.filters);
-          applyFilters(view.state.filters);
-          setPage(view.state.page ?? 1);
-          setTableState(view.state.tableState);
-        }}
-        onSave={(name, options) => saveView(name, options)}
-        onDelete={(view) => deleteView(view)}
-        onSetDefault={setDefaultView}
+      <OrderStatsStrip
+        orders={orders as { sum: number; dato: string }[]}
+        total={total}
+        isLoading={showSkeleton}
       />
 
-      <FilterBar
-        title="Søk i ordrer"
-        filters={draftFilters}
-        onFilterChange={setDraftFilters}
-        onSubmit={handleApplyFilters}
-        onReset={handleReset}
-        fields={[...FILTER_FIELDS]}
+      {/*
+        Verktøylinje: alle filtre i én kompakt rad (wrapper på mobil).
+        Enter eller «Bruk filtre» sender utkastet til serveren.
+      */}
+      <form
+        className="card p-4"
+        onSubmit={(e) => {
+          e.preventDefault();
+          handleApplyFilters();
+        }}
       >
-        <div>
-          <label className="label">Fritekst søk</label>
-          <AutocompleteInput
-            value={draftFilters.search}
-            onChange={(value) => setDraftFilters((prev) => ({ ...prev, search: value }))}
-            onSelect={handleSuggestionSelect}
-            fetchSuggestions={fetchSuggestions}
-            placeholder="Søk kundenr, henvisning, ref, kunde..."
-            minChars={3}
-          />
+        <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
+          <div className="flex-1 min-w-[14rem]">
+            <label htmlFor="order-search" className="label text-xs">
+              Fritekst søk
+            </label>
+            <AutocompleteInput
+              value={draftFilters.search}
+              onChange={(value) => setDraftFilters((prev) => ({ ...prev, search: value }))}
+              onSelect={handleSuggestionSelect}
+              fetchSuggestions={fetchSuggestions}
+              placeholder="Søk kundenr, henvisning, ref, kunde..."
+              minChars={3}
+            />
+          </div>
+
+          <div className="min-w-[8rem]">
+            <label htmlFor="order-ordrenr" className="label text-xs">
+              Ordrenr
+            </label>
+            <input
+              id="order-ordrenr"
+              type="text"
+              inputMode="numeric"
+              className="input py-2"
+              placeholder="F.eks. 1001"
+              value={draftFilters.ordrenr}
+              onChange={(e) => setDraftFilters((prev) => ({ ...prev, ordrenr: e.target.value }))}
+            />
+          </div>
+
+          <div className="min-w-[9rem]">
+            <label htmlFor="order-start-date" className="label text-xs">
+              Fra dato
+            </label>
+            <input
+              id="order-start-date"
+              type="date"
+              className="input py-2"
+              value={draftFilters.startDate}
+              onChange={(e) => setDraftFilters((prev) => ({ ...prev, startDate: e.target.value }))}
+            />
+          </div>
+
+          <div className="min-w-[9rem]">
+            <label htmlFor="order-end-date" className="label text-xs">
+              Til dato
+            </label>
+            <input
+              id="order-end-date"
+              type="date"
+              className="input py-2"
+              value={draftFilters.endDate}
+              onChange={(e) => setDraftFilters((prev) => ({ ...prev, endDate: e.target.value }))}
+            />
+          </div>
+
+          <div className="min-w-[11rem]">
+            <label htmlFor="workflowStatus" className="label text-xs">
+              Ordrestatus
+            </label>
+            <select
+              id="workflowStatus"
+              className="input py-2"
+              value={draftFilters.workflowStatus}
+              onChange={(e) =>
+                setDraftFilters((prev) => ({ ...prev, workflowStatus: e.target.value }))
+              }
+            >
+              {WORKFLOW_FILTER_OPTIONS.map((opt) => (
+                <option key={opt.value || 'all'} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2 ml-auto">
+            <button type="submit" className="btn-primary py-2 text-sm flex items-center gap-1.5">
+              <Search className="h-4 w-4" aria-hidden />
+              Bruk filtre
+            </button>
+            <button
+              type="button"
+              onClick={handleReset}
+              className="btn-secondary py-2 text-sm flex items-center gap-1.5"
+              title="Nullstill alle filtre"
+            >
+              <RotateCcw className="h-4 w-4" aria-hidden />
+              Nullstill
+            </button>
+          </div>
         </div>
-        <div>
-          <label className="label" htmlFor="workflowStatus">
-            Ordrestatus
-          </label>
-          <select
-            id="workflowStatus"
-            className="input w-full"
-            value={draftFilters.workflowStatus}
-            onChange={(e) =>
-              setDraftFilters((prev) => ({ ...prev, workflowStatus: e.target.value }))
-            }
-          >
-            {WORKFLOW_FILTER_OPTIONS.map((opt) => (
-              <option key={opt.value || 'all'} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-        </div>
-      </FilterBar>
+      </form>
 
       <ActiveFilterChips
         chips={filterChips}
@@ -291,18 +339,6 @@ export function OrdersListContent({ variant }: OrdersListContentProps) {
         />
       ) : (
         <>
-          <div className="flex justify-between items-center text-sm text-dark-400">
-            <div>
-              Viser {orders.length > 0 ? (page - 1) * PAGE_LIMIT + 1 : 0} -{' '}
-              {Math.min(page * PAGE_LIMIT, total)} av {total} ordrer
-            </div>
-            <Pagination
-              pagination={{ page, total, limit: PAGE_LIMIT, totalPages }}
-              onPageChange={setPage}
-              variant="minimal"
-            />
-          </div>
-
           {!isAdmin && (
             <div className="space-y-3 lg:hidden">
               {(orders as {
@@ -342,14 +378,41 @@ export function OrdersListContent({ variant }: OrdersListContentProps) {
             />
           </div>
 
-          <Pagination
-            pagination={{ page, total, limit: PAGE_LIMIT, totalPages }}
-            onPageChange={setPage}
-            variant="simple"
-            className="justify-center"
-          />
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-3 text-sm text-dark-400">
+            <div>
+              Viser {orders.length > 0 ? (page - 1) * PAGE_LIMIT + 1 : 0} -{' '}
+              {Math.min(page * PAGE_LIMIT, total)} av {total} ordrer
+            </div>
+            <Pagination
+              pagination={{ page, total, limit: PAGE_LIMIT, totalPages }}
+              onPageChange={setPage}
+              variant="simple"
+            />
+          </div>
         </>
       )}
+
+      {/* Lagrede visninger nederst – sammenleggbar og utenfor hovedflyten */}
+      <SavedViewsPanel
+        title={isAdmin ? 'Arbeidsflater' : 'Mine arbeidsflater'}
+        description={
+          isAdmin
+            ? 'Lagre filter, sortering og kolonneoppsett. Delte visninger kan brukes av andre administratorer.'
+            : 'Lagre søk, sortering og kolonneoppsett for orderoversikten.'
+        }
+        views={views}
+        isLoading={viewsLoading}
+        canShare={canUseShared}
+        onApply={(view) => {
+          setDraftFilters(view.state.filters);
+          applyFilters(view.state.filters);
+          setPage(view.state.page ?? 1);
+          setTableState(view.state.tableState);
+        }}
+        onSave={(name, options) => saveView(name, options)}
+        onDelete={(view) => deleteView(view)}
+        onSetDefault={setDefaultView}
+      />
     </div>
   );
 }

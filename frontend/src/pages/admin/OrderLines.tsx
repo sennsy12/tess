@@ -1,17 +1,15 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { Layout } from '../../components/Layout';
+import { FormField } from '../../components/FormField';
 import { DataTable } from '../../components/DataTable';
 import { Pagination, FormModal, TableSkeleton } from '../../components/admin';
 import { ordersApi, orderlinesApi, productsApi } from '../../lib/api';
-
-// ────────────────────────────────────────────────────────────
-// Types
-// ────────────────────────────────────────────────────────────
+import { orderLineKeys } from '../../lib/queryKeys';
+import { parseBoundedInt } from '../../lib/formatters';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { OrderLine, Order } from '../../types/order';
-// ────────────────────────────────────────────────────────────
-// Constants
-// ────────────────────────────────────────────────────────────
 
 const PAGE_SIZE = 50;
 
@@ -23,102 +21,90 @@ const INITIAL_FORM = {
   linjestatus: 1,
 };
 
-// ────────────────────────────────────────────────────────────
-// Component
-// ────────────────────────────────────────────────────────────
-
 export function AdminOrderLines() {
+  const queryClient = useQueryClient();
   const [selectedOrder, setSelectedOrder] = useState<number | null>(null);
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [orderLines, setOrderLines] = useState<OrderLine[]>([]);
-  const [productOptions, setProductOptions] = useState<{ varekode: string; varenavn: string }[]>([]);
-  const [productSearch, setProductSearch] = useState('');
-  const [isLoadingProducts, setIsLoadingProducts] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingLine, setEditingLine] = useState<OrderLine | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [paginationInfo, setPaginationInfo] = useState<{
-    page: number;
-    limit: number;
-    total: number;
-    totalPages: number;
-  } | null>(null);
+  const [productSearch, setProductSearch] = useState('');
+  const debouncedProductSearch = useDebouncedValue(productSearch, 300);
   const [formData, setFormData] = useState(INITIAL_FORM);
 
-  // ── Data loading ──────────────────────────────────────
-  useEffect(() => {
-    loadInitialData();
-  }, []);
-
-  useEffect(() => {
-    if (selectedOrder) {
-      loadOrderLines(selectedOrder, 1);
-      setCurrentPage(1);
-    }
-  }, [selectedOrder]);
-
-  const loadInitialData = async () => {
-    try {
+  const ordersQuery = useQuery({
+    queryKey: orderLineKeys.orders(),
+    queryFn: async () => {
       const ordersRes = await ordersApi.getAll({ limit: 100, page: 1 });
-      const ordersData = ordersRes.data.data ?? [];
-      setOrders(ordersData);
-      if (ordersData.length > 0) {
-        setSelectedOrder(ordersData[0].ordrenr);
-      }
-    } catch (error) {
-      console.error('Failed to load data:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      return (ordersRes.data.data ?? []) as Order[];
+    },
+  });
 
-  const searchProducts = useCallback(async (term: string) => {
-    setIsLoadingProducts(true);
-    try {
+  useEffect(() => {
+    if (selectedOrder != null || !ordersQuery.data?.length) return;
+    setSelectedOrder(ordersQuery.data[0].ordrenr);
+  }, [ordersQuery.data, selectedOrder]);
+
+  const linesQuery = useQuery({
+    queryKey: orderLineKeys.lines(selectedOrder ?? 0, currentPage),
+    queryFn: async () => {
+      const response = await orderlinesApi.getByOrder(selectedOrder!, {
+        page: currentPage,
+        limit: PAGE_SIZE,
+      });
+      return {
+        lines: response.data.data as OrderLine[],
+        pagination: response.data.pagination,
+      };
+    },
+    enabled: selectedOrder != null,
+  });
+
+  const productsQuery = useQuery({
+    queryKey: orderLineKeys.productSearch(debouncedProductSearch),
+    queryFn: async () => {
       const response = await productsApi.search({
-        search: term.trim() || undefined,
+        search: debouncedProductSearch.trim() || undefined,
         page: 1,
         limit: 50,
         sortBy: 'varenavn',
         sortDir: 'asc',
       });
-      setProductOptions(response.data.data ?? []);
-    } catch {
-      setProductOptions([]);
-    } finally {
-      setIsLoadingProducts(false);
-    }
-  }, []);
+      return (response.data.data ?? []) as { varekode: string; varenavn: string }[];
+    },
+    enabled: showModal,
+  });
 
-  useEffect(() => {
-    if (!showModal) return;
-    const timer = setTimeout(() => {
-      void searchProducts(productSearch);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [showModal, productSearch, searchProducts]);
-
-  const loadOrderLines = async (ordrenr: number, page: number) => {
-    try {
-      const response = await orderlinesApi.getByOrder(ordrenr, {
-        page,
-        limit: PAGE_SIZE,
-      });
-      setOrderLines(response.data.data);
-      setPaginationInfo(response.data.pagination);
-    } catch (error) {
-      console.error('Failed to load order lines:', error);
-    }
+  const invalidateLines = () => {
+    if (selectedOrder == null) return;
+    void queryClient.invalidateQueries({ queryKey: orderLineKeys.linesRoot(selectedOrder) });
   };
 
-  // ── Handlers ──────────────────────────────────────────
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      if (editingLine) {
+        await orderlinesApi.update(editingLine.ordrenr!, editingLine.linjenr, formData);
+      } else {
+        await orderlinesApi.create({ ordrenr: selectedOrder, ...formData });
+      }
+    },
+    onSuccess: () => {
+      setShowModal(false);
+      invalidateLines();
+    },
+    onError: () => toast.error('Kunne ikke lagre ordrelinje'),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (line: OrderLine) => orderlinesApi.delete(line.ordrenr!, line.linjenr),
+    onSuccess: () => invalidateLines(),
+    onError: () => toast.error('Kunne ikke slette ordrelinje'),
+  });
+
   const handlePageChange = useCallback(
     (newPage: number) => {
       setCurrentPage(newPage);
-      if (selectedOrder) loadOrderLines(selectedOrder, newPage);
     },
-    [selectedOrder],
+    [],
   );
 
   const handleCreate = useCallback(() => {
@@ -126,8 +112,7 @@ export function AdminOrderLines() {
     setProductSearch('');
     setFormData({ ...INITIAL_FORM, varekode: '' });
     setShowModal(true);
-    void searchProducts('');
-  }, [searchProducts]);
+  }, []);
 
   const handleEdit = useCallback((line: OrderLine) => {
     setEditingLine(line);
@@ -140,41 +125,24 @@ export function AdminOrderLines() {
       linjestatus: line.linjestatus,
     });
     setShowModal(true);
-    void searchProducts(line.varekode);
-  }, [searchProducts]);
+  }, []);
 
   const handleDelete = useCallback(
-    async (line: OrderLine) => {
+    (line: OrderLine) => {
       if (!confirm('Er du sikker på at du vil slette denne linjen?')) return;
-      try {
-        await orderlinesApi.delete(line.ordrenr!, line.linjenr);
-        loadOrderLines(selectedOrder!, currentPage);
-      } catch {
-        toast.error('Kunne ikke slette ordrelinje');
-      }
+      deleteMutation.mutate(line);
     },
-    [selectedOrder, currentPage],
+    [deleteMutation],
   );
 
   const handleSubmit = useCallback(
-    async (e: React.FormEvent) => {
+    (e: React.FormEvent) => {
       e.preventDefault();
-      try {
-        if (editingLine) {
-          await orderlinesApi.update(editingLine.ordrenr!, editingLine.linjenr, formData);
-        } else {
-          await orderlinesApi.create({ ordrenr: selectedOrder, ...formData });
-        }
-        setShowModal(false);
-        loadOrderLines(selectedOrder!, currentPage);
-      } catch {
-        toast.error('Kunne ikke lagre ordrelinje');
-      }
+      saveMutation.mutate();
     },
-    [editingLine, formData, selectedOrder, currentPage],
+    [saveMutation],
   );
 
-  // ── Column definitions ────────────────────────────────
   const columns = [
     { key: 'linjenr', header: 'Linje' },
     { key: 'varekode', header: 'Varekode' },
@@ -215,11 +183,11 @@ export function AdminOrderLines() {
     {
       key: 'henvisning1',
       header: 'Henvisninger',
-      csvValue: (_: any, row: OrderLine) => {
+      csvValue: (_: unknown, row: OrderLine) => {
         const refs = [row.henvisning1, row.henvisning2, row.henvisning3, row.henvisning4, row.henvisning5].filter(Boolean);
         return refs.join('; ');
       },
-      render: (_: any, row: OrderLine) => {
+      render: (_: unknown, row: OrderLine) => {
         const refs = [
           row.henvisning1,
           row.henvisning2,
@@ -231,10 +199,7 @@ export function AdminOrderLines() {
         return (
           <div className="flex flex-wrap gap-1">
             {refs.map((ref, i) => (
-              <span
-                key={i}
-                className="inline-block px-2 py-0.5 bg-dark-700 rounded text-xs"
-              >
+              <span key={i} className="inline-block px-2 py-0.5 bg-dark-700 rounded text-xs">
                 {ref}
               </span>
             ))}
@@ -248,18 +213,12 @@ export function AdminOrderLines() {
       sortable: false,
       hideable: true,
       csvValue: () => '',
-      render: (_: any, row: OrderLine) => (
+      render: (_: unknown, row: OrderLine) => (
         <div className="flex gap-2">
-          <button
-            onClick={() => handleEdit(row)}
-            className="text-primary-400 hover:text-primary-300"
-          >
+          <button type="button" onClick={() => handleEdit(row)} className="text-primary-400 hover:text-primary-300">
             Rediger
           </button>
-          <button
-            onClick={() => handleDelete(row)}
-            className="text-red-400 hover:text-red-300"
-          >
+          <button type="button" onClick={() => handleDelete(row)} className="text-red-400 hover:text-red-300">
             Slett
           </button>
         </div>
@@ -267,69 +226,82 @@ export function AdminOrderLines() {
     },
   ];
 
-  // ── Render ────────────────────────────────────────────
+  const orders = ordersQuery.data ?? [];
+  const orderLines = linesQuery.data?.lines ?? [];
+  const paginationInfo = linesQuery.data?.pagination ?? null;
+  const productOptions = productsQuery.data ?? [];
+  const isLoading = ordersQuery.isLoading;
+
   return (
     <Layout title="Ordrelinjer">
       <div className="space-y-6">
-        {/* Order selector */}
         <div className="card">
           <div className="flex items-center gap-4">
             <div className="flex-1">
-              <label className="label">Søk/Velg Ordre</label>
               {isLoading ? (
                 <div className="animate-pulse rounded bg-dark-700/60 h-10 w-full" />
               ) : (
                 <div className="flex gap-2">
-                  <input
-                    type="number"
-                    value={selectedOrder || ''}
-                    onChange={(e) => setSelectedOrder(Number(e.target.value))}
-                    className="input w-32"
-                    placeholder="Ordrenr"
-                  />
-                  <select
-                    value={selectedOrder || ''}
-                    onChange={(e) => setSelectedOrder(Number(e.target.value))}
-                    className="input flex-1"
-                  >
-                    <option value="">Velg fra liste...</option>
-                    {orders.map((order) => (
-                      <option key={order.ordrenr} value={order.ordrenr}>
-                        #{order.ordrenr} - {order.kundenavn || order.kundenr} (
-                        {new Date(order.dato).toLocaleDateString('nb-NO')})
-                      </option>
-                    ))}
-                  </select>
+                  <FormField label="Ordrenr" htmlFor="orderlines-ordrenr">
+                    <input
+                      id="orderlines-ordrenr"
+                      type="number"
+                      value={selectedOrder || ''}
+                      onChange={(e) => {
+                        setSelectedOrder(Number(e.target.value));
+                        setCurrentPage(1);
+                      }}
+                      className="input w-32"
+                      placeholder="Ordrenr"
+                    />
+                  </FormField>
+                  <FormField label="Velg fra liste" htmlFor="orderlines-select" className="flex-1">
+                    <select
+                      id="orderlines-select"
+                      value={selectedOrder || ''}
+                      onChange={(e) => {
+                        setSelectedOrder(Number(e.target.value));
+                        setCurrentPage(1);
+                      }}
+                      className="input w-full"
+                    >
+                      <option value="">Velg fra liste...</option>
+                      {orders.map((order) => (
+                        <option key={order.ordrenr} value={order.ordrenr}>
+                          #{order.ordrenr} - {order.kundenavn || order.kundenr} (
+                          {new Date(order.dato).toLocaleDateString('nb-NO')})
+                        </option>
+                      ))}
+                    </select>
+                  </FormField>
                 </div>
               )}
             </div>
             <div className="pt-6">
-              <button onClick={handleCreate} className="btn-primary">
+              <button type="button" onClick={handleCreate} className="btn-primary">
                 + Ny Linje
               </button>
             </div>
           </div>
         </div>
 
-        {/* Order lines table */}
-        {isLoading ? (
+        {linesQuery.isLoading && selectedOrder != null ? (
           <div className="card p-0 lg:p-0 overflow-hidden">
             <TableSkeleton rows={8} columns={10} />
           </div>
         ) : (
-        <DataTable
-          data={orderLines}
-          columns={columns}
-          emptyMessage="Ingen ordrelinjer funnet"
-          paginate={false}
-          disableClientSort
-          enableCsvExport
-          exportFilename="admin-orderlines"
-          title="Ordrelinjer"
-        />
+          <DataTable
+            data={orderLines}
+            columns={columns}
+            emptyMessage="Ingen ordrelinjer funnet"
+            paginate={false}
+            disableClientSort
+            enableCsvExport
+            exportFilename="admin-orderlines"
+            title="Ordrelinjer"
+          />
         )}
 
-        {/* Server-side Pagination */}
         {paginationInfo && (
           <Pagination
             pagination={paginationInfo}
@@ -339,7 +311,6 @@ export function AdminOrderLines() {
           />
         )}
 
-        {/* Create / Edit modal */}
         <FormModal
           open={showModal}
           onClose={() => setShowModal(false)}
@@ -347,69 +318,78 @@ export function AdminOrderLines() {
           title={editingLine ? 'Rediger Ordrelinje' : 'Ny Ordrelinje'}
           submitLabel={editingLine ? 'Lagre' : 'Opprett'}
         >
-          <div>
-            <label className="label">Søk vare</label>
+          <FormField label="Søk vare" htmlFor="orderlines-product-search">
             <input
+              id="orderlines-product-search"
               type="search"
               value={productSearch}
               onChange={(e) => setProductSearch(e.target.value)}
-              className="input mb-2"
+              className="input"
               placeholder="Varekode eller navn..."
             />
-            <label className="label">Vare</label>
+          </FormField>
+          <FormField label="Vare" htmlFor="orderlines-product">
             <select
+              id="orderlines-product"
               value={formData.varekode}
               onChange={(e) => setFormData({ ...formData, varekode: e.target.value })}
               className="input"
               required
-              disabled={isLoadingProducts}
+              disabled={productsQuery.isLoading}
             >
-              <option value="">{isLoadingProducts ? 'Laster...' : 'Velg vare'}</option>
+              <option value="">{productsQuery.isLoading ? 'Laster...' : 'Velg vare'}</option>
               {productOptions.map((product) => (
                 <option key={product.varekode} value={product.varekode}>
                   {product.varekode} - {product.varenavn}
                 </option>
               ))}
             </select>
-          </div>
+          </FormField>
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="label">Antall</label>
+            <FormField label="Antall" htmlFor="orderlines-antall">
               <input
+                id="orderlines-antall"
                 type="number"
                 value={formData.antall}
                 onChange={(e) =>
-                  setFormData({ ...formData, antall: Number(e.target.value) })
+                  setFormData({
+                    ...formData,
+                    antall: parseBoundedInt(e.target.value, 1, 999999),
+                  })
                 }
                 className="input"
                 min="1"
                 required
               />
-            </div>
-            <div>
-              <label className="label">Enhet</label>
+            </FormField>
+            <FormField label="Enhet" htmlFor="orderlines-enhet">
               <input
+                id="orderlines-enhet"
                 type="text"
                 value={formData.enhet}
                 onChange={(e) => setFormData({ ...formData, enhet: e.target.value })}
                 className="input"
                 required
               />
-            </div>
+            </FormField>
           </div>
-          <div>
-            <label className="label">Nettopris</label>
+          <FormField label="Nettopris" htmlFor="orderlines-nettpris">
             <input
+              id="orderlines-nettpris"
               type="number"
               value={formData.nettpris}
-              onChange={(e) =>
-                setFormData({ ...formData, nettpris: Number(e.target.value) })
-              }
+              onChange={(e) => {
+                const value = Number(e.target.value);
+                setFormData({
+                  ...formData,
+                  nettpris: Number.isFinite(value) ? value : 0,
+                });
+              }}
               className="input"
               step="0.01"
               required
             />
-          </div>
+          </FormField>
         </FormModal>
       </div>
     </Layout>

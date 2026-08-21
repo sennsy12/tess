@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ClipboardList, Search } from 'lucide-react';
 import { useAuth } from '../context/useAuth';
+import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import { pricingApi, ordersApi, productsApi, usersApi } from '../lib/api';
 
 type SearchResult = {
@@ -40,6 +41,7 @@ export function GlobalSearch({ open, onClose }: GlobalSearchProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const [query, setQuery] = useState('');
+  const debouncedQuery = useDebouncedValue(query, 300);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [highlightIndex, setHighlightIndex] = useState(0);
@@ -140,9 +142,8 @@ export function GlobalSearch({ open, onClose }: GlobalSearchProps) {
       setHighlightIndex(0);
       return;
     }
-    const t = setTimeout(() => runSearch(query), 300);
-    return () => clearTimeout(t);
-  }, [query, open, runSearch]);
+    void runSearch(debouncedQuery);
+  }, [debouncedQuery, open, runSearch]);
 
   const selectResult = (r: SearchResult) => {
     if (role) saveRecent(role, r.path);
@@ -254,18 +255,4 @@ export function GlobalSearch({ open, onClose }: GlobalSearchProps) {
       </div>
     </div>
   );
-}
-
-export function useGlobalSearchShortcut(onOpen: () => void, enabled: boolean) {
-  useEffect(() => {
-    if (!enabled) return;
-    const handler = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-        e.preventDefault();
-        onOpen();
-      }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [enabled, onOpen]);
 }

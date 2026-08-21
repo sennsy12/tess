@@ -1,17 +1,27 @@
 /**
  * Unit tests for bulkDataController – generateBulkTestData
  *
- * We mock the db/index module so no real database calls are made.
- * These tests verify the data generation *logic*:
- *  - Correct number of rows generated for each entity
- *  - Data shape / column counts
- *  - Customer numbering format
- *  - Product variety coverage
- *  - Order / order-line relationships
+ * generateBulkTestData now delegates to the O(1)-memory streaming pipeline.
+ * We mock that pipeline (and db/index) so no real database calls are made,
+ * and verify:
+ *  - Correct mapping of streaming results to the response shape
+ *  - Default config values
+ *  - getTableCounts behavior
  */
 
 jest.mock('../../db/index', () => ({
   query: jest.fn(),
+}));
+
+jest.mock('../bulkLoadFast', () => ({
+  runBulkLoadFast: jest.fn(async (config: { totalOrders: number }) => ({
+    ordrer: config.totalOrders,
+    ordrelinjer: config.totalOrders * 3,
+    ordre_henvisninger: Math.floor(config.totalOrders * 3 * 0.6),
+    totalRows: config.totalOrders + config.totalOrders * 3 + Math.floor(config.totalOrders * 3 * 0.6),
+    insertionTimeMs: 5,
+    rowsPerSecond: 1000,
+  })),
 }));
 
 import { generateBulkTestData, getTableCounts } from '../bulkDataController';

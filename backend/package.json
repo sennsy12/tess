@@ -9,6 +9,8 @@
     "start": "node dist/index.js",
     "migrate": "tsx src/db/migrate.ts",
     "test": "jest",
+    "lint": "eslint src",
+    "lint:fix": "eslint src --fix",
     "test:load:etl": "k6 run load-tests/etl-streaming.js"
   },
   "dependencies": {
@@ -32,6 +34,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/bcrypt": "^5.0.2",
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
@@ -46,10 +49,14 @@
     "@types/pino": "^7.0.4",
     "@types/stream-json": "^1.7.8",
     "@types/supertest": "^6.0.3",
+    "eslint": "^10.9.0",
+    "eslint-plugin-security": "^4.0.1",
+    "globals": "^17.11.0",
     "jest": "^30.2.0",
     "supertest": "^7.2.2",
     "ts-jest": "^29.4.6",
     "tsx": "^4.6.2",
-    "typescript": "^5.3.2"
+    "typescript": "^5.3.2",
+    "typescript-eslint": "^8.67.0"
   }
 }

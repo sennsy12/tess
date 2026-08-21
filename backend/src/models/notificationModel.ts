@@ -65,7 +65,7 @@ export const notificationModel = {
     const params: unknown[] = [...audienceParams, user.id];
     let paramIndex = params.length;
 
-    let readJoin = `LEFT JOIN notification_reads nr ON nr.notification_id = n.id AND nr.user_id = $${paramIndex}`;
+    const readJoin = `LEFT JOIN notification_reads nr ON nr.notification_id = n.id AND nr.user_id = $${paramIndex}`;
     let unreadFilter = '';
     if (unreadOnly) {
       unreadFilter = ' AND nr.notification_id IS NULL';

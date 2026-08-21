@@ -23,6 +23,8 @@ vi.mock('../../lib/api', () => ({
     login: vi.fn(),
     loginKunde: vi.fn(),
     verify: vi.fn(),
+    refresh: vi.fn(),
+    logout: vi.fn().mockResolvedValue({ data: { success: true } }),
   },
 }));
 
@@ -103,10 +105,10 @@ describe('AuthContext', () => {
     expect(screen.getByTestId('token').textContent).toBe('stored-jwt');
   });
 
-  it('login() stores token and user, updates context', async () => {
+  it('login() stores token, refresh token and user, updates context', async () => {
     const newUser = { id: 1, username: 'admin', role: 'admin' };
     mockLogin.mockResolvedValueOnce({
-      data: { token: 'new-jwt', user: newUser },
+      data: { token: 'new-jwt', refreshToken: 'new-refresh', user: newUser },
     });
 
     renderWithProviders();
@@ -119,6 +121,7 @@ describe('AuthContext', () => {
     });
     expect(JSON.parse(screen.getByTestId('user').textContent!)).toEqual(newUser);
     expect(sessionStorage.getItem('token')).toBe('new-jwt');
+    expect(sessionStorage.getItem('refreshToken')).toBe('new-refresh');
     expect(sessionStorage.getItem('user')).toBe(JSON.stringify(newUser));
   });
 
@@ -139,9 +142,10 @@ describe('AuthContext', () => {
     expect(JSON.parse(screen.getByTestId('user').textContent!)).toEqual(newUser);
   });
 
-  it('logout() clears token and user from context and sessionStorage', async () => {
+  it('logout() clears token, refresh token and user from context and sessionStorage', async () => {
     const storedUser = { id: 1, username: 'admin', role: 'admin' };
     sessionStorage.setItem('token', 'stored-jwt');
+    sessionStorage.setItem('refreshToken', 'stored-refresh');
     sessionStorage.setItem('user', JSON.stringify(storedUser));
 
     renderWithProviders();
@@ -159,6 +163,7 @@ describe('AuthContext', () => {
     });
     expect(screen.getByTestId('user').textContent).toBe('null');
     expect(sessionStorage.getItem('token')).toBeNull();
+    expect(sessionStorage.getItem('refreshToken')).toBeNull();
     expect(sessionStorage.getItem('user')).toBeNull();
   });
 

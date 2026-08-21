@@ -62,3 +62,16 @@ export const assistantLimiter = rateLimit({
     return userId != null ? `assistant:${userId}` : `assistant:ip:${req.ip}`;
   },
 });
+
+/** Customer order placement — per authenticated user (abuse protection). */
+export const orderCreateLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: isDevelopment ? 200 : 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'For mange bestillinger. Vennligst vent før du prøver igjen.' },
+  keyGenerator: (req: Request) => {
+    const userId = (req as AuthRequest).user?.id;
+    return userId != null ? `order-create:${userId}` : `order-create:ip:${req.ip}`;
+  },
+});

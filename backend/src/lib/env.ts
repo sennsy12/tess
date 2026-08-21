@@ -51,23 +51,34 @@ export type Env = z.infer<typeof envSchema>;
 export function validateEnv(): Env {
   const result = envSchema.safeParse(process.env);
 
-  if (!result.success) {
+  let env: Env;
+  if (result.success) {
+    env = result.data;
+  } else if (process.env.NODE_ENV === 'production') {
     console.error('❌ Invalid environment variables:');
     console.error(result.error.format());
-
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error('Invalid environment configuration in production');
+    throw new Error('Invalid environment configuration in production');
+  } else {
+    // Development: drop only the offending keys and re-parse with defaults,
+    // instead of re-parsing the identical input (which would throw again).
+    const sanitized: Record<string, string | undefined> = { ...process.env };
+    const offendingKeys = new Set<string>();
+    for (const issue of result.error.issues) {
+      const key = issue.path[0];
+      if (typeof key === 'string') offendingKeys.add(key);
     }
-
-    console.warn('⚠️ Continuing with defaults in development mode...');
+    for (const key of offendingKeys) {
+      console.warn(`⚠️ Ignoring invalid environment variable: ${key}`);
+      delete sanitized[key];
+    }
+    const retry = envSchema.safeParse(sanitized);
+    if (!retry.success) {
+      console.error('❌ Environment validation still failing after cleanup:');
+      console.error(retry.error.format());
+      throw new Error('Invalid environment configuration');
+    }
+    env = retry.data;
   }
-
-  const env = result.success
-    ? result.data
-    : envSchema.parse({
-        ...process.env,
-        NODE_ENV: process.env.NODE_ENV || 'development',
-      });
 
   // Additional production checks
   if (env.NODE_ENV === 'production') {
@@ -86,7 +97,20 @@ export function validateEnv(): Env {
       throw new Error('CRITICAL: ADMIN_ACTION_KEY must be set in production');
     }
     assertAdminActionKeyStrength(env.ADMIN_ACTION_KEY);
+    if (!env.FRONTEND_URL) {
+      throw new Error('CRITICAL: FRONTEND_URL must be set in production (used for CORS)');
+    }
+    try {
+      new URL(env.FRONTEND_URL);
+    } catch {
+      throw new Error('CRITICAL: FRONTEND_URL must be a valid absolute URL in production');
+    }
   }
+
+  // Propagate the validated NODE_ENV so modules that read process.env
+  // directly (e.g. db connection resolution, scheduler flags) observe the
+  // same value even when it was defaulted rather than explicitly set.
+  process.env.NODE_ENV = env.NODE_ENV;
 
   return env;
 }

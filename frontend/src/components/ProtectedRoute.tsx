@@ -1,9 +1,9 @@
-import { Navigate } from 'react-router-dom';
+import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
 
 interface ProtectedRouteProps {
-  children: React.ReactNode;
   allowedRoles: string[];
+  children?: React.ReactNode;
 }
 
 export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
@@ -22,7 +22,6 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
   }
 
   if (!allowedRoles.includes(user.role)) {
-    // Redirect to appropriate dashboard based on role
     if (user.role === 'admin') {
       return <Navigate to="/admin" replace />;
     } else if (user.role === 'kunde') {
@@ -33,5 +32,5 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
     return <Navigate to="/login" replace />;
   }
 
-  return <>{children}</>;
+  return <>{children ?? <Outlet />}</>;
 }

@@ -77,9 +77,9 @@ export function BarChart({
   };
 
   return (
-    <div className="chart-container bg-dark-900/40 backdrop-blur-sm border border-dark-800/50 rounded-xl p-5 shadow-lg shadow-black/10">
+    <div className="chart-container relative rounded-lg p-5">
       {title && <h3 className="text-lg font-semibold mb-6 text-dark-100 flex items-center gap-2">
-        <span className="w-1 h-5 bg-primary-500 rounded-full"></span>
+        <span className="w-0.5 h-5 bg-gold-500 rounded-full"></span>
         {title}
       </h3>}
       <ResponsiveContainer width="100%" height={height}>
@@ -116,7 +116,7 @@ export function BarChart({
             contentStyle={{
               backgroundColor: 'rgba(15, 23, 42, 0.75)',
               backdropFilter: 'blur(12px)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
+              border: '1px solid rgba(201, 169, 98, 0.22)',
               borderRadius: '16px',
               boxShadow: '0 4px 30px rgba(0, 0, 0, 0.5)',
               padding: '12px 16px',
@@ -132,7 +132,7 @@ export function BarChart({
               fontSize: '12px',
               marginBottom: '8px',
               fontWeight: '500',
-              borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+              borderBottom: '1px solid rgba(201, 169, 98, 0.18)',
               paddingBottom: '8px',
             }}
             formatter={(value: number) => [tooltipFormatter(value), seriesName]}

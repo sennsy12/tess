@@ -1,6 +1,7 @@
-import { customerGroupModel, priceListModel, priceRuleModel } from '../models/pricingModel.js';
+import { priceRuleModel } from '../models/pricingModel.js';
 import { PriceCalculationInput, PriceCalculationResult, PriceRule } from '../types/pricing.js';
 import { query } from '../db/index.js';
+import { applyBestRule, formatRuleName } from './pricingMath.js';
 
 /**
  * Pricing Service
@@ -42,74 +43,17 @@ export const pricingService = {
     });
 
     // Default result: no discount
-    const result: PriceCalculationResult = {
-      original_price: base_price * quantity,
-      final_price: base_price * quantity,
-      unit_price: base_price,
-      discount_applied: false,
-      discount_percent: null,
-      discount_amount: 0,
-      applied_rule_id: null,
-      applied_rule_name: null,
-      applied_list_name: null
-    };
-
-    // No applicable rules
     if (applicableRules.length === 0) {
-      return result;
+      return applyBestRule(base_price, quantity, []);
     }
 
-    // Apply the best rule (first in sorted list)
-    const bestRule = applicableRules[0] as PriceRule & { price_list_name: string; list_priority: number };
-    
-    let finalUnitPrice = base_price;
-
-    if (bestRule.fixed_price !== null) {
-      // Fixed price override
-      finalUnitPrice = Number(bestRule.fixed_price);
-      result.discount_percent = Math.round(((base_price - finalUnitPrice) / base_price) * 100 * 100) / 100;
-    } else if (bestRule.discount_percent !== null) {
-      // Percentage discount
-      const discountMultiplier = 1 - (Number(bestRule.discount_percent) / 100);
-      finalUnitPrice = Math.round(base_price * discountMultiplier * 100) / 100;
-      result.discount_percent = Number(bestRule.discount_percent);
-    }
-
-    result.unit_price = finalUnitPrice;
-    result.final_price = Math.round(finalUnitPrice * quantity * 100) / 100;
-    result.discount_amount = Math.round((result.original_price - result.final_price) * 100) / 100;
-    result.discount_applied = result.discount_amount > 0;
-    result.applied_rule_id = bestRule.id;
-    result.applied_rule_name = pricingService.formatRuleName(bestRule);
-    result.applied_list_name = bestRule.price_list_name;
-
-    return result;
+    return applyBestRule(base_price, quantity, applicableRules as Array<PriceRule & { price_list_name: string }>);
   },
 
   /**
    * Format a human-readable rule name
    */
-  formatRuleName: (rule: PriceRule): string => {
-    const parts: string[] = [];
-
-    if (rule.discount_percent !== null) {
-      parts.push(`${rule.discount_percent}% rabatt`);
-    } else if (rule.fixed_price !== null) {
-      parts.push(`Fast pris ${rule.fixed_price}`);
-    }
-
-    if (rule.varekode) {
-      parts.push(`på ${rule.varekode}`);
-    } else if (rule.varegruppe) {
-      parts.push(`på ${rule.varegruppe}`);
-    }
-
-    if (rule.min_quantity > 1) {
-      parts.push(`ved ${rule.min_quantity}+ stk`);
-    }
-
-    return parts.join(' ') || 'Prisregel';
-  },
+  formatRuleName: (rule: PriceRule): string => formatRuleName(rule),
 
   /**
    * Get all applicable rules for a customer (for UI preview)

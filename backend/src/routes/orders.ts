@@ -2,7 +2,8 @@ import { Router } from 'express';
 import { authMiddleware, roleGuard } from '../middleware/auth.js';
 import { orderController } from '../controllers/orderController.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
-import { validate, orderQuerySchema, searchQuerySchema, updateOrderStatusSchema } from '../middleware/validation.js';
+import { validate, orderQuerySchema, searchQuerySchema, updateOrderStatusSchema, createOrderSchema } from '../middleware/validation.js';
+import { orderCreateLimiter } from '../middleware/rateLimit.js';
 
 export const ordersRouter = Router();
 
@@ -18,6 +19,24 @@ ordersRouter.get(
   authMiddleware,
   validate(searchQuerySchema, 'query'),
   asyncHandler(orderController.searchReferences),
+);
+
+// Place a customer order from the cart (kunde; admin may act on behalf)
+ordersRouter.post(
+  '/',
+  authMiddleware,
+  roleGuard('kunde', 'admin'),
+  orderCreateLimiter,
+  validate(createOrderSchema),
+  asyncHandler(orderController.create),
+);
+
+// Cancel an order awaiting approval (owning kunde or admin)
+ordersRouter.patch(
+  '/:ordrenr/cancel',
+  authMiddleware,
+  roleGuard('kunde', 'admin'),
+  asyncHandler(orderController.cancel),
 );
 
 // Update order workflow status (admin only)

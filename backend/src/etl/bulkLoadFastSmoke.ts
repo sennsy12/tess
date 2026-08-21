@@ -15,10 +15,8 @@ async function main() {
     const result = await runBulkLoadFast({ totalOrders, customers, linesPerOrder });
     // Print a concise JSON summary so it is easy to inspect from the terminal.
     // Includes rows/sec and total rows inserted.
-    // eslint-disable-next-line no-console
     console.log(JSON.stringify(result, null, 2));
   } catch (error) {
-    // eslint-disable-next-line no-console
     console.error('bulkLoadFast smoke test failed:', error);
     process.exitCode = 1;
   }
