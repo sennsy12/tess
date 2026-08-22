@@ -20,6 +20,7 @@ import { auditRouter } from './routes/audit.js';
 import { usersRouter } from './routes/users.js';
 import { assistantRouter } from './routes/assistant.js';
 import { notificationsRouter } from './routes/notifications.js';
+import { clientEventsRouter } from './routes/clientEvents.js';
 import { initializeDefaultJobs, stopAllJobs } from './scheduler/index.js';
 import { initEtlQueue, stopEtlQueue } from './etl/etlQueue.js';
 import { apiMetricsMiddleware } from './middleware/apiMetrics.js';
@@ -123,6 +124,8 @@ app.get('/api/health/ready', async (_req, res) => {
 
 // Routes
 app.use('/api/auth', authRouter);
+// Unauthenticated browser telemetry — must be reachable for logged-out users.
+app.use('/api', clientEventsRouter);
 app.use('/api/orders', ordersRouter);
 app.use('/api/orderlines', orderlinesRouter);
 app.use('/api/statistics', statisticsRouter);
@@ -195,7 +198,25 @@ async function startServer() {
     process.exit(1);
   }
 
+  // Create the first admin account if none exists (env-driven; prod requires
+  // ADMIN_PASSWORD). Must run after migrations so `users` exists.
+  try {
+    const { bootstrapDefaultAdmin } = await import('./db/bootstrapAdmin.js');
+    await bootstrapDefaultAdmin();
+  } catch (err) {
+    logger.fatal({ err }, 'Admin bootstrap failed');
+    process.exit(1);
+  }
+
   initializeDefaultJobs();
+
+  // Heal missing fact-table FKs/indexes left by a crashed bulk ETL run.
+  try {
+    const { ensureFactTableIntegrity } = await import('./etl/bulkLoadFast/integrity.js');
+    await ensureFactTableIntegrity();
+  } catch (err) {
+    logger.warn({ err }, 'Fact-table integrity check failed — bulk ETL will retry it before loading');
+  }
 
   try {
     await initEtlQueue();

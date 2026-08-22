@@ -11,7 +11,8 @@
     "test": "jest",
     "lint": "eslint src",
     "lint:fix": "eslint src --fix",
-    "test:load:etl": "k6 run load-tests/etl-streaming.js"
+    "test:load:etl": "k6 run load-tests/etl-streaming.js",
+    "test:integration": "jest src/tests/integration --runInBand"
   },
   "dependencies": {
     "bcrypt": "^5.1.1",

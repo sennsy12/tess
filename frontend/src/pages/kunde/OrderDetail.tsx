@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { AnimatePresence, motion } from 'framer-motion';
-import { XCircle } from 'lucide-react';
+import { Repeat, XCircle } from 'lucide-react';
 import { Layout } from '../../components/Layout';
 import { Breadcrumb } from '../../components/Breadcrumb';
 import { OrderTimeline } from '../../components/OrderTimeline';
@@ -13,6 +13,9 @@ import { QueryErrorBanner } from '../../components/QueryErrorBanner';
 import { ordersApi } from '../../lib/api';
 import { downloadOrderCsv } from '../../lib/orderExport';
 import { getApiError } from '../../lib/apiErrors';
+import { addOrderToCart } from '../../lib/reorder';
+import { downloadOrderPdf } from '../../lib/orderPdf';
+import { useCart } from '../../context/useCart';
 import { KUNDE_CANCELLABLE_STATUSES, type OrderWorkflowStatus } from '../../types/notification';
 import type { OrderDetail } from '../../types/order';
 
@@ -20,8 +23,10 @@ export function KundeOrderDetail() {
   const { ordrenr } = useParams<{ ordrenr: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const cart = useCart();
   const orderId = ordrenr ? parseInt(ordrenr, 10) : NaN;
   const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
+  const [isPdfBusy, setIsPdfBusy] = useState(false);
 
   const { data: order, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['kunde', 'order', orderId],
@@ -48,6 +53,30 @@ export function KundeOrderDetail() {
   const cancellable =
     order != null &&
     KUNDE_CANCELLABLE_STATUSES.includes((order.workflow_status ?? 'new') as OrderWorkflowStatus);
+
+  const handleDownloadPdf = async () => {
+    if (!order || isPdfBusy) return;
+    setIsPdfBusy(true);
+    try {
+      await downloadOrderPdf(order);
+    } catch {
+      toast.error('Kunne ikke generere PDF');
+    } finally {
+      setIsPdfBusy(false);
+    }
+  };
+
+  const handleReorder = () => {
+    if (!order) return;
+    const result = addOrderToCart(order, cart.addItem);
+    if (result.added === 0) {
+      toast.error('Ingen gyldige varer å bestille igjen');
+      return;
+    }
+    const skippedNote = result.skipped > 0 ? ` (${result.skipped} ugyldige linjer hoppet over)` : '';
+    toast.success(`${result.added} varer lagt i handlekurven${skippedNote}`);
+    navigate('/kunde/order/new');
+  };
 
   const errorMessage =
     (error as { response?: { data?: { error?: string } } })?.response?.data?.error ||
@@ -90,7 +119,23 @@ export function KundeOrderDetail() {
           <button type="button" onClick={() => navigate('/kunde/orders')} className="btn-secondary">
             ← Tilbake til ordrer
           </button>
-          <button type="button" onClick={() => downloadOrderCsv(order)} className="btn-primary">
+          <button
+            type="button"
+            onClick={handleReorder}
+            className="btn-primary flex items-center gap-2"
+          >
+            <Repeat className="h-4 w-4" aria-hidden />
+            Bestill igjen
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleDownloadPdf()}
+            className="btn-secondary"
+            disabled={isPdfBusy}
+          >
+            {isPdfBusy ? 'Genererer…' : 'Last ned PDF'}
+          </button>
+          <button type="button" onClick={() => downloadOrderCsv(order)} className="btn-secondary">
             Last ned CSV
           </button>
           {cancellable && (

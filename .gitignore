@@ -5,6 +5,8 @@ coverage/
 .env.local
 .env.prod
 .env.prod.test
+*.tsbuildinfo
+data/
 *.log
 .DS_Store
 uploads/

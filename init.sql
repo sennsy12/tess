@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS public.vare
     varekode text PRIMARY KEY,
     varenavn text,
     varegruppe text,
-    base_price double precision NOT NULL DEFAULT 0
+    base_price DECIMAL(12,2) NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS public.ordre
@@ -66,7 +66,7 @@ CREATE TABLE IF NOT EXISTS public.ordre
     firmaid integer,
     lagernavn text,
     valutaid text,
-    sum double precision,
+    sum DECIMAL(12,2),
     workflow_status text NOT NULL DEFAULT 'new'
         CHECK (workflow_status IN ('new', 'pending_approval', 'approved', 'rejected', 'processing', 'shipped', 'invoiced', 'cancelled')),
     status_updated_at TIMESTAMP,
@@ -82,10 +82,10 @@ CREATE TABLE IF NOT EXISTS public.ordrelinje
     linjenr integer,
     ordrenr integer,
     varekode text,
-    antall real,
+    antall DECIMAL(12,3),
     enhet text,
-    nettpris double precision,
-    linjesum double precision,
+    nettpris DECIMAL(12,2),
+    linjesum DECIMAL(12,2),
     linjestatus integer,
     PRIMARY KEY (linjenr, ordrenr),
     FOREIGN KEY (ordrenr) REFERENCES public.ordre(ordrenr),
@@ -130,15 +130,10 @@ INSERT INTO public.valuta (valutaid) VALUES
 ('GBP')
 ON CONFLICT DO NOTHING;
 
--- NOTE: Admin user should be created securely during deployment
--- Do NOT use these default passwords in production!
--- Use: node backend/src/scripts/genHash.js <your-secure-password>
-
--- Default admin user for initial setup only (password: admin123)
--- CHANGE THIS PASSWORD IMMEDIATELY AFTER FIRST LOGIN
-INSERT INTO public.users (username, password_hash, role) 
-VALUES ('admin', '$2b$10$55MITFPNmmdu9pau6zk9Iul2mIJU0g.hJccUnCfYT.9ChAfcUz20W', 'admin')
-ON CONFLICT (username) DO NOTHING;
+-- NOTE: No admin user is seeded here. The first admin account is created
+-- securely at backend startup from ADMIN_USERNAME / ADMIN_PASSWORD env vars
+-- (see backend/src/db/bootstrapAdmin.ts). In production, ADMIN_PASSWORD is
+-- REQUIRED (min 12 chars) or the server refuses to start.
 
 -- ============================================================
 -- PERFORMANCE INDEXES (Critical for millions of rows)

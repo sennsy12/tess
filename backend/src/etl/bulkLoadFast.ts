@@ -16,6 +16,7 @@ import {
   HENVISNING_COLS,
 } from './bulkLoadFast/shared.js';
 import { setSessionWorkMem, createUnloggedStagingTables } from './bulkLoadFast/sessionSetup.js';
+import { ensureFactTableIntegrity } from './bulkLoadFast/integrity.js';
 import {
   generateOrdreCopyBuffers,
   generateOrdrelinjeCopyBuffers,
@@ -74,6 +75,9 @@ export async function runBulkLoadFast(config: BulkFastConfig): Promise<{
       { stage: 'bulk-fast-start', totalOrders, customers, linesPerOrder, jobId },
       'Starting fast bulk load using unlogged staging tables and sequential COPY'
     );
+
+    // Heal any missing FKs/indexes left behind by a previously crashed run.
+    await ensureFactTableIntegrity(client);
 
     await setSessionWorkMem(client);
     await createUnloggedStagingTables(client);

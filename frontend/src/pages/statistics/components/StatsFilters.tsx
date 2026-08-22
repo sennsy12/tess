@@ -1,9 +1,15 @@
 import { useState, useEffect } from 'react';
-import { RotateCcw } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { Download, RotateCcw } from 'lucide-react';
 import { ExportButton } from '../../../components/ExportButton';
 import { AutocompleteInput } from '../../../components/AutocompleteInput';
 import { toDateInputLocal } from '../../../lib/formatters';
+import { downloadCsv } from '../../../lib/csv';
 import { usePricingProductGroups } from '../../../hooks/pricing/usePricingQueries';
+import {
+  buildStatsExportRows,
+  fetchAllStatRows,
+} from '../statisticsUtils';
 import { StatsFiltersProps, StatType } from '../../../types/statistics';
 
 const STAT_TYPES: { value: StatType; label: string }[] = [
@@ -33,6 +39,7 @@ export function StatsFilters({
 }: StatsFiltersProps) {
   const { data: varegrupper = [] } = usePricingProductGroups();
   const [localVaregruppe, setLocalVaregruppe] = useState(filters.varegruppe);
+  const [isExportingCsv, setIsExportingCsv] = useState(false);
 
   useEffect(() => {
     setLocalVaregruppe(filters.varegruppe);
@@ -90,6 +97,28 @@ export function StatsFilters({
     setFilters({ kundenr: '', varegruppe: '' });
     setCompareEnabled(false);
     setLocalVaregruppe('');
+  };
+
+  const handleCsvExport = async () => {
+    setIsExportingCsv(true);
+    try {
+      const rows = await fetchAllStatRows(statType, {
+        startDate: dateRange.startDate || undefined,
+        endDate: dateRange.endDate || undefined,
+        kundenr: filters.kundenr || undefined,
+        varegruppe: filters.varegruppe || undefined,
+      });
+      if (rows.length === 0) {
+        toast.error('Ingen data å eksportere for valgt periode');
+        return;
+      }
+      downloadCsv(`${exportFilenamePrefix}-${statType}-data`, buildStatsExportRows(rows, statType));
+      toast.success(`${rows.length} rader eksportert til CSV`);
+    } catch {
+      toast.error('Kunne ikke eksportere statistikken');
+    } finally {
+      setIsExportingCsv(false);
+    }
   };
 
   return (
@@ -248,6 +277,16 @@ export function StatsFilters({
           >
             <RotateCcw className="h-4 w-4" aria-hidden />
             Nullstill
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleCsvExport()}
+            disabled={isExportingCsv}
+            className="btn-secondary py-2 text-sm flex items-center gap-1.5 disabled:opacity-50"
+            title="Eksporter hele datasettet (alle sider) som CSV"
+          >
+            <Download className="h-4 w-4" aria-hidden />
+            {isExportingCsv ? 'Eksporterer…' : 'Eksporter CSV'}
           </button>
           <ExportButton targetRef={chartRef} filename={`${exportFilenamePrefix}-${statType}`} />
         </div>

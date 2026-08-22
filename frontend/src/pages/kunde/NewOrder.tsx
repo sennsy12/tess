@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { Layout } from '../../components/Layout';
 import { EmptyState } from '../../components/EmptyState';
+import { OrderPad } from '../../components/orders/OrderPad';
 import { catalogApi, ordersApi, productsApi } from '../../lib/api';
 import type { CatalogProduct } from '../../lib/api/catalog';
 import { catalogKeys } from '../../lib/queryKeys';
@@ -157,6 +158,8 @@ export function NewOrder() {
               ))}
             </select>
           </div>
+
+          <OrderPad />
 
           {catalogQuery.isError ? (
             <EmptyState

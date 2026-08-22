@@ -12,6 +12,9 @@ import dotenv from 'dotenv';
 import { dbLogger } from '../lib/logger.js';
 import { getEnv } from '../lib/env.js';
 
+// Parse NUMERIC/DECIMAL as JS numbers (money columns are DECIMAL post-migration).
+import './typeParsers.js';
+
 dotenv.config();
 
 // DATABASE_URL falls back to a local dev credential only when the validated

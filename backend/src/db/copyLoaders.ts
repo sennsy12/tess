@@ -171,6 +171,13 @@ export interface CopyFromLineStreamOptions {
    * before merging ordrelinje).
    */
   beforeFinalInsert?: () => Promise<void>;
+  /**
+   * Set to true once the first source chunk has been written to the COPY
+   * stream. Callers use this to decide whether a retry is safe: once any
+   * data has been pulled from (and consumed) the source stream, retrying
+   * with the same source would silently skip rows.
+   */
+  streamProbe?: { streamedAny: boolean };
 }
 
 /**
@@ -237,6 +244,7 @@ export const copyFromLineStream = async (
           const iterator: AsyncIterable<string> =
             source instanceof Readable ? source : source;
           for await (const chunk of iterator) {
+            if (options.streamProbe) options.streamProbe.streamedAny = true;
             if (!copyStream.write(chunk)) {
               await once(copyStream, 'drain');
             }

@@ -6,6 +6,13 @@ import { topN } from '../../../../lib/chartUtils';
 import { WidgetError } from './WidgetError';
 
 export function TopCustomersWidget({ data, isLoading, isError, onRetry }: TopCustomersWidgetProps) {
+  // Hooks must run before any conditional return (rules of hooks).
+  const maxRevenue = useMemo(() => Math.max(...data.map(c => Number(c.total_revenue) || 0), 1), [data]);
+  const topCustomers = useMemo(
+    () => topN(data, 10, (customer) => Number(customer.total_revenue) || 0),
+    [data],
+  );
+
   if (isError) {
     return (
       <div className="card">
@@ -20,12 +27,6 @@ export function TopCustomersWidget({ data, isLoading, isError, onRetry }: TopCus
     if (!dateStr) return '-';
     return new Date(dateStr).toLocaleDateString('nb-NO', { day: 'numeric', month: 'short', year: 'numeric' });
   };
-
-  const maxRevenue = useMemo(() => Math.max(...data.map(c => Number(c.total_revenue) || 0), 1), [data]);
-  const topCustomers = useMemo(
-    () => topN(data, 10, (customer) => Number(customer.total_revenue) || 0),
-    [data],
-  );
 
   if (isLoading) {
     return (

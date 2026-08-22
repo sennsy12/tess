@@ -1,11 +1,12 @@
 import { Suspense, lazy } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryCache, QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'react-hot-toast'
 import { AuthProvider } from './context/AuthContext.tsx'
 import { CartProvider } from './context/CartProvider.tsx'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { RouteErrorBoundary } from './components/RouteErrorBoundary'
+import { isServerError, reportError } from './lib/observability'
 
 const Login = lazy(() => import('./pages/Login').then((m) => ({ default: m.Login })))
 const Settings = lazy(() => import('./pages/Settings').then((m) => ({ default: m.Settings })))
@@ -23,6 +24,7 @@ const AnalyseDashboard = lazy(() => import('./pages/analyse/Dashboard').then((m)
 const AnalyseStatistics = lazy(() => import('./pages/analyse/Statistics').then((m) => ({ default: m.AnalyseStatistics })))
 
 const AdminDashboard = lazy(() => import('./pages/admin/Dashboard').then((m) => ({ default: m.AdminDashboard })))
+const AdminApprovals = lazy(() => import('./pages/admin/Approvals').then((m) => ({ default: m.AdminApprovals })))
 const AdminOrderLines = lazy(() => import('./pages/admin/OrderLines').then((m) => ({ default: m.AdminOrderLines })))
 const AdminStatus = lazy(() => import('./pages/admin/Status').then((m) => ({ default: m.AdminStatus })))
 const AdminETL = lazy(() => import('./pages/admin/ETL').then((m) => ({ default: m.AdminETL })))
@@ -37,6 +39,13 @@ const AdminProducts = lazy(() => import('./pages/admin/Products').then((m) => ({
 const AdminAudit = lazy(() => import('./pages/admin/Audit').then((m) => ({ default: m.AdminAudit })))
 
 const queryClient = new QueryClient({
+  queryCache: new QueryCache({
+    onError: (error) => {
+      if (isServerError(error) && !('isAxiosError' in error)) {
+        reportError(error, { source: 'react-query' })
+      }
+    },
+  }),
   defaultOptions: {
     queries: {
       staleTime: 5 * 60 * 1000,
@@ -117,6 +126,7 @@ function App() {
 
           <Route element={<ProtectedLayout allowedRoles={['admin']} />}>
             <Route path="/admin" element={<AdminDashboard />} />
+            <Route path="/admin/approvals" element={<AdminApprovals />} />
             <Route path="/admin/orderlines" element={<AdminOrderLines />} />
             <Route path="/admin/status" element={<AdminStatus />} />
             <Route path="/admin/etl" element={<AdminETL />} />

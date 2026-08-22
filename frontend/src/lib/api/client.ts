@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { notifyApiError } from '../apiErrors';
 import { emitAuthUnauthorized, resetAuthUnauthorized } from '../auth/authEvents';
+import { reportEvent } from '../observability';
 import {
   AUTH_TOKEN_KEY,
   clearRefreshToken,
@@ -105,6 +106,7 @@ api.interceptors.response.use(
         status,
         url,
       });
+      reportEvent('api_error', { status: status ?? 0, url, method: config.method });
     }
     return Promise.reject(error);
   }

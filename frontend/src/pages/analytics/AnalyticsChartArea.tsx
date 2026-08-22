@@ -167,8 +167,8 @@ export function AnalyticsChartArea({
             )}
           </div>
 
-          <div className="table-container overflow-x-auto">
-            <table className="w-full text-left">
+          <div className="table-container overflow-x-auto scrollbar-thin scrollbar-thumb-dark-700 scrollbar-track-transparent">
+            <table className="w-full table-fixed text-left">
               <thead>
                 <tr>
                   <th className="table-header" aria-sort={sort.key === 'label' ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
@@ -181,7 +181,7 @@ export function AnalyticsChartArea({
                       {renderSortIcon('label')}
                     </button>
                   </th>
-                  <th className="table-header text-right" aria-sort={sort.key === 'value' ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                  <th className="table-header w-[18%] text-right" aria-sort={sort.key === 'value' ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
                     <button
                       type="button"
                       onClick={() => toggleSort('value')}
@@ -191,7 +191,7 @@ export function AnalyticsChartArea({
                       {renderSortIcon('value')}
                     </button>
                   </th>
-                  <th className="table-header w-[30%]">Andel av totalt</th>
+                  <th className="table-header w-[28%]">Andel av totalt</th>
                 </tr>
               </thead>
               <tbody>
@@ -204,7 +204,12 @@ export function AnalyticsChartArea({
                     const share = totalValue > 0 ? (item.value / totalValue) * 100 : 0;
                     return (
                       <tr key={item.label} className="table-row">
-                        <td className="table-cell font-medium text-dark-100">{item.label}</td>
+                        <td
+                          className="table-cell overflow-hidden text-ellipsis whitespace-nowrap font-medium text-dark-100"
+                          title={item.label}
+                        >
+                          {item.label}
+                        </td>
                         <td className="table-cell text-right tabular-nums">{valueFormatter(item.value)}</td>
                         <td className="table-cell">
                           <div className="flex items-center gap-2">

@@ -23,8 +23,9 @@ export function useLocalStorageState<T>(
   key: string,
   initial: T,
 ): [T, (value: T | ((prev: T) => T)) => void] {
-  const initialRef = useRef(initial);
-  const [state, setState] = useState<T>(() => readStoredValue(key, initialRef.current));
+  // The lazy initializer runs once; `initial` is captured directly rather
+  // than via a ref (refs must not be read during render).
+  const [state, setState] = useState<T>(() => readStoredValue(key, initial));
   // Mirror of the latest committed state so the setter can compute the next
   // value without a functional update.
   const stateRef = useRef(state);
@@ -47,10 +48,10 @@ export function useLocalStorageState<T>(
   );
 
   useEffect(() => {
-    const stored = readStoredValue(key, initialRef.current);
+    const stored = readStoredValue(key, initial);
     stateRef.current = stored;
     setState(stored);
-  }, [key]);
+  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps -- `initial` is only the seed value
 
   return [state, setStoredState];
 }

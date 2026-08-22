@@ -43,6 +43,12 @@ export function AnalyseDashboard() {
     },
   });
 
+  // Hooks must run before any conditional return (rules of hooks).
+  const timeSeries = useMemo(
+    () => fillMissingPeriods(data?.timeSeries ?? [], 'month'),
+    [data?.timeSeries],
+  );
+
   if (isLoading) {
     return (
       <Layout title="Analyse Dashboard">
@@ -84,10 +90,6 @@ export function AnalyseDashboard() {
   const summary = data?.summary ?? null;
   const kundeStats = data?.kundeStats ?? [];
   const varegruppeStats = data?.varegruppeStats ?? [];
-  const timeSeries = useMemo(
-    () => fillMissingPeriods(data?.timeSeries ?? [], 'month'),
-    [data?.timeSeries],
-  );
 
   return (
     <Layout title="Analyse Dashboard">

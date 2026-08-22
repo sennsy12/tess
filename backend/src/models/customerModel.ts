@@ -31,7 +31,7 @@ const PROFILE_SQL = `
   WITH order_stats AS (
     SELECT
       COUNT(*)::int AS order_count,
-      COALESCE(SUM(sum), 0)::double precision AS total_revenue,
+      COALESCE(SUM(sum), 0) AS total_revenue,
       COUNT(*) FILTER (WHERE ${SQL_ACTIVE_ORDER_WHERE})::int AS active_orders,
       MIN(dato)::text AS first_order_date,
       MAX(dato)::text AS last_order_date

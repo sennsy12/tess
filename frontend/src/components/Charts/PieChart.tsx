@@ -38,7 +38,7 @@ export function PieChart({
 
   // Custom label renderer: truncates name, shows percent
   const renderLabel = ({ name, percent, cx, x, y }: any) => {
-    const truncated = truncateLabel(name, 10);
+    const truncated = truncateLabel(name ?? '', 10);
     // Shift labels a bit further from center so they don't overlap the donut
     const isRight = x > cx;
     return (
@@ -65,7 +65,7 @@ export function PieChart({
           <span
             key={`legend-${index}`}
             className="flex items-center gap-1.5 text-xs text-dark-300"
-            title={entry.value}
+            title={String(entry.value ?? '')}
           >
             <span
               className="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0"

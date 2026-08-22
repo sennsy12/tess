@@ -11,7 +11,7 @@ import {
   registerJob,
   updateJobProgress,
 } from '../../jobRegistry.js';
-import { deleteCheckpoint, loadCheckpoint, saveCheckpoint } from '../../checkpoint.js';
+import { deleteCheckpoint, loadCheckpoint } from '../../checkpoint.js';
 import { createDeadLetterCollector } from '../../deadLetter.js';
 import { recordEtlFailure } from '../../etlFailures.js';
 import { readableFromAsyncIterator } from '../backpressure.js';
@@ -22,7 +22,7 @@ import {
   StreamingEtlResult,
 } from '../types.js';
 import { getSourceStream, SourceStreamOptions } from './sourceStream.js';
-import { CHECKPOINT_SAVE_INTERVAL, mapRow, withRetries } from './helpers.js';
+import { mapRow } from './helpers.js';
 
 export async function runStreamingEtl(config: StreamingEtlRequest): Promise<StreamingEtlResult> {
   if (config.onConflict === 'upsert' && (!config.upsertKeyColumns?.length)) {
@@ -163,20 +163,13 @@ export async function runStreamingEtl(config: StreamingEtlRequest): Promise<Stre
         }
       }
 
-      if (checkpointEnabled && jobId && attemptedRows % CHECKPOINT_SAVE_INTERVAL === 0) {
-        const resumeState =
-          config.sourceType === 'api' && resumeStateRef
-            ? resumeStateRef.current
-            : { skipRows: attemptedRows };
-        await saveCheckpoint({
-          jobId,
-          table: config.table,
-          lastProcessedIndex: attemptedRows,
-          lastProcessedAt: new Date().toISOString(),
-          resumeState: Object.keys(resumeState).length > 0 ? resumeState : undefined,
-          columnPlan,
-        });
-      }
+      // NOTE: No mid-stream checkpointing here, by design. COPY loads commit
+      // atomically at the end of the stream (temp table + single INSERT..COMMIT
+      // in copyLoaders). A checkpoint written mid-stream would claim rows were
+      // "processed" when nothing was committed yet — resuming from it after a
+      // crash silently skipped those rows forever. The only safe resume points
+      // are job start (nothing committed → restart from scratch, which the
+      // atomic commit makes lossless) and completion (checkpoint deleted).
     }
   }
 
@@ -187,32 +180,60 @@ export async function runStreamingEtl(config: StreamingEtlRequest): Promise<Stre
 
   let insertedRows: number;
   try {
-    insertedRows = await withRetries(
-      () =>
-        copyFromLineStream(
-          config.table,
-          columnPlan.map((c) => c.dbColumn),
-          lineStream,
-          onConflict,
-          {
-            upsertKeyColumns: config.upsertKeyColumns,
-            upsertUpdateColumns: config.upsertUpdateColumns,
-            onProgress: (rowsStreamed) => {
-              if (jobId) {
-                updateJobProgress(jobId, {
-                  attemptedRows,
-                  insertedRows: rowsStreamed,
-                  rejectedRows,
-                  deadLetterCount: deadLetter?.totalCount?.() ?? deadLetter?.count() ?? 0,
-                });
-                broadcastProgress(jobId);
-              }
-            },
-            progressInterval: progressInterval,
+    // Retry only while the source stream has NOT been consumed: once any
+    // chunk has been pulled, a retry would silently skip rows and report a
+    // bogus partial success. In that case, fail loudly instead.
+    const streamProbe = { streamedAny: false };
+    const copyOptions = () => ({
+      upsertKeyColumns: config.upsertKeyColumns,
+      upsertUpdateColumns: config.upsertUpdateColumns,
+      onProgress: (rowsStreamed: number) => {
+        if (jobId) {
+          updateJobProgress(jobId, {
+            attemptedRows,
+            insertedRows: rowsStreamed,
+            rejectedRows,
+            deadLetterCount: deadLetter?.totalCount?.() ?? deadLetter?.count() ?? 0,
+          });
+          broadcastProgress(jobId);
+        }
+      },
+      progressInterval: progressInterval,
+      streamProbe,
+    });
+
+    insertedRows = await (async () => {
+      const maxAttempts = 3;
+      for (let attempt = 1; ; attempt++) {
+        streamProbe.streamedAny = false;
+        try {
+          return await copyFromLineStream(
+            config.table,
+            columnPlan.map((c) => c.dbColumn),
+            lineStream,
+            onConflict,
+            copyOptions()
+          );
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          if (streamProbe.streamedAny || attempt >= maxAttempts) {
+            if (streamProbe.streamedAny) {
+              etlLogger.error(
+                { table: config.table, attempt, err: message },
+                'COPY failed after source data was consumed; not retrying to avoid silent data loss'
+              );
+            }
+            throw err;
           }
-        ),
-      `copy-${config.table}`
-    );
+          const delayMs = 300 * attempt + Math.floor(Math.random() * 120);
+          etlLogger.warn(
+            { table: config.table, attempt, delayMs, err: message },
+            'COPY failed before consuming source data; retrying'
+          );
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+        }
+      }
+    })();
   } catch (err) {
     const isAbort = err instanceof DOMException && err.name === 'AbortError';
     const message = err instanceof Error ? err.message : String(err);

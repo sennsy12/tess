@@ -39,7 +39,10 @@ function resolveUpsertKeys(table: EtlTableName, body: EtlIngestBody): string[] |
 }
 
 /** Execute a streaming ETL ingest job (shared by sync and async paths). */
-export async function executeIngestJob(payload: EtlIngestJobPayload) {
+export async function executeIngestJob(
+  payload: EtlIngestJobPayload,
+  retryInfo?: { retryCount: number; retryLimit: number }
+) {
   const { jobId, body, uploadedFilePath } = payload;
   const {
     sourceType,
@@ -63,6 +66,11 @@ export async function executeIngestJob(payload: EtlIngestJobPayload) {
   const abortController = new AbortController();
   setJobAbortController(jobId, abortController);
   registerJob(jobId, table, sourceType as EtlSourceType);
+
+  // Upload retention: with pg-boss retries enabled, deleting the upload in a
+  // blind finally would guarantee "file not found" on every retry attempt.
+  // Keep the file when this attempt failed AND another retry remains.
+  let failedWithRetryRemaining = false;
 
   try {
     const result = await runStreamingEtl({
@@ -104,17 +112,40 @@ export async function executeIngestJob(payload: EtlIngestJobPayload) {
     return result;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    const isAbort = err instanceof DOMException && err.name === 'AbortError';
+    const isAbort = isIngestCancellation(err);
     if (!isAbort) {
       failJob(jobId, message);
+      failedWithRetryRemaining =
+        retryInfo !== undefined && retryInfo.retryCount < retryInfo.retryLimit;
+    } else if (retryInfo) {
+      // Cancellations are deliberate; make sure the queue never resurrects
+      // them via retry (the worker also swallows these to complete cleanly).
+      etlLogger.info({ jobId }, 'Queued ETL job was cancelled — no retry will be scheduled');
     }
     throw err;
   } finally {
     clearJobAbortController(jobId);
-    if (uploadedFilePath) {
+    if (uploadedFilePath && !failedWithRetryRemaining) {
       await unlinkIfExists(uploadedFilePath);
+    } else if (uploadedFilePath) {
+      etlLogger.warn(
+        { jobId, uploadedFilePath },
+        'Keeping uploaded file for pending ETL retry attempt'
+      );
     }
   }
+}
+
+/**
+ * True when the pipeline stopped because someone asked it to stop (abort
+ * signal) or hit a user-facing limit (rows/duration/dead-letter/heap). These
+ * are deliberate stops recorded as `cancelled` in the job registry and must
+ * never be retried by the queue.
+ */
+export function isIngestCancellation(err: unknown): boolean {
+  if (err instanceof DOMException && err.name === 'AbortError') return true;
+  const message = err instanceof Error ? err.message : String(err);
+  return typeof message === 'string' && message.startsWith('cancelled_limit_');
 }
 
 export async function initEtlQueue(): Promise<void> {
@@ -140,11 +171,31 @@ export async function initEtlQueue(): Promise<void> {
     ? Math.floor(teamConcurrencyRaw)
     : 1;
 
-  await boss.work(ETL_INGEST_QUEUE, { teamConcurrency }, async (job) => {
-    const payload = job.data as EtlIngestJobPayload;
-    etlLogger.info({ jobId: payload.jobId, table: payload.body.table }, 'Processing queued ETL job');
-    await executeIngestJob(payload);
-  });
+  await boss.work<EtlIngestJobPayload>(
+    ETL_INGEST_QUEUE,
+    { teamConcurrency, includeMetadata: true },
+    async (job) => {
+      const payload = job.data;
+      etlLogger.info(
+        { jobId: payload.jobId, table: payload.body.table, attempt: job.retrycount + 1 },
+        'Processing queued ETL job'
+      );
+      try {
+        await executeIngestJob(payload, {
+          retryCount: job.retrycount,
+          retryLimit: job.retrylimit,
+        });
+      } catch (err) {
+        // Deliberate cancellations must complete the job normally — throwing
+        // would make pg-boss treat them as failures and re-run cancelled work.
+        if (isIngestCancellation(err)) {
+          etlLogger.info({ jobId: payload.jobId }, 'ETL job cancellation recorded; not retrying');
+          return;
+        }
+        throw err;
+      }
+    }
+  );
 
   etlLogger.info('ETL job queue initialized');
 }

@@ -1,11 +1,15 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { Repeat } from 'lucide-react';
 import { Layout } from '../../components/Layout';
 import { Breadcrumb } from '../../components/Breadcrumb';
 import { QueryErrorBanner } from '../../components/QueryErrorBanner';
 import { OrderWorkflowBadge } from '../../components/orders/OrderWorkflowBadge';
 import { ordersApi } from '../../lib/api';
+import { addOrderToCart } from '../../lib/reorder';
+import { downloadOrderPdf } from '../../lib/orderPdf';
+import { useCart } from '../../context/useCart';
 import {
   ORDER_WORKFLOW_LABELS,
   ORDER_WORKFLOW_STATUSES,
@@ -20,16 +24,24 @@ import { OrderDetail } from '../../types/order';
 export function AdminOrderDetail() {
   const { ordrenr } = useParams<{ ordrenr: string }>();
   const navigate = useNavigate();
+  const cart = useCart();
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [statusSaving, setStatusSaving] = useState(false);
+  const [isPdfBusy, setIsPdfBusy] = useState(false);
 
-  useEffect(() => {
-    if (ordrenr) {
-      loadOrder(parseInt(ordrenr));
+  const handleDownloadPdf = async () => {
+    if (!order || isPdfBusy) return;
+    setIsPdfBusy(true);
+    try {
+      await downloadOrderPdf(order);
+    } catch {
+      toast.error('Kunne ikke generere PDF');
+    } finally {
+      setIsPdfBusy(false);
     }
-  }, [ordrenr]);
+  };
 
   const loadOrder = async (id: number) => {
     try {
@@ -41,6 +53,13 @@ export function AdminOrderDetail() {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (ordrenr) {
+      loadOrder(parseInt(ordrenr));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ordrenr]);
 
   const handleStatusChange = async (workflowStatus: OrderWorkflowStatus) => {
     if (!order) return;
@@ -62,6 +81,18 @@ export function AdminOrderDetail() {
     } finally {
       setStatusSaving(false);
     }
+  };
+
+  const handleReorder = () => {
+    if (!order) return;
+    const result = addOrderToCart(order, cart.addItem);
+    if (result.added === 0) {
+      toast.error('Ingen gyldige varer å bestille igjen');
+      return;
+    }
+    const skippedNote = result.skipped > 0 ? ` (${result.skipped} ugyldige linjer hoppet over)` : '';
+    toast.success(`${result.added} varer lagt i handlekurven${skippedNote}`);
+    navigate('/kunde/order/new');
   };
 
   if (isLoading) {
@@ -107,9 +138,27 @@ export function AdminOrderDetail() {
             { label: `#${order.ordrenr}` },
           ]}
         />
-        <button type="button" onClick={() => navigate('/admin/orders')} className="btn-secondary">
-          ← Tilbake til ordrer
-        </button>
+        <div className="flex flex-wrap gap-3">
+          <button type="button" onClick={() => navigate('/admin/orders')} className="btn-secondary">
+            ← Tilbake til ordrer
+          </button>
+          <button
+            type="button"
+            onClick={handleReorder}
+            className="btn-primary flex items-center gap-2"
+          >
+            <Repeat className="h-4 w-4" aria-hidden />
+            Bestill igjen
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleDownloadPdf()}
+            className="btn-secondary"
+            disabled={isPdfBusy}
+          >
+            {isPdfBusy ? 'Genererer…' : 'Last ned PDF'}
+          </button>
+        </div>
 
         <div className="card">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

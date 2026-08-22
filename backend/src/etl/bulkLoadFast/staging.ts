@@ -2,6 +2,7 @@ import { once } from 'events';
 import type { PoolClient } from 'pg';
 import { etlLogger } from '../../lib/logger.js';
 import { dropBulkIndexes } from '../bulkDataController.js';
+import { FACT_TABLE_FKS } from './integrity.js';
 import {
   BatchStats,
   HeapGuardOptions,
@@ -100,17 +101,6 @@ export async function copyIntoStagingFromChunks(
   );
 }
 
-/** FK constraints on the fact tables: [table, constraint, add-DDL]. Dropped during merge, re-added NOT VALID afterwards. */
-const FACT_TABLE_FKS: Array<[string, string, string]> = [
-  ['ordre', 'ordre_kundenr_fkey', 'FOREIGN KEY (kundenr) REFERENCES public.kunde(kundenr)'],
-  ['ordre', 'ordre_firmaid_fkey', 'FOREIGN KEY (firmaid) REFERENCES public.firma(firmaid)'],
-  ['ordre', 'ordre_lagernavn_firmaid_fkey', 'FOREIGN KEY (lagernavn, firmaid) REFERENCES public.lager(lagernavn, firmaid)'],
-  ['ordre', 'ordre_valutaid_fkey', 'FOREIGN KEY (valutaid) REFERENCES public.valuta(valutaid)'],
-  ['ordrelinje', 'ordrelinje_ordrenr_fkey', 'FOREIGN KEY (ordrenr) REFERENCES public.ordre(ordrenr)'],
-  ['ordrelinje', 'ordrelinje_varekode_fkey', 'FOREIGN KEY (varekode) REFERENCES public.vare(varekode)'],
-  ['ordre_henvisning', 'ordre_henvisning_ordrenr_linjenr_fkey', 'FOREIGN KEY (ordrenr, linjenr) REFERENCES public.ordrelinje(ordrenr, linjenr)'],
-];
-
 /**
  * Insert from staging tables into final tables and rebuild all indexes.
  *
@@ -156,40 +146,58 @@ export async function migrateStagingToFinal(client: PoolClient): Promise<{
   const tDrop = Date.now();
 
   // Wrap all INSERTs + TRUNCATE in a transaction so they are atomic.
+  // ROLLBACK on failure is mandatory: without it the connection returns to
+  // the pool stuck in "aborted transaction" state and every later query on
+  // that client fails with InFailedSqlTransaction.
+  let ordersResult: { rowCount: number | null };
+  let linesResult: { rowCount: number | null };
+  let refResult: { rowCount: number | null };
+  let timings: { insertOrdreMs: number; insertLinjeMs: number; insertHenvisningMs: number; commitMs: number };
+
   await client.query('BEGIN');
+  try {
+    ordersResult = await client.query(`
+      INSERT INTO ordre (ordrenr, dato, kundenr, kundeordreref, kunderef, firmaid, lagernavn, valutaid, sum)
+      SELECT ordrenr, dato, kundenr, kundeordreref, kunderef, firmaid, lagernavn, valutaid, sum
+      FROM staging_ordre
+      ON CONFLICT (ordrenr) DO NOTHING
+      RETURNING 1
+    `);
+    const t1 = Date.now();
 
-  const ordersResult = await client.query(`
-    INSERT INTO ordre (ordrenr, dato, kundenr, kundeordreref, kunderef, firmaid, lagernavn, valutaid, sum)
-    SELECT ordrenr, dato, kundenr, kundeordreref, kunderef, firmaid, lagernavn, valutaid, sum
-    FROM staging_ordre
-    ON CONFLICT (ordrenr) DO NOTHING
-    RETURNING 1
-  `);
-  const t1 = Date.now();
+    linesResult = await client.query(`
+      INSERT INTO ordrelinje (linjenr, ordrenr, varekode, antall, enhet, nettpris, linjesum, linjestatus)
+      SELECT linjenr, ordrenr, varekode, antall, enhet, nettpris, linjesum, linjestatus
+      FROM staging_ordrelinje
+      ON CONFLICT (linjenr, ordrenr) DO NOTHING
+      RETURNING 1
+    `);
+    const t2 = Date.now();
 
-  const linesResult = await client.query(`
-    INSERT INTO ordrelinje (linjenr, ordrenr, varekode, antall, enhet, nettpris, linjesum, linjestatus)
-    SELECT linjenr, ordrenr, varekode, antall, enhet, nettpris, linjesum, linjestatus
-    FROM staging_ordrelinje
-    ON CONFLICT (linjenr, ordrenr) DO NOTHING
-    RETURNING 1
-  `);
-  const t2 = Date.now();
+    refResult = await client.query(`
+      INSERT INTO ordre_henvisning (ordrenr, linjenr, henvisning1, henvisning2, henvisning3, henvisning4, henvisning5)
+      SELECT ordrenr, linjenr, henvisning1, henvisning2, henvisning3, henvisning4, henvisning5
+      FROM staging_ordre_henvisning
+      ON CONFLICT (ordrenr, linjenr) DO NOTHING
+      RETURNING 1
+    `);
+    const t3 = Date.now();
 
-  const refResult = await client.query(`
-    INSERT INTO ordre_henvisning (ordrenr, linjenr, henvisning1, henvisning2, henvisning3, henvisning4, henvisning5)
-    SELECT ordrenr, linjenr, henvisning1, henvisning2, henvisning3, henvisning4, henvisning5
-    FROM staging_ordre_henvisning
-    ON CONFLICT (ordrenr, linjenr) DO NOTHING
-    RETURNING 1
-  `);
-  const t3 = Date.now();
+    // Drop staging data now that migration is complete (still inside the transaction).
+    await client.query('TRUNCATE TABLE staging_ordre, staging_ordrelinje, staging_ordre_henvisning');
 
-  // Drop staging data now that migration is complete (still inside the transaction).
-  await client.query('TRUNCATE TABLE staging_ordre, staging_ordrelinje, staging_ordre_henvisning');
+    await client.query('COMMIT');
 
-  await client.query('COMMIT');
-  const t4 = Date.now();
+    timings = {
+      insertOrdreMs: t1 - tDrop,
+      insertLinjeMs: t2 - t1,
+      insertHenvisningMs: t3 - t2,
+      commitMs: Date.now() - t3,
+    };
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
+  }
 
   // Restore phase. Plain index builds (not CONCURRENTLY): exclusive bulk job,
   // no concurrent writers to wait for.
@@ -198,9 +206,8 @@ export async function migrateStagingToFinal(client: PoolClient): Promise<{
   for (const def of henvIndexDefs) {
     await client.query(def.replace(/CREATE INDEX /, 'CREATE INDEX IF NOT EXISTS '));
   }
+  // Re-add FKs as NOT VALID via the shared integrity list.
   for (const [table, fk, ddl] of FACT_TABLE_FKS) {
-    // NOT VALID: metadata-only add; new rows are checked, existing rows skipped.
-    await client.query(`ALTER TABLE ${table} DROP CONSTRAINT IF EXISTS ${fk}`);
     await client.query(`ALTER TABLE ${table} ADD CONSTRAINT ${fk} ${ddl} NOT VALID`);
   }
   const t5 = Date.now();
@@ -209,11 +216,8 @@ export async function migrateStagingToFinal(client: PoolClient): Promise<{
     {
       stage: 'migrate-timing',
       dropMs: tDrop - t0,
-      insertOrdreMs: t1 - tDrop,
-      insertLinjeMs: t2 - t1,
-      insertHenvisningMs: t3 - t2,
-      commitMs: t4 - t3,
-      rebuildMs: t5 - t4,
+      ...timings,
+      rebuildMs: t5 - tDrop - timings.insertOrdreMs - timings.insertLinjeMs - timings.insertHenvisningMs - timings.commitMs,
     },
     'Staging migration timing'
   );

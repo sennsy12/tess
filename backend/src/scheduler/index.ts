@@ -5,6 +5,7 @@ import { query } from '../db/index.js';
 import { refreshStatisticsAggregates } from '../services/statsAggregateService.js';
 import { isSchedulerJobsEnabled } from '../middleware/productionSafety.js';
 import { logger } from '../lib/logger.js';
+import { AppError } from '../middleware/errorHandler.js';
 
 export interface ScheduledJob {
   id: string;
@@ -61,16 +62,23 @@ export function createJob(
   };
 
   const job = cron.schedule(cronExpression, async () => {
+    // Overlap guard: a tick that outlasts its interval (e.g. an hourly stats
+    // refresh taking 70 minutes) must not run against itself.
+    if (config.status === 'running') {
+      logger.warn({ jobId: id, name }, 'Scheduled job still running — skipping this tick');
+      logJob(id, 'skipped', 'Skipped: previous run still in progress');
+      return;
+    }
     const startTime = Date.now();
     config.status = 'running';
     config.lastRun = new Date();
-    
+
     try {
-      console.log(`🕐 Starting scheduled job: ${name}`);
+      logger.info({ jobId: id, name }, 'Starting scheduled job');
       await task();
       const duration = Date.now() - startTime;
       logJob(id, 'success', `Job completed successfully`, duration);
-      console.log(`✅ Job ${name} completed in ${duration}ms`);
+      logger.info({ jobId: id, name, durationMs: duration }, 'Scheduled job completed');
       config.status = 'idle';
       config.lastError = undefined;
     } catch (error: any) {
@@ -78,7 +86,7 @@ export function createJob(
       config.status = 'error';
       config.lastError = error.message;
       logJob(id, 'error', error.message, duration);
-      console.error(`❌ Job ${name} failed:`, error.message);
+      logger.error({ err: error, jobId: id, name, durationMs: duration }, 'Scheduled job failed');
     }
   }, {
     scheduled: false, // Don't start automatically
@@ -121,7 +129,12 @@ export function stopJob(id: string): boolean {
 export async function runJobNow(id: string): Promise<void> {
   const entry = scheduledJobs.get(id);
   if (!entry) throw new Error(`Job not found: ${id}`);
-  
+
+  // Mutual exclusion with the cron tick — both share config.status.
+  if (entry.config.status === 'running') {
+    throw new AppError('Job is already running', 409);
+  }
+
   // Trigger the job task manually
   const task = getJobTask(id);
   if (task) {
@@ -202,16 +215,19 @@ export function initializeDefaultJobs() {
     taskRegistry.set('sync-real-data', realDataTask);
     createJob('sync-real-data', 'Sync Real Data', '0 */6 * * *', realDataTask);
 
+    // Honest naming: this only purges denormalized reference rows belonging
+    // to old orders. Parent ordre/ordrelinje rows are intentionally kept —
+    // this reclaims no space in the fact tables.
     const cleanupTask = async () => {
       await query(`
-        DELETE FROM ordre_henvisning 
+        DELETE FROM ordre_henvisning
         WHERE ordrenr IN (
           SELECT ordrenr FROM ordre WHERE dato < CURRENT_DATE - INTERVAL '2 years'
         )
       `);
     };
-    taskRegistry.set('db-cleanup', cleanupTask);
-    createJob('db-cleanup', 'Database Cleanup', '0 3 * * 0', cleanupTask);
+    taskRegistry.set('purge-old-order-references', cleanupTask);
+    createJob('purge-old-order-references', 'Purge Old Order References (2y+)', '0 3 * * 0', cleanupTask);
   } else {
     logger.info('Destructive scheduler jobs skipped (production default)');
   }

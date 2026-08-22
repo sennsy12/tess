@@ -67,11 +67,15 @@ export const abbreviateCurrencyNok = (value: number): string =>
   `${abbreviateNumber(value)} kr`;
 
 /**
- * Truncates a string to maxLen characters, adding ellipsis if truncated.
+ * Truncates a label to maxLen characters, adding ellipsis if truncated.
+ * Accepts unknown: chart libs hand us whatever the data accessor produced
+ * (numbers when a name field is missing and the value falls back through),
+ * and labels must degrade gracefully, never crash the chart tree.
  */
-export const truncateLabel = (label: string, maxLen: number = 14): string => {
-  if (!label || label.length <= maxLen) return label;
-  return `${label.slice(0, maxLen - 1)}…`;
+export const truncateLabel = (label: unknown, maxLen: number = 14): string => {
+  const text = String(label ?? '');
+  if (!text || text.length <= maxLen) return text;
+  return `${text.slice(0, maxLen - 1)}.`;
 };
 
 /** Parses Norwegian-formatted numbers: "1 234,56", "1.234,56", "1234.56". */

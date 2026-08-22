@@ -63,7 +63,7 @@ schedulerRouter.post('/jobs', asyncHandler(async (req: Request, res: Response) =
   }
 
   // For now, only allow predefined task types
-  const allowedTasks = ['refresh-test-data', 'sync-real-data', 'db-cleanup', 'aggregate-stats'];
+  const allowedTasks = ['refresh-test-data', 'sync-real-data', 'purge-old-order-references', 'aggregate-stats'];
   if (!allowedTasks.includes(taskType)) {
     throw new ValidationError(`Invalid taskType. Allowed: ${allowedTasks.join(', ')}`);
   }

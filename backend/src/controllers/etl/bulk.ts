@@ -6,6 +6,7 @@ import { getEtlMetrics } from '../../etl/etlMetrics.js';
 import { runStreamingBenchmark } from '../../etl/etlBenchmark.js';
 import { assertAdminActionKey } from '../../lib/actionKey.js';
 import { etlLogger } from '../../lib/logger.js';
+import { withBulkLock } from '../../etl/bulkLock.js';
 
 export const etlBulkHandlers = {
   generateBulkData: async (req: Request, res: Response) => {
@@ -16,7 +17,7 @@ export const etlBulkHandlers = {
       assertAdminActionKey(actionKey, 'bulk data generation over 1,000,000 rows');
     }
 
-    const result = await generateBulkTestData({ customers, orders, linesPerOrder });
+    const result = await withBulkLock('generateBulkData', () => generateBulkTestData({ customers, orders, linesPerOrder }));
     res.json({ success: true, message: 'Bulk data generated and streamed into database', data: result });
   },
 
@@ -43,11 +44,13 @@ export const etlBulkHandlers = {
       customers?: number;
       linesPerOrder?: number;
     };
-    const result = await runBulkPipelineStreaming({
-      totalOrders,
-      customers,
-      linesPerOrder,
-    });
+    const result = await withBulkLock('runBulkPipelineStages', () =>
+      runBulkPipelineStreaming({
+        totalOrders,
+        customers,
+        linesPerOrder,
+      })
+    );
     res.json({
       success: true,
       message: `Streaming bulk pipeline completed: ${result.totalRows} rows (single pass, O(1) memory)`,
@@ -63,7 +66,9 @@ export const etlBulkHandlers = {
       customers?: number;
       linesPerOrder?: number;
     };
-    const result = await runBulkPipelineStreaming({ totalOrders, customers, linesPerOrder });
+    const result = await withBulkLock('runBulkPipelineStreaming', () =>
+      runBulkPipelineStreaming({ totalOrders, customers, linesPerOrder })
+    );
     res.json({
       success: true,
       message: `Streaming bulk pipeline completed: ${result.totalRows} rows`,
@@ -79,7 +84,9 @@ export const etlBulkHandlers = {
       linesPerOrder?: number;
       jobId?: string;
     };
-    const result = await runBulkLoadFast({ totalOrders, customers, linesPerOrder, jobId });
+    const result = await withBulkLock('runBulkLoadFast', () =>
+      runBulkLoadFast({ totalOrders, customers, linesPerOrder, jobId })
+    );
     res.json({
       success: true,
       message: `Fast bulk load completed: ${result.totalRows} rows`,
@@ -123,15 +130,15 @@ export const etlBulkHandlers = {
     
     etlLogger.info({ stage: 'bulk-pipeline-start' }, 'Starting bulk pipeline');
     const startTime = Date.now();
-    
-    const results = {
+
+    const results = await withBulkLock('runBulkPipeline', async () => ({
       truncate: await truncateDB(),
       create: await createDB(),
       generate: await generateBulkTestData({ customers, orders, linesPerOrder }),
       insert: 'streamed directly during generation (no separate insert step)',
       totalTimeMs: 0,
-    };
-    
+    }));
+
     results.totalTimeMs = Date.now() - startTime;
     etlLogger.info({ stage: 'bulk-pipeline-complete', durationMs: results.totalTimeMs }, 'Bulk pipeline completed');
     

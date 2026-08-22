@@ -4,6 +4,7 @@ import { AlertCircle, Building2, User } from 'lucide-react';
 import { useAuth } from '../context/useAuth';
 import { PasswordInput } from '../components/PasswordInput';
 import { supportMailto } from '../lib/appConfig';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 type LoginMode = 'standard' | 'kunde';
 
@@ -15,6 +16,8 @@ export function Login() {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
+
+  useDocumentTitle('Innlogging');
 
   const { login, loginKunde, user, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();

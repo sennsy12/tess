@@ -55,7 +55,9 @@ export interface StreamingEtlRequest {
   generator?: GeneratorSourceConfig;
   /** If set, job is tracked and progress is broadcast. */
   jobId?: string;
-  /** Enable checkpoint/resume (file-based). */
+  /** Persist checkpoints at committed boundaries (file-based). Mid-stream
+   * row-count resume is intentionally NOT supported: loads commit atomically
+   * at the end, so a crash means restart-from-scratch (lossless). */
   checkpoint?: boolean;
   /** Enable dead-letter export for failed rows. */
   deadLetter?: boolean;
@@ -111,6 +113,11 @@ export interface EtlJobProgress {
 }
 
 export interface EtlCheckpoint {
+  /** Checkpoint format version. V1 (implicit) checkpoints recorded row counts
+   * that were never committed (loads commit atomically at the end) — resuming
+   * from them silently skipped rows. Only v2+ checkpoints are honoured, and
+   * v2 checkpoints are only ever written at committed boundaries. */
+  v: 2;
   jobId: string;
   table: string;
   lastProcessedIndex: number;

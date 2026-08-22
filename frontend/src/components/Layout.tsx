@@ -1,4 +1,4 @@
-import { ReactNode, useState } from 'react';
+import { ReactNode, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { Menu, X as XIcon, LogOut, HelpCircle, Search } from 'lucide-react';
@@ -8,6 +8,7 @@ import { EnvironmentBanner } from './EnvironmentBanner';
 import { ImpersonationBanner } from './ImpersonationBanner';
 import { GlobalSearch } from './GlobalSearch';
 import { useKeyboardShortcut } from '../hooks/useKeyboardShortcut';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { AssistantChat } from './assistant';
 import { NotificationBell } from './NotificationBell';
 import { useEtlJobToasts } from '../hooks/useEtlJobToasts';
@@ -45,11 +46,23 @@ export function Layout({ children, title }: LayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const mainRef = useRef<HTMLElement>(null);
+  const isFirstRouteRender = useRef(true);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
     return localStorage.getItem('sidebar-collapsed') === 'true';
   });
   const [searchOpen, setSearchOpen] = useState(false);
+
+  useDocumentTitle(title);
+
+  useEffect(() => {
+    if (isFirstRouteRender.current) {
+      isFirstRouteRender.current = false;
+      return;
+    }
+    mainRef.current?.focus({ preventScroll: true });
+  }, [location.pathname]);
 
   const isAdminOnKundeRoute =
     user?.role === 'admin' && location.pathname.startsWith('/kunde');
@@ -98,6 +111,12 @@ export function Layout({ children, title }: LayoutProps) {
 
   return (
     <div className="min-h-screen flex flex-col lg:flex-row bg-dark-950">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[200] focus:rounded-md focus:border focus:border-gold-500/40 focus:bg-dark-900 focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-white"
+      >
+        Hopp til innhold
+      </a>
       <header className="lg:hidden bg-dark-900 border-b border-dark-800 px-4 py-3 flex items-center justify-between sticky top-0 z-50">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-md bg-dark-950 border border-gold-500/40 flex items-center justify-center">
@@ -241,7 +260,12 @@ export function Layout({ children, title }: LayoutProps) {
         </div>
       </aside>
 
-      <main className={`flex-1 overflow-auto min-w-0 h-screen relative scroll-smooth ${showKundeMobileNav ? 'pb-16 lg:pb-0' : ''}`}>
+      <main
+        id="main-content"
+        ref={mainRef}
+        tabIndex={-1}
+        className={`flex-1 overflow-auto min-w-0 h-screen relative scroll-smooth focus:outline-none ${showKundeMobileNav ? 'pb-16 lg:pb-0' : ''}`}
+      >
         <EnvironmentBanner />
         <header className="hidden lg:block bg-dark-950/90 backdrop-blur-sm border-b border-gold-500/15 sticky top-0 z-10">
           <div className="px-8 py-5 flex items-center justify-between">

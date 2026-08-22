@@ -6,6 +6,13 @@ import { topN } from '../../../../lib/chartUtils';
 import { WidgetError } from './WidgetError';
 
 export function TopProductsWidget({ data, isLoading, isError, onRetry }: TopProductsWidgetProps) {
+  // Hooks must run before any conditional return (rules of hooks).
+  const maxRevenue = useMemo(() => Math.max(...data.map(p => Number(p.total_revenue) || 0), 1), [data]);
+  const topProducts = useMemo(
+    () => topN(data, 10, (product) => Number(product.total_revenue) || 0),
+    [data],
+  );
+
   if (isError) {
     return (
       <div className="card">
@@ -15,12 +22,6 @@ export function TopProductsWidget({ data, isLoading, isError, onRetry }: TopProd
     );
   }
   const formatCurrency = formatCurrencyNok;
-
-  const maxRevenue = useMemo(() => Math.max(...data.map(p => Number(p.total_revenue) || 0), 1), [data]);
-  const topProducts = useMemo(
-    () => topN(data, 10, (product) => Number(product.total_revenue) || 0),
-    [data],
-  );
 
   if (isLoading) {
     return (

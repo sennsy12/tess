@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
+import { reportError } from '../lib/observability';
 
 interface Props {
   children: ReactNode;
@@ -17,6 +18,7 @@ export class RouteErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error('Route error:', error, info);
+    reportError(error, { componentStack: info.componentStack });
   }
 
   render() {

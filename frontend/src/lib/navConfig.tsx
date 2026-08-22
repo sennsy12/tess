@@ -3,6 +3,7 @@ import type { LucideIcon } from 'lucide-react';
 import {
   LayoutDashboard,
   BarChart3,
+  ClipboardCheck,
   ClipboardList,
   FlaskConical,
   ListOrdered,
@@ -18,6 +19,7 @@ import {
   ShoppingCart,
 } from 'lucide-react';
 import { CartBadge } from '../components/CartBadge';
+import { PendingApprovalsBadge } from '../components/admin/PendingApprovalsBadge';
 
 export interface NavItem {
   path: string;
@@ -44,6 +46,7 @@ export const analyseNavItems: NavItem[] = [
 
 export const adminNavItems: NavItem[] = [
   { path: '/admin', label: 'Dashboard', Icon: LayoutDashboard },
+  { path: '/admin/approvals', label: 'Ordrekø', Icon: ClipboardCheck, Badge: PendingApprovalsBadge },
   { path: '/admin/statistics', label: 'Statistikk', Icon: BarChart3 },
   { path: '/admin/orders', label: 'Ordrer', Icon: ClipboardList },
   { path: '/admin/analytics', label: 'Avansert Analyse', Icon: FlaskConical },

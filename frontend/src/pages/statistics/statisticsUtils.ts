@@ -12,6 +12,9 @@ import { StatType } from '../../types/statistics';
 
 type StatRow = KundeStats | VaregruppeStats | VareStats | LagerStats | FirmaStats;
 
+export const STATISTICS_EXPORT_PAGE_SIZE = 500;
+export const STATISTICS_EXPORT_ROW_CAP = 5000;
+
 export function getPreviousRange(startDate: string, endDate: string) {
   const start = new Date(startDate);
   const end = new Date(endDate);
@@ -56,6 +59,46 @@ export function getNameKey(statType: StatType) {
     case 'firma':
       return 'firmanavn';
   }
+}
+
+/** Fetches every page of a statistics grouping (capped) so exports cover the full period, not just the visible page. */
+export async function fetchAllStatRows(
+  statType: StatType,
+  params: Record<string, unknown>,
+): Promise<StatRow[]> {
+  const firstPage = await fetchStatData(statType, {
+    ...params,
+    page: 1,
+    limit: STATISTICS_EXPORT_PAGE_SIZE,
+  });
+  const rows: StatRow[] = [...(firstPage.data ?? [])];
+
+  const maxPages = Math.ceil(STATISTICS_EXPORT_ROW_CAP / STATISTICS_EXPORT_PAGE_SIZE);
+  const totalPages = Math.min(firstPage.pagination?.totalPages ?? 1, maxPages);
+
+  for (let pageNumber = 2; pageNumber <= totalPages; pageNumber += 1) {
+    const nextPage = await fetchStatData(statType, {
+      ...params,
+      page: pageNumber,
+      limit: STATISTICS_EXPORT_PAGE_SIZE,
+    });
+    rows.push(...(nextPage.data ?? []));
+  }
+
+  return rows.slice(0, STATISTICS_EXPORT_ROW_CAP);
+}
+
+export function buildStatsExportRows(
+  rows: StatRow[],
+  statType: StatType,
+): Array<Record<string, unknown>> {
+  const nameKey = getNameKey(statType);
+  const nameHeader = getTitle(statType).replace('Statistikk per ', '');
+  return rows.map((row) => ({
+    [nameHeader]: row[nameKey as keyof StatRow] ?? '',
+    'Antall ordrer': row.order_count ?? 0,
+    'Total sum': row.total_sum ?? 0,
+  }));
 }
 
 export function getTitle(statType: StatType) {

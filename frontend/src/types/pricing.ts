@@ -309,7 +309,3 @@ export interface PreviewTabProps {
   customersWithGroups: CustomerWithGroup[];
 }
 
-export interface AuditLogTabProps {
-  // Add specific props if needed, currently used without props or internal only
-}
-

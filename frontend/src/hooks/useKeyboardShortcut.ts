@@ -49,7 +49,12 @@ export function useKeyboardShortcut(
   const enabled = options?.enabled ?? true;
   const preventDefault = options?.preventDefault ?? true;
   const handlerRef = useRef(handler);
-  handlerRef.current = handler;
+
+  // Latest-ref pattern: update outside render so the listener below always
+  // invokes the freshest handler without re-subscribing.
+  useEffect(() => {
+    handlerRef.current = handler;
+  }, [handler]);
 
   useEffect(() => {
     if (!enabled) return;

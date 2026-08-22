@@ -172,7 +172,7 @@ export function AdminDashboard() {
             value={pendingApprovalCount}
             description="Kundebestillinger som venter på godkjenning eller avvisning."
             cta="Åpne godkjenningskøen"
-            onClick={() => navigate('/admin/orders?workflowStatus=pending_approval')}
+            onClick={() => navigate('/admin/approvals')}
           />
           <ActionCard
             label="Ordrer trenger oppfølging"

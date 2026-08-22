@@ -21,6 +21,10 @@ const envSchema = z.object({
   // Privileged admin operations (user management, etc.)
   ADMIN_ACTION_KEY: z.string().optional(),
 
+  // First-run admin bootstrap (see db/bootstrapAdmin.ts)
+  ADMIN_USERNAME: z.string().optional(),
+  ADMIN_PASSWORD: z.string().optional(),
+
   // Feature flags
   ENABLE_DESTRUCTIVE_ETL: z.string().optional(),
   ENABLE_SCHEDULER_JOBS: z.string().optional(),
@@ -122,6 +126,11 @@ export function getEnv(): Env {
     _env = validateEnv();
   }
   return _env;
+}
+
+/** Test-only: drop the cached parse so subsequent getEnv() calls re-read process.env. */
+export function __resetEnvCacheForTests(): void {
+  _env = null;
 }
 
 export default getEnv;
