@@ -6,7 +6,26 @@
  *
  * @module models/orderLineModel
  */
-import { query } from '../db/index.js';
+import { query, transaction } from '../db/index.js';
+import type { PoolClient } from 'pg';
+
+const MAX_PAGE_LIMIT = 200;
+
+function clampPagination(options?: { page?: number; limit?: number }) {
+  const page = Math.max(1, Math.floor(options?.page ?? 1) || 1);
+  const limit = Math.min(MAX_PAGE_LIMIT, Math.max(1, Math.floor(options?.limit ?? 50) || 50));
+  return { page, limit, offset: (page - 1) * limit };
+}
+
+async function recalcOrderSum(
+  executor: { query: PoolClient['query'] },
+  ordrenr: number,
+): Promise<void> {
+  await executor.query(
+    `UPDATE ordre SET sum = COALESCE((SELECT SUM(linjesum) FROM ordrelinje WHERE ordrenr = $1), 0) WHERE ordrenr = $1`,
+    [ordrenr],
+  );
+}
 
 export const orderLineModel = {
   /**
@@ -18,21 +37,13 @@ export const orderLineModel = {
    * @returns Paginated result with `{ data, pagination }`
    */
   findByOrderNr: async (ordrenr: number, options?: { page?: number; limit?: number }) => {
-    const page = options?.page || 1;
-    const limit = options?.limit || 50;
-    const offset = (page - 1) * limit;
+    const { page, limit, offset } = clampPagination(options);
 
-    // Get total count
-    const countResult = await query(
-      'SELECT COUNT(*) as total FROM ordrelinje WHERE ordrenr = $1',
-      [ordrenr]
-    );
-    const total = parseInt(countResult.rows[0].total, 10);
-
-    // Get paginated data
+    // Single round-trip: COUNT(*) OVER() avoids the COUNT+SELECT race window.
     const result = await query(
       `SELECT ol.*, v.varenavn, v.varegruppe,
-              oh.henvisning1, oh.henvisning2, oh.henvisning3, oh.henvisning4, oh.henvisning5
+              oh.henvisning1, oh.henvisning2, oh.henvisning3, oh.henvisning4, oh.henvisning5,
+              COUNT(*) OVER() AS total
        FROM ordrelinje ol
        LEFT JOIN vare v ON ol.varekode = v.varekode
        LEFT JOIN ordre_henvisning oh ON ol.ordrenr = oh.ordrenr AND ol.linjenr = oh.linjenr
@@ -41,9 +52,10 @@ export const orderLineModel = {
        LIMIT $2 OFFSET $3`,
       [ordrenr, limit, offset]
     );
+    const total = result.rows[0] ? parseInt(result.rows[0].total, 10) : 0;
 
     return {
-      data: result.rows,
+      data: result.rows.map(({ total: _ignored, ...row }) => row),
       pagination: {
         page,
         limit,
@@ -57,25 +69,34 @@ export const orderLineModel = {
    * Create a new order line. Automatically assigns the next available
    * line number and computes `linjesum = antall * nettpris`.
    *
+   * Atomic: parent-row lock + line insert + sum recalc run in ONE
+   * transaction, so concurrent inserts can't pick the same linjenr and a
+   * crash can't leave `ordre.sum` stale.
+   *
    * @param data - Line-item fields (ordrenr, varekode, antall, enhet, nettpris, linjestatus)
    * @returns The newly inserted order-line record
    */
   create: async (data: { ordrenr: number; varekode: string; antall: number; enhet: string; nettpris: number; linjestatus?: number }) => {
-    // Get next line number for this order
-    const maxLineResult = await query(
-      'SELECT COALESCE(MAX(linjenr), 0) + 1 as next_linjenr FROM ordrelinje WHERE ordrenr = $1',
-      [data.ordrenr]
-    );
-    const linjenr = maxLineResult.rows[0].next_linjenr;
-    const linjesum = data.antall * data.nettpris;
+    return transaction(async (client: PoolClient) => {
+      // Serialize concurrent inserts for the same order. Locking the parent
+      // row (rather than MAX()) also covers the empty-order case.
+      await client.query('SELECT 1 FROM ordre WHERE ordrenr = $1 FOR UPDATE', [data.ordrenr]);
+      const maxLineResult = await client.query(
+        'SELECT COALESCE(MAX(linjenr), 0) + 1 as next_linjenr FROM ordrelinje WHERE ordrenr = $1',
+        [data.ordrenr]
+      );
+      const linjenr = maxLineResult.rows[0].next_linjenr;
+      const linjesum = data.antall * data.nettpris;
 
-    const result = await query(
-      `INSERT INTO ordrelinje (linjenr, ordrenr, varekode, antall, enhet, nettpris, linjesum, linjestatus)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-       RETURNING *`,
-      [linjenr, data.ordrenr, data.varekode, data.antall, data.enhet, data.nettpris, linjesum, data.linjestatus || 1]
-    );
-    return result.rows[0];
+      const result = await client.query(
+        `INSERT INTO ordrelinje (linjenr, ordrenr, varekode, antall, enhet, nettpris, linjesum, linjestatus)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         RETURNING *`,
+        [linjenr, data.ordrenr, data.varekode, data.antall, data.enhet, data.nettpris, linjesum, data.linjestatus || 1]
+      );
+      await recalcOrderSum(client, data.ordrenr);
+      return result.rows[0];
+    });
   },
 
   /**
@@ -88,16 +109,21 @@ export const orderLineModel = {
    * @returns The updated row
    */
   update: async (ordrenr: number, linjenr: number, data: { varekode: string; antall: number; enhet: string; nettpris: number; linjestatus: number }) => {
-    const linjesum = data.antall * data.nettpris;
+    return transaction(async (client: PoolClient) => {
+      const linjesum = data.antall * data.nettpris;
 
-    const result = await query(
-      `UPDATE ordrelinje 
-       SET varekode = $1, antall = $2, enhet = $3, nettpris = $4, linjesum = $5, linjestatus = $6
-       WHERE ordrenr = $7 AND linjenr = $8
-       RETURNING *`,
-      [data.varekode, data.antall, data.enhet, data.nettpris, linjesum, data.linjestatus, ordrenr, linjenr]
-    );
-    return result.rows[0];
+      const result = await client.query(
+        `UPDATE ordrelinje
+         SET varekode = $1, antall = $2, enhet = $3, nettpris = $4, linjesum = $5, linjestatus = $6
+         WHERE ordrenr = $7 AND linjenr = $8
+         RETURNING *`,
+        [data.varekode, data.antall, data.enhet, data.nettpris, linjesum, data.linjestatus, ordrenr, linjenr]
+      );
+      if (result.rows[0]) {
+        await recalcOrderSum(client, ordrenr);
+      }
+      return result.rows[0];
+    });
   },
 
   /**
@@ -109,22 +135,30 @@ export const orderLineModel = {
    * @returns The deleted row, or `undefined` if not found
    */
   delete: async (ordrenr: number, linjenr: number) => {
-    // First delete any references
-    await query(
-      'DELETE FROM ordre_henvisning WHERE ordrenr = $1 AND linjenr = $2',
-      [ordrenr, linjenr]
-    );
+    return transaction(async (client: PoolClient) => {
+      // First delete any references
+      await client.query(
+        'DELETE FROM ordre_henvisning WHERE ordrenr = $1 AND linjenr = $2',
+        [ordrenr, linjenr]
+      );
 
-    const result = await query(
-      'DELETE FROM ordrelinje WHERE ordrenr = $1 AND linjenr = $2 RETURNING *',
-      [ordrenr, linjenr]
-    );
-    return result.rows[0];
+      const result = await client.query(
+        'DELETE FROM ordrelinje WHERE ordrenr = $1 AND linjenr = $2 RETURNING *',
+        [ordrenr, linjenr]
+      );
+      if (result.rows[0]) {
+        await recalcOrderSum(client, ordrenr);
+      }
+      return result.rows[0];
+    });
   },
 
   /**
    * Recalculate and update the aggregate `sum` column on the parent
    * order based on the current line items.
+   *
+   * Standalone/backfill use only — create/update/delete already recalc
+   * inside their own transaction.
    *
    * @param ordrenr - Order whose sum should be recalculated
    */

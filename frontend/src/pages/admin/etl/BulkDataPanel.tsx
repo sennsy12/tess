@@ -36,13 +36,13 @@ export function BulkDataPanel({
   onCsvUpload,
 }: BulkDataPanelProps) {
   return (
-    <div className="space-y-6 stagger-fade-in">
+    <div className="space-y-6 animate-fade-in">
       <div className="card">
         <h3 className="font-semibold mb-4">Nåværende Data</h3>
         {countsLoading && Object.keys(tableCounts).length === 0 ? (
           <GridStatSkeleton count={6} />
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 stagger-fade-in">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 animate-fade-in">
             {Object.entries(tableCounts).map(([table, count]) => (
               <div
                 key={table}

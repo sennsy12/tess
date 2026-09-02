@@ -1,12 +1,16 @@
 import { Suspense, lazy } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom'
 import { QueryCache, QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { MotionConfig } from 'framer-motion'
 import { Toaster } from 'react-hot-toast'
+import { toasterConfig } from './lib/toastConfig'
+
 import { AuthProvider } from './context/AuthContext.tsx'
 import { CartProvider } from './context/CartProvider.tsx'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { RouteErrorBoundary } from './components/RouteErrorBoundary'
 import { isServerError, reportError } from './lib/observability'
+import { Spinner } from './components/Spinner'
 
 const Login = lazy(() => import('./pages/Login').then((m) => ({ default: m.Login })))
 const Settings = lazy(() => import('./pages/Settings').then((m) => ({ default: m.Settings })))
@@ -58,7 +62,7 @@ const queryClient = new QueryClient({
 function PageLoader() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-dark-950">
-      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-500" />
+      <Spinner size="lg" className="text-primary-500" label="Laster…" />
     </div>
   )
 }
@@ -79,26 +83,9 @@ function App() {
       <BrowserRouter>
         <AuthProvider>
           <CartProvider>
+          <MotionConfig reducedMotion="user">
           <RouteErrorBoundary>
-          <Toaster
-            position="bottom-right"
-            toastOptions={{
-              duration: 4000,
-              style: {
-                background: '#1e1e2e',
-                color: '#e2e8f0',
-                border: '1px solid #2d2d3f',
-              },
-              success: {
-                duration: 4000,
-                iconTheme: { primary: '#10b981', secondary: '#1e1e2e' },
-              },
-              error: {
-                duration: 5000,
-                iconTheme: { primary: '#ef4444', secondary: '#1e1e2e' },
-              },
-            }}
-          />
+          <Toaster {...toasterConfig} />
           <Routes>
           <Route path="/login" element={
             <Suspense fallback={<PageLoader />}>
@@ -146,6 +133,7 @@ function App() {
           <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
           </RouteErrorBoundary>
+          </MotionConfig>
           </CartProvider>
         </AuthProvider>
       </BrowserRouter>

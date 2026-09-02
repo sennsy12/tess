@@ -4,12 +4,27 @@ on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    # Weekly stale-dependency / drift detection
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  secrets:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   frontend:
     name: Frontend (typecheck, test, build)
     runs-on: ubuntu-latest
@@ -33,6 +48,8 @@ jobs:
         run: npx vitest run
       - name: Build
         run: npm run build
+      - name: Build production image
+        run: docker build -f Dockerfile.prod -t tess-frontend-prod:ci .
       - name: Upload dist artifact
         uses: actions/upload-artifact@v4
         with:
@@ -50,9 +67,10 @@ jobs:
       NODE_ENV: test
       TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
     # Integration tests build a throwaway database via this service.
+    # Pinned to the same major as production (docker-compose.prod.yml).
     services:
       postgres:
-        image: postgres:16
+        image: postgres:15-alpine
         env:
           POSTGRES_PASSWORD: postgres
         ports:
@@ -84,6 +102,28 @@ jobs:
       - name: Lint
         run: npm run lint
       - name: Test
-        run: npm test -- --ci
+        # --coverage enforces the floors in jest.config.js; ratchet them up over time.
+        run: npm test -- --ci --coverage
       - name: Build
         run: npm run build
+      - name: Migration smoke test
+        # Proves tracked migrations apply cleanly against a real database.
+        run: |
+          DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres npm run migrate
+      - name: Audit dependencies
+        run: npm audit --omit=dev --audit-level=high
+      - name: Build production image
+        # Catches Dockerfile.prod-only breakage (prod-only deps, dist layout).
+        run: docker build -f Dockerfile.prod -t tess-backend-prod:ci .
+      - name: Trivy scan (backend prod image)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: tess-backend-prod:ci
+          format: sarif
+          output: trivy-results.sarif
+          severity: HIGH,CRITICAL
+      - name: Upload Trivy results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-results.sarif

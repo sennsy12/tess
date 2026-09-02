@@ -66,6 +66,33 @@ export class ForbiddenError extends AppError {
 }
 
 /**
+ * Error for version conflicts / duplicate writes (409)
+ */
+export class ConflictError extends AppError {
+  constructor(message: string = 'Conflict') {
+    super(message, 409);
+  }
+}
+
+/**
+ * Error for rate-limit exhaustion (429)
+ */
+export class TooManyRequestsError extends AppError {
+  constructor(message: string = 'Too many requests') {
+    super(message, 429);
+  }
+}
+
+/**
+ * Error for downstream outages (503) — fail closed, retryable.
+ */
+export class ServiceUnavailableError extends AppError {
+  constructor(message: string = 'Service temporarily unavailable') {
+    super(message, 503);
+  }
+}
+
+/**
  * Global error handling middleware
  */
 export const errorHandler = (

@@ -163,7 +163,7 @@ body::before {
 
   /* Inputs */
   .input {
-    @apply w-full px-4 py-2.5 bg-dark-950/60 border rounded-md text-dark-100 placeholder-dark-500
+    @apply w-full px-4 py-2.5 bg-dark-950/60 border rounded-md text-dark-100 placeholder-dark-400
     focus:outline-none focus:border-primary-500/70 focus:ring-2 focus:ring-primary-500/20
     transition-colors duration-150;
     border-color: var(--hairline-neutral);
@@ -214,6 +214,13 @@ body::before {
     @apply card flex flex-col justify-center min-h-[110px] relative overflow-hidden;
   }
 
+  /* Stat label — small uppercase descriptor above the display numeral.
+   * Previously used but undefined; now a real token (sentence-case labels
+   * preferred, uppercase styling comes from here, not the content). */
+  .stat-label {
+    @apply text-xs font-medium uppercase tracking-wider text-dark-400;
+  }
+
   /* Soft gold corner glow on stat cards — quiet luxury signature */
   .stat-card::after {
     content: "";
@@ -228,6 +235,9 @@ body::before {
    * Gold accent utilities — defined explicitly with literal values so the
    * "Executive Dark" details render even in environments whose Tailwind
    * config predates the gold palette (mirrors tailwind.config.js).
+   * Phase 0 note: intentionally kept as fallback. Prefer `text-gold-*` /
+   * `bg-gold-*` from the Tailwind palette in new code; these literals stay
+   * until verified that the generated palette covers all usages.
    */
   .bg-gold-500 { background-color: #c9a962; }
   .bg-gold-500\/10 { background-color: rgba(201, 169, 98, 0.1); }
@@ -265,21 +275,101 @@ body::before {
   .stat-display {
     @apply font-display font-light tracking-tight tabular-nums;
   }
+
+  /* Alias for the historic `stat-value` class name used by
+   * AnimatedStatCard / analyse DashboardStats. Same token, no drift. */
+  .stat-value {
+    @apply font-display font-light tracking-tight tabular-nums;
+  }
+
+  /* Standard card/chart title — matches Bar/Line chart headers.
+   * Use instead of ad-hoc `text-lg font-semibold` combos. */
+  .h-card-title {
+    @apply text-lg font-semibold text-dark-100 flex items-center gap-2;
+  }
+
+  /* Flush card variant — keeps card chrome (gradient hairline + shadow)
+   * with zero padding for tables / full-bleed content. Replaces ad-hoc
+   * `card p-0 lg:p-0` / `card p-4` overrides. */
+  .card--flush {
+    padding: 0;
+  }
+
+  @media (min-width: 1024px) {
+    .card--flush {
+      padding: 0;
+    }
+  }
+
+  /* Compact table density — opt-in alternative to the `!important`
+   * overrides in DataTable. Apply alongside `.table-cell/.table-header`. */
+  .table--compact .table-cell {
+    @apply px-2 py-1.5 text-xs;
+  }
+
+  .table--compact .table-header {
+    @apply px-2 py-1.5;
+  }
+
+  /* Visible keyboard focus — `.btn` uses `outline-none`, so provide an
+   * explicit `:focus-visible` ring (additive, does not change mouse UI). */
+  .btn:focus-visible,
+  .nav-link:focus-visible {
+    outline: 2px solid rgba(99, 102, 241, 0.8);
+    outline-offset: 2px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .btn::after,
   .card-hover,
   .animate-in-up,
+  .animate-pulse,
   .animate-pulse-slow,
-  .shimmer {
+  .shimmer,
+  .animate-fade-in,
+  .tab-content-enter,
+  .query-refetch-indeterminate {
     animation: none !important;
     transition: none !important;
     transform: none !important;
   }
+
+  .scroll-smooth {
+    scroll-behavior: auto !important;
+  }
+
+  html:focus-within {
+    scroll-behavior: auto !important;
+  }
+}
+
+/* iPhone home-indicator safe area (used by KundeMobileNav) */
+.safe-area-pb {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Tab panel enter animation (used by Tabs TabContent).
+ * Reuses the `fadeIn` keyframes from tailwind.config.js so there is a
+ * single motion definition for content entrances. */
+.tab-content-enter {
+  animation: fadeIn 0.2s ease-out;
 }
 
 @keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Fallback for `.tab-content-enter` / `animate-fade-in` when Tailwind's
+ * generated `fadeIn` keyframes are unavailable (mirrors tailwind.config.js). */
+@keyframes fadeIn {
   from {
     opacity: 0;
     transform: translateY(8px);
@@ -295,14 +385,10 @@ body::before {
   100% { background-position: 200% 0; }
 }
 
-/* Stagger animation utilities */
-.stagger-1 > *:nth-child(1) { animation-delay: 50ms; }
-.stagger-1 > *:nth-child(2) { animation-delay: 100ms; }
-.stagger-1 > *:nth-child(3) { animation-delay: 150ms; }
-.stagger-1 > *:nth-child(4) { animation-delay: 200ms; }
-.stagger-1 > *:nth-child(5) { animation-delay: 250ms; }
-
-/* Gradients (kept for compatibility; rendered as flat colors) */
+/* Gradients (kept for compatibility; rendered as flat colors)
+ * Phase 0 note: preserved intentionally — still used by
+ * analyse/DashboardStats.tsx and admin/Dashboard.tsx. Do not remove
+ * until those call sites migrate to `.stat-card` + accent tokens. */
 .gradient-text-primary {
   @apply text-primary-300;
 }

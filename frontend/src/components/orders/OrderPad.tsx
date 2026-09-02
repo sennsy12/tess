@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import toast from 'react-hot-toast';
-import { ChevronDown, ClipboardList, Loader2, Plus, SearchX, Trash2 } from 'lucide-react';
+import { ChevronDown, ClipboardList, Plus, SearchX, Trash2 } from 'lucide-react';
+import { Spinner } from '../Spinner';
 import { catalogApi } from '../../lib/api';
 import type { CatalogProduct } from '../../lib/api/catalog';
 import { parseOrderPadInput } from '../../lib/orderPad';
+import { formatMoneyNok } from '../../lib/formatters';
 import { useCart } from '../../context/useCart';
 
 interface PadMatch {
@@ -133,7 +135,7 @@ export function OrderPad() {
               className="btn-secondary py-2 text-sm flex items-center gap-1.5 disabled:opacity-50"
             >
               {isResolving ? (
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                <Spinner size="xs" />
               ) : (
                 <SearchX className="h-4 w-4" aria-hidden />
               )}
@@ -188,9 +190,7 @@ export function OrderPad() {
                   <span className="flex items-baseline gap-3 whitespace-nowrap">
                     <span className="font-mono text-xs text-primary-300">×{match.antall}</span>
                     <span className="font-semibold">
-                      {new Intl.NumberFormat('nb-NO', { style: 'currency', currency: 'NOK' }).format(
-                        match.product.unit_price,
-                      )}
+                      {formatMoneyNok(match.product.unit_price)}
                     </span>
                   </span>
                 </li>

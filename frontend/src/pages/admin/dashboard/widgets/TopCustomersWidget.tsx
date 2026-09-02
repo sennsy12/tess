@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 
 import { TopCustomersWidgetProps } from '../../../../types/dashboard';
-import { formatCurrencyNok } from '../../../../lib/formatters';
+import { formatCurrencyNok, formatDateNb } from '../../../../lib/formatters';
 import { topN } from '../../../../lib/chartUtils';
 import { WidgetError } from './WidgetError';
 
@@ -16,7 +16,7 @@ export function TopCustomersWidget({ data, isLoading, isError, onRetry }: TopCus
   if (isError) {
     return (
       <div className="card">
-        <h3 className="text-lg font-semibold mb-4">👥 Topp 10 Kunder</h3>
+        <h3 className="text-lg font-semibold mb-4">Topp 10 Kunder</h3>
         <WidgetError onRetry={onRetry} />
       </div>
     );
@@ -25,13 +25,13 @@ export function TopCustomersWidget({ data, isLoading, isError, onRetry }: TopCus
 
   const formatDate = (dateStr: string) => {
     if (!dateStr) return '-';
-    return new Date(dateStr).toLocaleDateString('nb-NO', { day: 'numeric', month: 'short', year: 'numeric' });
+    return formatDateNb(dateStr, { day: 'numeric', month: 'short', year: 'numeric' });
   };
 
   if (isLoading) {
     return (
       <div className="card">
-        <h3 className="text-lg font-semibold mb-4">👥 Topp 10 Kunder</h3>
+        <h3 className="text-lg font-semibold mb-4">Topp 10 Kunder</h3>
         <div className="animate-pulse space-y-3">
           {[...Array(5)].map((_, i) => (
             <div key={i} className="h-8 bg-dark-700 rounded" />
@@ -43,7 +43,7 @@ export function TopCustomersWidget({ data, isLoading, isError, onRetry }: TopCus
 
   return (
     <div className="card">
-      <h3 className="text-lg font-semibold mb-4">👥 Topp 10 Kunder</h3>
+      <h3 className="text-lg font-semibold mb-4">Topp 10 Kunder</h3>
       <div className="space-y-3">
         {topCustomers.map((customer, index) => (
           <div key={customer.kundenr} className="flex items-center gap-3">

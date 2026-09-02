@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Pagination } from '../../../../components/admin';
+import { Spinner } from '../../../../components/Spinner';
 import { auditApi } from '../../../../lib/api';
 import { pricingKeys } from '../../../../lib/queryKeys';
 import { AuditEntry } from '../../../../types/pricing';
@@ -233,7 +234,7 @@ export function AuditLogTab() {
       {/* Loading / empty / content */}
       {isLoading ? (
         <div className="flex items-center justify-center h-32">
-          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary-500" />
+          <Spinner size="md" className="text-primary-500" label="Laster endringslogg…" />
         </div>
       ) : entries.length === 0 ? (
         <div className="text-center py-8 text-dark-400">

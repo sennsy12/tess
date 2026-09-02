@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
-import { Download, RotateCcw } from 'lucide-react';
+import { Download, RotateCcw, X } from 'lucide-react';
 import { ExportButton } from '../../../components/ExportButton';
 import { AutocompleteInput } from '../../../components/AutocompleteInput';
 import { toDateInputLocal } from '../../../lib/formatters';
@@ -249,8 +249,9 @@ export function StatsFilters({
                 }}
                 className="btn-secondary px-3 py-2 text-sm"
                 title="Nullstill varegruppe"
+                aria-label="Nullstill varegruppe"
               >
-                ✕
+                <X className="h-4 w-4" aria-hidden />
               </button>
             )}
           </div>

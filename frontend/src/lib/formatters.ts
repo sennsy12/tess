@@ -1,15 +1,76 @@
+// ────────────────────────────────────────────────────────────
+// Memoized Intl formatters
+//
+// Constructing Intl.NumberFormat / Intl.DateTimeFormat is expensive and
+// was previously done per render in dozens of components. All formatters
+// below share this cache so each unique option set is built exactly once.
+// ────────────────────────────────────────────────────────────
+
+const numberFormatCache = new Map<string, Intl.NumberFormat>();
+
+function getCachedNumberFormat(
+  locale: string,
+  options: Intl.NumberFormatOptions,
+): Intl.NumberFormat {
+  const key = `${locale}|${JSON.stringify(options)}`;
+  let formatter = numberFormatCache.get(key);
+  if (!formatter) {
+    formatter = new Intl.NumberFormat(locale, options);
+    numberFormatCache.set(key, formatter);
+  }
+  return formatter;
+}
+
 export const formatCurrencyNok = (value: number) =>
-  new Intl.NumberFormat('nb-NO', {
+  getCachedNumberFormat('nb-NO', {
     style: 'currency',
     currency: 'NOK',
     maximumFractionDigits: 0,
   }).format(value);
 
-export const formatNumberNb = (value: number) =>
-  new Intl.NumberFormat('nb-NO').format(value);
+/** Formats a monetary amount in NOK with default (2) decimals, e.g. "1 234,56 kr". */
+export const formatMoneyNok = (value: number) =>
+  getCachedNumberFormat('nb-NO', {
+    style: 'currency',
+    currency: 'NOK',
+  }).format(value);
 
-export const formatDateNb = (value: Date | string) =>
-  new Intl.DateTimeFormat('nb-NO').format(new Date(value));
+/** Formats a monetary amount in the given currency (defaults to NOK). */
+export const formatCurrency = (value: number, currency: string = 'NOK') =>
+  getCachedNumberFormat('nb-NO', {
+    style: 'currency',
+    currency: currency || 'NOK',
+  }).format(value);
+
+/**
+ * Formats a number with at least `minimumFractionDigits` decimals (default 2),
+ * e.g. "1 234,50". Matches `new Intl.NumberFormat('nb-NO', { minimumFractionDigits: 2 })`.
+ */
+export const formatDecimalNb = (value: number, minimumFractionDigits = 2) =>
+  getCachedNumberFormat('nb-NO', {
+    minimumFractionDigits,
+  }).format(value);
+
+export const formatNumberNb = (value: number) =>
+  getCachedNumberFormat('nb-NO', {}).format(value);
+
+const dateFormatCache = new Map<string, Intl.DateTimeFormat>();
+
+function getCachedDateFormat(locale: string, options?: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
+  const key = `${locale}|${JSON.stringify(options ?? null)}`;
+  let formatter = dateFormatCache.get(key);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat(locale, options);
+    dateFormatCache.set(key, formatter);
+  }
+  return formatter;
+}
+
+// Phase 0: cached DateTimeFormat (same output as before, avoids per-call construction).
+// Phase 3: optional `options` passthrough (cached per option set) so all
+// date rendering funnels through one helper with identical output.
+export const formatDateNb = (value: Date | string, options?: Intl.DateTimeFormatOptions) =>
+  getCachedDateFormat('nb-NO', options).format(new Date(value));
 
 /** YYYY-MM-DD in local timezone (safe for `<input type="date">`). */
 export function toDateInputLocal(date: Date): string {
@@ -57,7 +118,7 @@ export const abbreviateNumber = (value: number): string => {
     const v = abs / 1_000;
     return `${sign}${v % 1 === 0 ? v.toFixed(0) : v.toFixed(1)}k`;
   }
-  return new Intl.NumberFormat('nb-NO').format(value);
+  return formatNumberNb(value);
 };
 
 /**
@@ -101,7 +162,7 @@ export function parseNorwegianNumber(raw: string): number | null {
 
 /** Formats a ratio as a Norwegian percentage, e.g. "12,5 %". */
 export function formatPercent(value: number, digits = 1): string {
-  return new Intl.NumberFormat('nb-NO', {
+  return getCachedNumberFormat('nb-NO', {
     style: 'percent',
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,

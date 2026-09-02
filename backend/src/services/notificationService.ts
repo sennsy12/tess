@@ -3,6 +3,20 @@ import { ORDER_WORKFLOW_LABELS, type OrderWorkflowStatus } from '../lib/orderWor
 import { notificationModel } from '../models/notificationModel.js';
 import { deliverExternalAlert } from './alertDelivery.js';
 
+/** Persist a notification and deliver an external alert in one call. */
+async function createNotificationWithAlert(
+  notificationInput: Parameters<typeof notificationModel.create>[0],
+  alertMetadata?: Record<string, unknown>,
+): Promise<void> {
+  await notificationModel.create(notificationInput);
+  deliverExternalAlert({
+    type: notificationInput.type,
+    title: notificationInput.title,
+    message: notificationInput.message,
+    metadata: alertMetadata ?? (notificationInput.metadata as Record<string, unknown>),
+  });
+}
+
 export async function notifyOrderStatusChange(input: {
   ordrenr: number;
   kundenr: string;
@@ -30,15 +44,13 @@ export async function notifyOrderStatusChange(input: {
     kundenr: input.kundenr,
   });
 
-  await notificationModel.create({
+  await createNotificationWithAlert({
     type: 'order_status',
     title,
     message: `Ordre #${input.ordrenr} (${input.kundenr}) satt til «${label}».`,
     metadata,
     audience: 'admin',
   });
-
-  deliverExternalAlert({ type: 'order_status', title, message, metadata });
 }
 
 /** Notify admins that a customer submitted a new order for approval. */
@@ -67,15 +79,13 @@ export async function notifyOrderSubmitted(input: {
     submittedBy: input.submittedBy,
   };
 
-  await notificationModel.create({
+  await createNotificationWithAlert({
     type: 'order_submitted',
     title,
     message,
     metadata,
     audience: 'admin',
   });
-
-  deliverExternalAlert({ type: 'order_submitted', title, message, metadata });
 }
 
 export async function notifyOrderDataRefresh(input: {
@@ -92,19 +102,12 @@ export async function notifyOrderDataRefresh(input: {
       ? `${input.insertedRows.toLocaleString('nb-NO')} ordrer ble importert/oppdatert via ETL.`
       : `${input.insertedRows.toLocaleString('nb-NO')} ordrelinjer ble importert/oppdatert via ETL.`;
 
-  await notificationModel.create({
+  await createNotificationWithAlert({
     type: 'order_etl_refresh',
     title,
     message,
     metadata: { table: input.table, insertedRows: input.insertedRows, jobId: input.jobId },
     audience: 'admin',
-  });
-
-  deliverExternalAlert({
-    type: 'order_etl_refresh',
-    title,
-    message,
-    metadata: { table: input.table, insertedRows: input.insertedRows, jobId: input.jobId },
   });
 }
 
@@ -117,27 +120,23 @@ export async function notifyEtlJobFinished(job: EtlJobProgress): Promise<void> {
     ? job.error ?? 'Ukjent feil under ETL-kjøring.'
     : `${job.insertedRows.toLocaleString('nb-NO')} rader importert (${job.sourceType}).`;
 
-  await notificationModel.create({
-    type: failed ? 'etl_failed' : 'etl_completed',
-    title,
-    message,
-    metadata: {
-      jobId: job.jobId,
-      table: job.table,
-      status: job.status,
-      insertedRows: job.insertedRows,
-      rejectedRows: job.rejectedRows,
-      error: job.error,
+  await createNotificationWithAlert(
+    {
+      type: failed ? 'etl_failed' : 'etl_completed',
+      title,
+      message,
+      metadata: {
+        jobId: job.jobId,
+        table: job.table,
+        status: job.status,
+        insertedRows: job.insertedRows,
+        rejectedRows: job.rejectedRows,
+        error: job.error,
+      },
+      audience: 'admin',
     },
-    audience: 'admin',
-  });
-
-  deliverExternalAlert({
-    type: failed ? 'etl_failed' : 'etl_completed',
-    title,
-    message,
-    metadata: { jobId: job.jobId, table: job.table, status: job.status },
-  });
+    { jobId: job.jobId, table: job.table, status: job.status },
+  );
 
   if (job.status === 'completed') {
     await notifyOrderDataRefresh({

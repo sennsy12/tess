@@ -106,16 +106,16 @@ export function AnalyticsChartArea({
   const renderSortIcon = (key: SortKey) => {
     if (sort.key !== key) return null;
     return sort.dir === 'asc' ? (
-      <ArrowUp className="h-3.5 w-3.5" aria-hidden />
+      <ArrowUp className="h-3.5 w-3.5 shrink-0" aria-hidden />
     ) : (
-      <ArrowDown className="h-3.5 w-3.5" aria-hidden />
+      <ArrowDown className="h-3.5 w-3.5 shrink-0" aria-hidden />
     );
   };
 
   return (
     <div className="lg:col-span-3 space-y-6 min-w-0">
       <div ref={chartRef} className="space-y-6">
-        <div className="card min-h-[400px]">
+        <div className="card relative min-h-[400px]">
           {config.chartType === 'bar' && (
             <BarChart
               data={data}
@@ -167,31 +167,31 @@ export function AnalyticsChartArea({
             )}
           </div>
 
-          <div className="table-container overflow-x-auto scrollbar-thin scrollbar-thumb-dark-700 scrollbar-track-transparent">
-            <table className="w-full table-fixed text-left">
+          <div className="table-container overflow-hidden">
+            <table className="w-full table-fixed text-left min-w-0">
               <thead>
                 <tr>
-                  <th className="table-header" aria-sort={sort.key === 'label' ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                  <th className="table-header w-[110px] overflow-hidden whitespace-nowrap" aria-sort={sort.key === 'label' ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
                     <button
                       type="button"
                       onClick={() => toggleSort('label')}
-                      className="inline-flex items-center gap-1 uppercase tracking-wider hover:text-dark-200"
+                      className="inline-flex max-w-full items-center gap-1 uppercase tracking-wider hover:text-dark-200"
                     >
-                      {getDimensionLabel(config.dimension)}
+                      <span className="truncate">{getDimensionLabel(config.dimension)}</span>
                       {renderSortIcon('label')}
                     </button>
                   </th>
-                  <th className="table-header w-[18%] text-right" aria-sort={sort.key === 'value' ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                  <th className="table-header w-[176px] overflow-hidden whitespace-nowrap text-right" aria-sort={sort.key === 'value' ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
                     <button
                       type="button"
                       onClick={() => toggleSort('value')}
-                      className="inline-flex items-center gap-1 uppercase tracking-wider hover:text-dark-200 ml-auto"
+                      className="inline-flex max-w-full items-center justify-end gap-1 uppercase tracking-wider hover:text-dark-200 ml-auto"
                     >
-                      {getMetricLabel(config.metric)}
+                      <span className="truncate">{getMetricLabel(config.metric)}</span>
                       {renderSortIcon('value')}
                     </button>
                   </th>
-                  <th className="table-header w-[28%]">Andel av totalt</th>
+                  <th className="table-header overflow-hidden whitespace-nowrap">Andel av totalt</th>
                 </tr>
               </thead>
               <tbody>
@@ -210,15 +210,17 @@ export function AnalyticsChartArea({
                         >
                           {item.label}
                         </td>
-                        <td className="table-cell text-right tabular-nums">{valueFormatter(item.value)}</td>
-                        <td className="table-cell">
-                          <div className="flex items-center gap-2">
-                            <div
-                              className="h-1.5 rounded-full bg-primary-500/80 flex-none"
-                              style={{ width: `${maxValue > 0 ? Math.max((item.value / maxValue) * 100, 1) : 0}%` }}
-                              role="presentation"
-                            />
-                            <span className="text-xs text-dark-400 tabular-nums whitespace-nowrap">
+                        <td className="table-cell whitespace-nowrap text-right tabular-nums">{valueFormatter(item.value)}</td>
+                        <td className="table-cell min-w-0">
+                          <div className="flex min-w-0 items-center gap-2">
+                            <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-dark-700/60">
+                              <div
+                                className="h-full rounded-full bg-primary-500/80"
+                                style={{ width: `${maxValue > 0 ? Math.max((item.value / maxValue) * 100, item.value > 0 ? 1 : 0) : 0}%` }}
+                                role="presentation"
+                              />
+                            </div>
+                            <span className="w-[52px] shrink-0 text-right text-xs text-dark-400 tabular-nums whitespace-nowrap">
                               {share.toFixed(1)} %
                             </span>
                           </div>

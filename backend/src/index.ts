@@ -25,6 +25,8 @@ import { initializeDefaultJobs, stopAllJobs } from './scheduler/index.js';
 import { initEtlQueue, stopEtlQueue } from './etl/etlQueue.js';
 import { apiMetricsMiddleware } from './middleware/apiMetrics.js';
 import { generalLimiter } from './middleware/rateLimit.js';
+import { requestIdMiddleware } from './http/requestId.js';
+import { prometheusMiddleware, register, renderMetrics } from './metrics/prometheus.js';
 import { logger } from './lib/logger.js';
 import { validateEnv, getEnv } from './lib/env.js';
 import { query } from './db/index.js';
@@ -63,12 +65,18 @@ app.use(
 
 app.use(helmet());
 
+// Correlation ID first so every log/error carries it.
+app.use(requestIdMiddleware);
+
 // Standard JSON limit for most routes
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // General rate limiting (skipped in development)
 app.use('/api', generalLimiter);
+
+// Prometheus HTTP observations (skips /metrics + health probes internally)
+app.use(prometheusMiddleware);
 
 // API metrics middleware - track response times
 app.use('/api', apiMetricsMiddleware);
@@ -84,6 +92,7 @@ app.use((req, res, next) => {
       status: res.statusCode,
       duration,
       ip: req.ip,
+      requestId: (req as unknown as { id?: string }).id,
     };
     if (res.statusCode >= 400) {
       logger.warn(logData, 'Request completed with error');
@@ -104,8 +113,7 @@ app.get('/api/health', (_req, res) => {
 // Readiness probe — verifies database connectivity.
 // Deliberately minimal: this endpoint is unauthenticated, so internal
 // connection-pool details are not exposed (available via metrics instead).
-app.get('/api/health/ready', async (_req, res) => {
-  try {
+app.get('/api/health/ready', async (_req, res) => {  try {
     await query('SELECT 1');
     res.json({
       status: 'ready',
@@ -119,6 +127,18 @@ app.get('/api/health/ready', async (_req, res) => {
       timestamp: new Date().toISOString(),
       database: 'disconnected',
     });
+  }
+});
+
+// Prometheus scrape endpoint — NO auth by design (scrapers can't log in).
+// Must stay inside the compose network: Caddy must never proxy /metrics.
+app.get('/metrics', async (_req, res) => {
+  try {
+    res.set('Content-Type', register.contentType);
+    res.send(await renderMetrics());
+  } catch (err) {
+    logger.warn({ err }, 'Metrics render failed');
+    res.status(503).send('metrics unavailable');
   }
 });
 
@@ -146,6 +166,11 @@ app.use('/api/audit', auditRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/assistant', assistantRouter);
 app.use('/api/notifications', notificationsRouter);
+
+// Consistent JSON 404 (Express default is HTML, which breaks the API envelope).
+app.use('/api', (_req, res) => {
+  res.status(404).json({ status: 'error', error: 'Not found' });
+});
 
 // Error handling middleware (must be last)
 app.use(errorHandler);

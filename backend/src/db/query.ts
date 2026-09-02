@@ -4,6 +4,7 @@
  * @module db/query
  */
 import pool from './pool.js';
+import type { PoolClient } from 'pg';
 import { dbLogger } from '../lib/logger.js';
 
 /**
@@ -52,15 +53,27 @@ export const getClient = () => pool.connect();
  * });
  * ```
  */
-export const transaction = async <T>(callback: (client: any) => Promise<T>): Promise<T> => {
+export const transaction = async <T>(
+  callback: (client: PoolClient) => Promise<T>,
+  options?: { isolationLevel?: 'READ COMMITTED' | 'REPEATABLE READ' | 'SERIALIZABLE' },
+): Promise<T> => {
   const client = await pool.connect();
   try {
-    await client.query('BEGIN');
+    if (options?.isolationLevel) {
+      await client.query(`BEGIN ISOLATION LEVEL ${options.isolationLevel}`);
+    } else {
+      await client.query('BEGIN');
+    }
     const result = await callback(client);
     await client.query('COMMIT');
     return result;
   } catch (error) {
-    await client.query('ROLLBACK');
+    try {
+      await client.query('ROLLBACK');
+    } catch (rollbackErr) {
+      // Never mask the original error with a rollback failure.
+      dbLogger.error({ rollbackErr }, 'Transaction ROLLBACK failed');
+    }
     throw error;
   } finally {
     client.release();

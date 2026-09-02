@@ -1,3 +1,4 @@
+import { useId } from 'react';
 import {
   LineChart as RechartsLineChart,
   Line,
@@ -8,7 +9,8 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts';
-import { abbreviateNumber } from '../../lib/formatters';
+import { abbreviateNumber, formatNumberNb } from '../../lib/formatters';
+import { usePrefersReducedMotion } from '../../hooks/usePrefersReducedMotion';
 
 /** Describes one line/series in the chart. */
 export interface LineSeries {
@@ -53,8 +55,7 @@ export function LineChart({
   height = 300,
   summary,
 }: LineChartProps) {
-  const defaultFormatter = (value: number) => 
-    new Intl.NumberFormat('nb-NO').format(value);
+  const defaultFormatter = formatNumberNb;
 
   const tooltipFormatter = valueFormatter || defaultFormatter;
   const axisTick = tickFormatterProp || abbreviateNumber;
@@ -66,17 +67,23 @@ export function LineChart({
 
   const showLegend = resolvedSeries.length > 1;
 
+  // Phase 0: unique gradient ids per instance — `color-0/color-1` collided
+  // when >1 LineChart mounted on the same page.
+  const instanceId = useId().replace(/[^a-zA-Z0-9]/g, '');
+  const gradientIdFor = (i: number) => `${instanceId}-color-${i}`;
+  const reduceMotion = usePrefersReducedMotion();
+
   return (
     <div className="chart-container relative rounded-lg p-5">
-      {title && <h3 className="text-lg font-semibold mb-6 text-dark-100 flex items-center gap-2">
-        <span className="w-0.5 h-5 bg-gold-500 rounded-full"></span>
+      {title && <h3 className="h-card-title mb-6">
+        <span className="w-0.5 h-5 bg-gold-500 rounded-full" aria-hidden="true"></span>
         {title}
       </h3>}
       <ResponsiveContainer width="100%" height={height}>
         <RechartsLineChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
           <defs>
             {resolvedSeries.map((s, i) => (
-              <linearGradient key={`gradient-${i}`} id={`color-${i}`} x1="0" y1="0" x2="0" y2="1">
+              <linearGradient key={`gradient-${i}`} id={gradientIdFor(i)} x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor={s.color} stopOpacity={0.3}/>
                 <stop offset="95%" stopColor={s.color} stopOpacity={0}/>
               </linearGradient>
@@ -149,7 +156,7 @@ export function LineChart({
               strokeDasharray={s.strokeDasharray}
               dot={{ fill: '#0f172a', stroke: s.color, strokeWidth: 2, r: 4 }}
               activeDot={{ r: 6, fill: s.color, stroke: '#fff', strokeWidth: 2, filter: 'drop-shadow(0 0 6px rgba(0,0,0,0.5))' }}
-              isAnimationActive={true}
+              isAnimationActive={!reduceMotion}
               animationDuration={1500}
             />
           ))}

@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { TrendingUp } from 'lucide-react';
-import { PremiumStatCard } from '../../components/PremiumStatCard';
+import { StatCard } from '../../components/StatCard';
 import type { AnalyticsDataPoint } from './analyticsTypes';
 
 interface AnalyticsKpiStripProps {
@@ -81,9 +81,9 @@ export function AnalyticsKpiStrip({ data, isLoading, valueFormatter }: Analytics
   }
 
   return (
-    <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 stagger-1">
+    <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 animate-fade-in">
       {kpis.map((kpi) => (
-        <PremiumStatCard
+        <StatCard
           key={kpi.key}
           label={kpi.label}
           value={kpi.value}

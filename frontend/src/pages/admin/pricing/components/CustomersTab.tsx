@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { pricingApi } from '../../../../lib/api';
 import { CustomerWithGroup, CustomersTabProps } from '../../../../types/pricing';
 import { Pagination } from '../../../../components/admin';
+import { Spinner } from '../../../../components/Spinner';
 import { PaginationInfo } from '../../../../types/statistics';
 import { useDebouncedValue } from '../../../../hooks/useDebouncedValue';
 
@@ -82,7 +83,7 @@ export function CustomersTab({
         </div>
       )}
       {/* Summary stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 stagger-fade-in">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 animate-fade-in">
         <div className="card-interactive text-center">
           <p className="text-2xl font-bold">{pagination.total.toLocaleString()}</p>
           <p className="text-xs text-dark-400 uppercase tracking-wide mt-1">
@@ -159,7 +160,7 @@ export function CustomersTab({
         <div className="mt-3 flex items-center gap-2 text-sm text-dark-400">
           {isLoading ? (
             <div className="flex items-center gap-2">
-              <div className="animate-spin rounded-full h-3.5 w-3.5 border-t-2 border-b-2 border-primary-500"></div>
+              <Spinner size="xs" className="text-primary-500" />
               <span>Søker...</span>
             </div>
           ) : (

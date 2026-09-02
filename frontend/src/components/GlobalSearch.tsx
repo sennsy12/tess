@@ -4,6 +4,7 @@ import { ClipboardList, Search } from 'lucide-react';
 import { useAuth } from '../context/useAuth';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import { pricingApi, ordersApi, productsApi, usersApi } from '../lib/api';
+import { ModalShell } from './ModalShell';
 
 type SearchResult = {
   id: string;
@@ -189,70 +190,68 @@ export function GlobalSearch({ open, onClose }: GlobalSearchProps) {
     : 'Søk ordre, kunder, produkter, brukere…';
 
   return (
-    <div
-      className="fixed inset-0 z-[200] flex items-start justify-center bg-black/60 backdrop-blur-sm p-4 pt-[10vh] sm:pt-[12vh]"
-      onClick={onClose}
-      role="presentation"
+    <ModalShell
+      open={open && enabled}
+      onClose={onClose}
+      label={isKundeView ? 'Søk i dine ordrer' : 'Globalt søk'}
+      maxWidth="max-w-xl"
+      zIndex="z-[200]"
+      align="top"
+      className="card--flush max-h-[80vh] overflow-y-auto"
     >
-      <div
-        className="w-full max-w-xl rounded-2xl border border-dark-700 bg-dark-900 shadow-2xl overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-label={isKundeView ? 'Søk i dine ordrer' : 'Globalt søk'}
-      >
-        <div className="border-b border-dark-800 p-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-dark-500 pointer-events-none" aria-hidden />
-            <input
-              type="search"
-              autoFocus
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={placeholder}
-              className="input w-full pl-10"
-              aria-label="Søk"
-              aria-activedescendant={results[highlightIndex] ? `search-result-${highlightIndex}` : undefined}
-            />
-          </div>
-          <p className="mt-2 text-xs text-dark-500">
-            {isKundeView ? 'Ctrl+K · kun dine ordrer' : 'Ctrl+K · ↑↓ velg · Enter åpne'}
-          </p>
+      <div className="border-b border-dark-800 p-4">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-dark-500 pointer-events-none" aria-hidden />
+          <input
+            type="search"
+            data-autofocus
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={placeholder}
+            className="input w-full pl-10"
+            aria-label="Søk"
+            aria-activedescendant={results[highlightIndex] ? `search-result-${highlightIndex}` : undefined}
+          />
         </div>
+        <p className="mt-2 text-xs text-dark-500">
+          {isKundeView ? 'Ctrl+K · kun dine ordrer' : 'Ctrl+K · ↑↓ velg · Enter åpne'}
+        </p>
+      </div>
 
-        {query.length < 2 && isKundeView && (
-          <div className="px-4 py-6 text-center text-sm text-dark-400">
-            <ClipboardList className="h-8 w-8 mx-auto mb-2 text-dark-600" aria-hidden />
-            Skriv minst 2 tegn for å søke blant ordrene dine
-          </div>
+      {query.length < 2 && isKundeView && (
+        <div className="px-4 py-6 text-center text-sm text-dark-400">
+          <ClipboardList className="h-8 w-8 mx-auto mb-2 text-dark-600" aria-hidden />
+          Skriv minst 2 tegn for å søke blant ordrene dine
+        </div>
+      )}
+
+      <ul ref={listRef} className="max-h-80 overflow-y-auto p-2" role="listbox">
+        {isSearching && <li className="px-3 py-2 text-sm text-dark-400">Søker…</li>}
+        {!isSearching && query.length >= 2 && results.length === 0 && (
+          <li className="px-3 py-6 text-sm text-dark-400 text-center">Ingen treff</li>
         )}
-
-        <ul ref={listRef} className="max-h-80 overflow-y-auto p-2" role="listbox">
-          {isSearching && <li className="px-3 py-2 text-sm text-dark-400">Søker…</li>}
-          {!isSearching && query.length >= 2 && results.length === 0 && (
-            <li className="px-3 py-6 text-sm text-dark-400 text-center">Ingen treff</li>
-          )}
           {results.map((r, index) => (
-            <li key={r.id} id={`search-result-${index}`} role="option" aria-selected={index === highlightIndex}>
-              <button
-                type="button"
-                className={`w-full rounded-xl px-3 py-2.5 text-left transition-colors ${
-                  index === highlightIndex ? 'bg-primary-600/25 text-dark-50' : 'hover:bg-dark-800'
-                }`}
-                onClick={() => selectResult(r)}
-                onMouseEnter={() => setHighlightIndex(index)}
-              >
-                <span className="text-[10px] uppercase tracking-wider font-semibold text-primary-400 mr-2">
-                  {typeLabel[r.type]}
-                </span>
-                <span className="text-sm">{r.label}</span>
-                {r.sublabel && (
-                  <span className="block text-xs text-dark-400 mt-0.5 truncate">{r.sublabel}</span>
-                )}
-              </button>
+            <li
+              key={r.id}
+              id={`search-result-${index}`}
+              role="option"
+              aria-selected={index === highlightIndex}
+              onClick={() => selectResult(r)}
+              onMouseEnter={() => setHighlightIndex(index)}
+              className={`rounded-xl px-3 py-2.5 transition-colors cursor-pointer ${
+                index === highlightIndex ? 'bg-primary-600/25 text-dark-50' : 'hover:bg-dark-800'
+              }`}
+            >
+              <span className="text-[10px] uppercase tracking-wider font-semibold text-primary-400 mr-2">
+                {typeLabel[r.type]}
+              </span>
+              <span className="text-sm">{r.label}</span>
+              {r.sublabel && (
+                <span className="block text-xs text-dark-400 mt-0.5 truncate">{r.sublabel}</span>
+              )}
             </li>
           ))}
-        </ul>
-      </div>
-    </div>
+      </ul>
+    </ModalShell>
   );
 }

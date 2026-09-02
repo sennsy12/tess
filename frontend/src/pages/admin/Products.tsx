@@ -6,7 +6,7 @@ import { Pencil } from 'lucide-react';
 import { Layout } from '../../components/Layout';
 import { QueryErrorBanner } from '../../components/QueryErrorBanner';
 import { QueryRefetchBar } from '../../components/QueryRefetchBar';
-import { productKeys, type ProductFilters } from '../../lib/queryKeys';
+import { productKeys, kundeKeys, type ProductFilters } from '../../lib/queryKeys';
 import {
   productFiltersFromSearchParams,
   productFiltersToSearchParams,
@@ -16,6 +16,7 @@ import { DataTable, type DataTableState } from '../../components/DataTable';
 import { PageHeader, FilterBar, TableSkeleton, Pagination } from '../../components/admin';
 import { productsApi } from '../../lib/api';
 import { getApiError } from '../../lib/apiErrors';
+import { formatMoneyNok } from '../../lib/formatters';
 
 interface Product {
   varekode: string;
@@ -170,8 +171,8 @@ export function AdminProducts() {
     onSuccess: (_data, variables) => {
       toast.success(`Pris oppdatert for ${variables.varekode}`);
       setEditingPrice(null);
-      void queryClient.invalidateQueries({ queryKey: ['admin', 'products'] });
-      void queryClient.invalidateQueries({ queryKey: ['kunde', 'catalog'] });
+      void queryClient.invalidateQueries({ queryKey: productKeys.root() });
+      void queryClient.invalidateQueries({ queryKey: kundeKeys.catalogRoot() });
     },
     onError: (err) => toast.error(getApiError(err, 'Kunne ikke oppdatere pris')),
   });
@@ -230,7 +231,7 @@ export function AdminProducts() {
             }}
             title="Rediger basispris"
           >
-            {new Intl.NumberFormat('nb-NO', { style: 'currency', currency: 'NOK' }).format(value ?? 0)}
+            {formatMoneyNok(value ?? 0)}
             <Pencil className="h-3 w-3 opacity-0 group-hover/pr:opacity-100 text-primary-400" aria-hidden />
           </button>
         ),

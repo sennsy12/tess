@@ -57,18 +57,11 @@ export const productController = {
 
     const updated = await productModel.updateBasePrice(varekode, base_price);
 
-    await auditService.log({
-      user: {
-        id: req.user?.id,
-        username: req.user?.username || 'unknown',
-      },
-      action: 'UPDATE',
-      entityType: 'vare',
-      entityId: varekode,
-      entityName: existing.varenavn ?? varekode,
+    await auditService.logFromRequest({
+      req, action: 'UPDATE', entityType: 'vare',
+      entityId: varekode, entityName: existing.varenavn ?? varekode,
       oldData: { base_price: existing.base_price },
       newData: { base_price: updated?.base_price ?? base_price },
-      ipAddress: req.ip,
     });
 
     res.json(updated);

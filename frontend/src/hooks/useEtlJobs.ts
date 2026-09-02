@@ -1,8 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { etlApi } from '../lib/api/etl';
+import { etlKeys } from '../lib/queryKeys';
 import type { EtlPipelineJob, EtlJobStatus } from '../types/etlJob';
-
-export const ETL_JOBS_QUERY_KEY = ['admin', 'etl-jobs'] as const;
 
 function hasActiveJobs(jobs: EtlPipelineJob[] | undefined): boolean {
   return jobs?.some((j) => j.status === 'running' || j.status === 'pending') ?? false;
@@ -10,7 +9,7 @@ function hasActiveJobs(jobs: EtlPipelineJob[] | undefined): boolean {
 
 export function useEtlJobsList(limit = 50) {
   return useQuery({
-    queryKey: [...ETL_JOBS_QUERY_KEY, limit],
+    queryKey: etlKeys.jobs(limit),
     queryFn: () => etlApi.listJobs(limit).then((res) => res.data.jobs),
     placeholderData: (prev) => prev,
     refetchInterval: (query) => (hasActiveJobs(query.state.data) ? 2500 : false),
@@ -19,7 +18,7 @@ export function useEtlJobsList(limit = 50) {
 
 export function useEtlJobDetail(jobId: string | null) {
   return useQuery({
-    queryKey: [...ETL_JOBS_QUERY_KEY, 'detail', jobId],
+    queryKey: etlKeys.detail(jobId ?? 'none'),
     queryFn: () => etlApi.getJob(jobId!).then((res) => res.data),
     enabled: !!jobId,
     refetchInterval: (query) => {
@@ -34,7 +33,7 @@ export function useCancelEtlJob() {
   return useMutation({
     mutationFn: (jobId: string) => etlApi.cancelJob(jobId).then((res) => res.data),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ETL_JOBS_QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: etlKeys.all() });
     },
   });
 }

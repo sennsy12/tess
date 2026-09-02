@@ -1,7 +1,8 @@
 import { useMemo } from 'react';
 import { TrendingDown, TrendingUp } from 'lucide-react';
-import { PremiumStatCard } from '../../../components/PremiumStatCard';
+import { StatCard } from '../../../components/StatCard';
 import type { ComparisonData } from '../../../types/statistics';
+import { formatCurrencyNok } from '../../../lib/formatters';
 
 interface StatsKpiStripProps {
   summary?: { totalOrders: number; totalRevenue: number };
@@ -9,13 +10,6 @@ interface StatsKpiStripProps {
   compareEnabled: boolean;
   isLoading: boolean;
 }
-
-const currency = (value: number) =>
-  new Intl.NumberFormat('nb-NO', {
-    style: 'currency',
-    currency: 'NOK',
-    maximumFractionDigits: 0,
-  }).format(value);
 
 /**
  * Period summary metrics for the statistics page, powered by the
@@ -42,9 +36,9 @@ export function StatsKpiStrip({
     {
       key: 'revenue',
       label: 'Total omsetning',
-      value: summary ? currency(summary.totalRevenue) : '–',
+      value: summary ? formatCurrencyNok(summary.totalRevenue) : '–',
       numericValue: summary?.totalRevenue,
-      format: currency,
+      format: formatCurrencyNok,
       accent: 'gold' as const,
       sub:
         compareEnabled && comparison ? (
@@ -76,14 +70,14 @@ export function StatsKpiStrip({
     {
       key: 'avg',
       label: 'Snitt ordreverdi',
-      value: avgOrderValue !== null ? currency(avgOrderValue) : '–',
+      value: avgOrderValue !== null ? formatCurrencyNok(avgOrderValue) : '–',
     },
     ...(compareEnabled
       ? [
           {
             key: 'prev',
             label: 'Forrige periode',
-            value: comparison ? currency(comparison.previousTotal) : '–',
+            value: comparison ? formatCurrencyNok(comparison.previousTotal) : '–',
           },
         ]
       : []),
@@ -100,9 +94,9 @@ export function StatsKpiStrip({
   }
 
   return (
-    <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 stagger-1">
+    <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 animate-fade-in">
       {kpis.map((kpi) => (
-        <PremiumStatCard
+        <StatCard
           key={kpi.key}
           label={kpi.label}
           value={kpi.value}

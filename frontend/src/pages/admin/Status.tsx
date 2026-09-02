@@ -4,6 +4,7 @@ import { Layout } from '../../components/Layout';
 import { DataTable, type DataTableState } from '../../components/DataTable';
 import { QueryErrorBanner } from '../../components/QueryErrorBanner';
 import { statusApi } from '../../lib/api';
+import { statusKeys } from '../../lib/queryKeys';
 import { ApiEndpointMetric, ApiMetricsData } from '../../types/status';
 
 function StatusCard({
@@ -72,42 +73,42 @@ export function AdminStatus() {
   });
 
   const systemQuery = useQuery({
-    queryKey: ['admin', 'status'],
+    queryKey: statusKeys.system(),
     queryFn: () => statusApi.getStatus().then((res) => res.data),
   });
 
   const importQuery = useQuery({
-    queryKey: ['admin', 'import-status'],
+    queryKey: statusKeys.import(),
     queryFn: () => statusApi.getImportStatus().then((res) => res.data),
   });
 
   const extractionQuery = useQuery({
-    queryKey: ['admin', 'extraction-status'],
+    queryKey: statusKeys.extraction(),
     queryFn: () => statusApi.getExtractionStatus().then((res) => res.data),
   });
 
   const healthQuery = useQuery({
-    queryKey: ['admin', 'health'],
+    queryKey: statusKeys.health(),
     queryFn: () => statusApi.getHealth().then((res) => res.data),
   });
 
   const apiMetricsQuery = useQuery<ApiMetricsData>({
-    queryKey: ['admin', 'api-metrics'],
+    queryKey: statusKeys.apiMetrics(),
     queryFn: () => statusApi.getApiMetrics().then((res) => res.data),
   });
 
   const etlMetricsQuery = useQuery({
-    queryKey: ['admin', 'etl-metrics'],
+    queryKey: statusKeys.etlMetrics(),
     queryFn: () => statusApi.getEtlMetrics().then((res) => res.data),
   });
 
   const loadAllStatus = () => {
-    void queryClient.invalidateQueries({ queryKey: ['admin', 'status'] });
-    void queryClient.invalidateQueries({ queryKey: ['admin', 'import-status'] });
-    void queryClient.invalidateQueries({ queryKey: ['admin', 'extraction-status'] });
-    void queryClient.invalidateQueries({ queryKey: ['admin', 'health'] });
-    void queryClient.invalidateQueries({ queryKey: ['admin', 'api-metrics'] });
-    void queryClient.invalidateQueries({ queryKey: ['admin', 'etl-metrics'] });
+    void queryClient.invalidateQueries({ queryKey: statusKeys.system() });
+    void queryClient.invalidateQueries({ queryKey: statusKeys.import() });
+    void queryClient.invalidateQueries({ queryKey: statusKeys.extraction() });
+    void queryClient.invalidateQueries({ queryKey: statusKeys.health() });
+    void queryClient.invalidateQueries({ queryKey: statusKeys.apiMetrics() });
+    void queryClient.invalidateQueries({ queryKey: statusKeys.etlMetrics() });
   };
 
   const systemStatus = systemQuery.data;

@@ -21,7 +21,7 @@ export function DashboardCharts({
             data={timeSeries}
             xKey="period"
             yKey="total_sum"
-            title="📈 Omsetning over tid"
+            title="Omsetning over tid"
             color="#10b981"
             seriesName="Omsetning"
             valueFormatter={currencyFormatter}
@@ -32,7 +32,7 @@ export function DashboardCharts({
             data={timeSeries}
             xKey="period"
             yKey="order_count"
-            title="📊 Antall ordrer per måned"
+            title="Antall ordrer per måned"
             color="#8b5cf6"
             seriesName="Antall Ordrer"
           />
@@ -45,7 +45,7 @@ export function DashboardCharts({
             data={kundeStats}
             xKey="kundenavn"
             yKey="total_sum"
-            title="🏢 Topp 10 Kunder (Omsetning)"
+            title="Topp 10 Kunder (Omsetning)"
             color="#6366f1"
             seriesName="Omsetning"
             valueFormatter={currencyFormatter}
@@ -56,7 +56,7 @@ export function DashboardCharts({
             data={varegruppeStats}
             nameKey="varegruppe"
             valueKey="total_sum"
-            title="📦 Omsetning per Varegruppe"
+            title="Omsetning per Varegruppe"
             seriesName="Omsetning"
             valueFormatter={currencyFormatter}
           />

@@ -2,25 +2,27 @@ import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth.js';
 import { orderLineModel } from '../models/orderLineModel.js';
 import { NotFoundError } from '../middleware/errorHandler.js';
+import { parsePagination } from '../http/pagination.js';
 
 export const orderLineController = {
   getByOrder: async (req: AuthRequest, res: Response) => {
     const { ordrenr } = req.params;
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 50;
+    const { page, limit } = parsePagination(
+      req.query as unknown as Record<string, unknown>,
+    );
 
     const result = await orderLineModel.findByOrderNr(Number(ordrenr), { page, limit });
     res.json(result);
   },
 
+  // NOTE: create/update/delete already recalc ordre.sum inside the same
+  // transaction (see orderLineModel) — no second updateOrderSum call needed.
   create: async (req: AuthRequest, res: Response) => {
     const { ordrenr, varekode, antall, enhet, nettpris, linjestatus } = req.body;
-    
+
     const newLine = await orderLineModel.create({
       ordrenr, varekode, antall, enhet, nettpris, linjestatus
     });
-
-    await orderLineModel.updateOrderSum(ordrenr);
 
     res.status(201).json(newLine);
   },
@@ -37,8 +39,6 @@ export const orderLineController = {
       throw new NotFoundError('Order line not found');
     }
 
-    await orderLineModel.updateOrderSum(Number(ordrenr));
-
     res.json(updatedLine);
   },
 
@@ -50,8 +50,6 @@ export const orderLineController = {
     if (!deletedLine) {
       throw new NotFoundError('Order line not found');
     }
-
-    await orderLineModel.updateOrderSum(Number(ordrenr));
 
     res.json({ message: 'Order line deleted', deleted: deletedLine });
   },

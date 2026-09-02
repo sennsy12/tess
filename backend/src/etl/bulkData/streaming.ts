@@ -6,6 +6,7 @@ import { formatCopyLine } from '../streaming/transforms.js';
 import { getOrderRows } from './orderGeneration.js';
 import { ensureDimensionData } from './dimensions.js';
 import { dropBulkIndexes, createBulkIndexes } from './indexes.js';
+import { scheduleStatisticsRefreshAfterEtl } from '../../services/statsAggregateService.js';
 
 const ORDRE_COLS = ['ordrenr', 'dato', 'kundenr', 'kundeordreref', 'kunderef', 'firmaid', 'lagernavn', 'valutaid', 'sum'];
 const ORDRELINJE_COLS = ['linjenr', 'ordrenr', 'varekode', 'antall', 'enhet', 'nettpris', 'linjesum', 'linjestatus'];
@@ -84,6 +85,10 @@ export async function runBulkPipelineStreaming(config: {
   const [ordrer, ordrelinjer, ordre_henvisninger] = await Promise.all([copyOrdreP, copyOrdrelinjeP, copyHenvisningP]);
 
   await createBulkIndexes();
+
+  // Hold statistikk-MV-ene ferske (Kunde-/Varegruppe-fanene leser dem).
+  // Ikke-blokkerende — REFRESH CONCURRENTLY sperrer ikke lesing.
+  scheduleStatisticsRefreshAfterEtl('ordre');
 
   const duration = Date.now() - startTime;
   const totalRows = ordrer + ordrelinjer + ordre_henvisninger;

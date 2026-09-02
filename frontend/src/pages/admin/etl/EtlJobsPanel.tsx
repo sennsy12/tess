@@ -4,11 +4,11 @@ import {
   Ban,
   CheckCircle2,
   Clock,
-  Loader2,
   RefreshCw,
   XCircle,
 } from 'lucide-react';
 import { EmptyState } from '../../../components/EmptyState';
+import { Spinner } from '../../../components/Spinner';
 import { ConfirmModal, ListSkeleton } from '../../../components/admin';
 import { QueryErrorBanner } from '../../../components/QueryErrorBanner';
 import {
@@ -58,7 +58,7 @@ const FILTER_OPTIONS: { id: EtlJobFilter; label: string }[] = [
 function StatusIcon({ status }: { status: EtlJobStatus }) {
   switch (status) {
     case 'running':
-      return <Loader2 className="h-4 w-4 animate-spin text-blue-400" aria-hidden />;
+      return <Spinner size="xs" className="text-blue-400" />;
     case 'pending':
       return <Clock className="h-4 w-4 text-amber-400" aria-hidden />;
     case 'completed':
@@ -253,7 +253,7 @@ export function EtlJobsPanel({ focusJobId, onFocusConsumed }: EtlJobsPanelProps)
   const selectedLive = selectedJobId ? liveJobs[selectedJobId] : null;
 
   return (
-    <div className="space-y-6 stagger-fade-in">
+    <div className="space-y-6 animate-fade-in">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="card py-3 px-4 flex items-center gap-3">
           <Activity className="h-5 w-5 text-blue-400 shrink-0" aria-hidden />

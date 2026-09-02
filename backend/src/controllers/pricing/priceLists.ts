@@ -4,7 +4,6 @@ import { priceListModel } from '../../models/pricingModel.js';
 import { auditService } from '../../services/auditService.js';
 import { ValidationError, NotFoundError } from '../../middleware/errorHandler.js';
 import { CreatePriceListInput, UpdatePriceListInput } from '../../types/pricing.js';
-import { getAuditUser } from './shared.js';
 
 /**
  * Pricing Controller - price list handlers
@@ -54,9 +53,9 @@ export const priceListsHandlers = {
 
     const list = await priceListModel.create(data);
 
-    await auditService.log({
-      user: getAuditUser(req), action: 'CREATE', entityType: 'price_list',
-      entityId: list.id, entityName: list.name, ipAddress: req.ip,
+    await auditService.logFromRequest({
+      req, action: 'CREATE', entityType: 'price_list',
+      entityId: list.id, entityName: list.name,
     });
 
     res.status(201).json(list);
@@ -80,10 +79,10 @@ export const priceListsHandlers = {
       throw new NotFoundError('Price list not found');
     }
 
-    await auditService.log({
-      user: getAuditUser(req), action: 'UPDATE', entityType: 'price_list',
+    await auditService.logFromRequest({
+      req, action: 'UPDATE', entityType: 'price_list',
       entityId: id, entityName: list.name,
-      oldData: oldList as any, newData: list as any, ipAddress: req.ip,
+      oldData: oldList as any, newData: list as any,
     });
 
     res.json(list);
@@ -103,9 +102,9 @@ export const priceListsHandlers = {
       throw new NotFoundError('Price list not found');
     }
 
-    await auditService.log({
-      user: getAuditUser(req), action: 'DELETE', entityType: 'price_list',
-      entityId: id, entityName: oldList?.name, oldData: oldList as any, ipAddress: req.ip,
+    await auditService.logFromRequest({
+      req, action: 'DELETE', entityType: 'price_list',
+      entityId: id, entityName: oldList?.name, oldData: oldList as any,
     });
 
     res.json({ message: 'Price list deleted successfully' });

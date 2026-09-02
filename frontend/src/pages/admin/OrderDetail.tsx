@@ -18,6 +18,8 @@ import {
   type OrderWorkflowStatus,
 } from '../../types/notification';
 import { OrderLineSummaryCard } from '../../components/orders/OrderLineSummaryCard';
+import { Spinner } from '../../components/Spinner';
+import { formatCurrency, formatDateNb, formatDecimalNb } from '../../lib/formatters';
 
 import { OrderDetail } from '../../types/order';
 
@@ -99,7 +101,7 @@ export function AdminOrderDetail() {
     return (
       <Layout title="Ordre detaljer">
         <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-500"></div>
+          <Spinner size="lg" className="text-primary-500" label="Laster ordre…" />
         </div>
       </Layout>
     );
@@ -168,7 +170,7 @@ export function AdminOrderDetail() {
             </div>
             <div>
               <span className="text-sm text-dark-400">Dato</span>
-              <p className="text-lg font-medium">{new Date(order.dato).toLocaleDateString('nb-NO')}</p>
+              <p className="text-lg font-medium">{formatDateNb(order.dato)}</p>
             </div>
             <div>
               <span className="text-sm text-dark-400">Kunde</span>
@@ -177,8 +179,7 @@ export function AdminOrderDetail() {
             <div>
               <span className="text-sm text-dark-400">Total sum</span>
               <p className="text-xl font-bold text-green-400">
-                {new Intl.NumberFormat('nb-NO', { style: 'currency', currency: order.valutaid || 'NOK' })
-                  .format(order.sum)}
+                {formatCurrency(order.sum, order.valutaid || 'NOK')}
               </p>
             </div>
           </div>
@@ -262,10 +263,10 @@ export function AdminOrderDetail() {
                       <td className="table-cell text-right">{line.antall}</td>
                       <td className="table-cell">{line.enhet}</td>
                       <td className="table-cell text-right">
-                        {new Intl.NumberFormat('nb-NO', { minimumFractionDigits: 2 }).format(line.nettpris)}
+                        {formatDecimalNb(line.nettpris)}
                       </td>
                       <td className="table-cell text-right font-semibold">
-                        {new Intl.NumberFormat('nb-NO', { minimumFractionDigits: 2 }).format(line.linjesum)}
+                        {formatDecimalNb(line.linjesum)}
                       </td>
                       <td className="table-cell">
                         <span className={`px-2 py-1 rounded text-xs font-medium ${line.linjestatus === 1 ? 'bg-green-600/20 text-green-300' : 'bg-dark-600/40 text-dark-300'}`}>
@@ -293,8 +294,7 @@ export function AdminOrderDetail() {
                     Totalt:
                   </td>
                   <td className="table-cell text-right font-bold text-lg text-green-400">
-                    {new Intl.NumberFormat('nb-NO', { style: 'currency', currency: order.valutaid || 'NOK' })
-                      .format(order.sum)}
+                    {formatCurrency(order.sum, order.valutaid || 'NOK')}
                   </td>
                 </tr>
               </tbody>

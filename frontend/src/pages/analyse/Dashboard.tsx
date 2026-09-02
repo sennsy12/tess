@@ -2,7 +2,8 @@ import { useMemo, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Layout } from '../../components/Layout';
 import { ExportButton } from '../../components/ExportButton';
-import { ChartSkeleton, StatCardSkeleton } from '../../components/Skeleton';
+import { QueryErrorBanner } from '../../components/QueryErrorBanner';
+import { ChartSkeleton, StatCardSkeleton } from '../../components/admin';
 import {
   statisticsApi,
   StatisticsSummary,
@@ -26,7 +27,7 @@ interface AnalyseDashboardData {
 export function AnalyseDashboard() {
   const chartRef = useRef<HTMLDivElement>(null);
 
-  const { data, isLoading, isError } = useQuery<AnalyseDashboardData>({
+  const { data, isLoading, isError, refetch } = useQuery<AnalyseDashboardData>({
     queryKey: ['analyse-dashboard'],
     queryFn: async () => {
       const batchRes = await statisticsApi.batch({ groupBy: 'month' });
@@ -80,9 +81,10 @@ export function AnalyseDashboard() {
   if (isError) {
     return (
       <Layout title="Analyse Dashboard">
-        <div className="card text-dark-300">
-          Klarte ikke laste analysedashboard akkurat nå.
-        </div>
+        <QueryErrorBanner
+          message="Klarte ikke laste analysedashboard akkurat nå."
+          onRetry={() => refetch()}
+        />
       </Layout>
     );
   }

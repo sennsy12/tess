@@ -66,6 +66,22 @@ describe('DataTable', () => {
     expect(screen.getByText('Ingen data funnet')).toBeInTheDocument();
   });
 
+  it('exposes sortable headers as buttons with aria-sort', async () => {
+    render(<DataTable data={sampleData} columns={sampleColumns} />);
+    const user = userEvent.setup();
+
+    const valueHeader = screen.getByRole('columnheader', { name: /Value/ });
+    expect(valueHeader).toHaveAttribute('aria-sort', 'none');
+    // Header content is a real button (keyboard accessible).
+    expect(within(valueHeader).getByRole('button', { name: 'Value' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Value' }));
+    expect(screen.getByRole('columnheader', { name: /Value/ })).toHaveAttribute(
+      'aria-sort',
+      'ascending',
+    );
+  });
+
   it('sorts ascending then descending on column header clicks', async () => {
     render(<DataTable data={sampleData} columns={sampleColumns} />);
     const user = userEvent.setup();
@@ -168,8 +184,8 @@ describe('DataTable', () => {
     render(<DataTable data={manyRows} columns={sampleColumns} pageSize={2} />);
     const user = userEvent.setup();
 
-    // Click the next page button (»)
-    await user.click(screen.getByText('»'));
+    // Click the next page button
+    await user.click(screen.getByRole('button', { name: 'Neste' }));
 
     expect(screen.getByText('Item 3')).toBeInTheDocument();
     expect(screen.getByText('Item 4')).toBeInTheDocument();

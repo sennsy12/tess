@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { ChevronDown, ChevronUp, Users, List, Percent, Link2 } from 'lucide-react';
+import { useState, type ReactNode } from 'react';
+import { Check, ChevronDown, ChevronUp, Users, List, Percent, Link2 } from 'lucide-react';
 import type { Tab } from '../../../../types/pricing';
 
 const STORAGE_KEY = 'pricing-guide-collapsed';
@@ -162,7 +162,7 @@ export function PricingGuide({ stats, activeTab, onNavigate }: PricingGuideProps
             />
             <StatCard
               label="Oppsett"
-              value={setupComplete ? '✓' : '—'}
+              value={setupComplete ? <Check className="h-7 w-7" aria-label="Fullført" /> : '—'}
               hint={setupComplete ? 'Grunnlag klart' : 'Fullfør steg 1–2'}
               highlight={setupComplete ? 'positive' : 'neutral'}
             />
@@ -181,7 +181,7 @@ function StatCard({
   highlight,
 }: {
   label: string;
-  value: number | string;
+  value: number | ReactNode;
   sub?: string;
   hint?: string;
   highlight?: 'positive' | 'neutral';

@@ -1,4 +1,6 @@
 import { query, bulkCopy } from '../db/index.js';
+import { refreshStatisticsAggregates } from '../services/statsAggregateService.js';
+import { etlLogger } from '../lib/logger.js';
 
 // In-memory storage for generated test data
 let generatedTestData: any = null;
@@ -35,16 +37,16 @@ export async function generateTestData() {
       { valutaid: 'SEK' },
     ],
     varer: [
-      { varekode: 'V001', varenavn: 'Hydraulikkslange 2-lag 1/2"', varegruppe: 'Slanger' },
-      { varekode: 'V002', varenavn: 'Trykkslange R2AT 3/4"', varegruppe: 'Slanger' },
-      { varekode: 'V003', varenavn: 'Industrislange EPDM DN50', varegruppe: 'Slanger' },
-      { varekode: 'V004', varenavn: 'Hurtigkobling Tema 2600', varegruppe: 'Kuplinger' },
-      { varekode: 'V005', varenavn: 'Kamlock-kobling 2" Aluminium', varegruppe: 'Kuplinger' },
-      { varekode: 'V006', varenavn: 'Flens SAE 3000 1"', varegruppe: 'Fittings' },
-      { varekode: 'V007', varenavn: 'O-ring Viton 25x3', varegruppe: 'Tetninger' },
-      { varekode: 'V008', varenavn: 'Hydraulikksylinder 50/30', varegruppe: 'Hydraulikk' },
-      { varekode: 'V009', varenavn: 'Sugeslange PVC DN75', varegruppe: 'Slanger' },
-      { varekode: 'V010', varenavn: 'Nippel JIC 3/4"', varegruppe: 'Fittings' },
+      { varekode: 'V001', varenavn: 'Hydraulikkslange 2-lag 1/2"', varegruppe: 'Slanger', base_price: 850 },
+      { varekode: 'V002', varenavn: 'Trykkslange R2AT 3/4"', varegruppe: 'Slanger', base_price: 1200 },
+      { varekode: 'V003', varenavn: 'Industrislange EPDM DN50', varegruppe: 'Slanger', base_price: 2400 },
+      { varekode: 'V004', varenavn: 'Hurtigkobling Tema 2600', varegruppe: 'Kuplinger', base_price: 3500 },
+      { varekode: 'V005', varenavn: 'Kamlock-kobling 2" Aluminium', varegruppe: 'Kuplinger', base_price: 1800 },
+      { varekode: 'V006', varenavn: 'Flens SAE 3000 1"', varegruppe: 'Fittings', base_price: 450 },
+      { varekode: 'V007', varenavn: 'O-ring Viton 25x3', varegruppe: 'Tetninger', base_price: 35 },
+      { varekode: 'V008', varenavn: 'Hydraulikksylinder 50/30', varegruppe: 'Hydraulikk', base_price: 12000 },
+      { varekode: 'V009', varenavn: 'Sugeslange PVC DN75', varegruppe: 'Slanger', base_price: 1600 },
+      { varekode: 'V010', varenavn: 'Nippel JIC 3/4"', varegruppe: 'Fittings', base_price: 280 },
     ],
     ordrer: ordrerAndHenvisninger.ordrer,
     ordre_henvisninger: ordrerAndHenvisninger.henvisninger,
@@ -188,9 +190,18 @@ export async function insertTestData() {
 
   results.varer = await bulkCopy(
     'vare',
-    ['varekode', 'varenavn', 'varegruppe'],
-    data.varer.map((v: any) => [v.varekode, v.varenavn, v.varegruppe])
+    ['varekode', 'varenavn', 'varegruppe', 'base_price'],
+    data.varer.map((v: any) => [v.varekode, v.varenavn, v.varegruppe, v.base_price])
   );
+
+  // Backfill base_price for varer som allerede fantes med 0 (f.eks. fra eldre
+  // demodato). Rører ikke priser en admin allerede har satt (kun 0/NULL).
+  for (const v of data.varer) {
+    await query(
+      'UPDATE vare SET base_price = $2 WHERE varekode = $1 AND (base_price IS NULL OR base_price = 0)',
+      [v.varekode, v.base_price]
+    );
+  }
 
   // Orders and their lines (ordre before ordrelinje for FK safety).
   const ordreRows = data.ordrer.map((o: any) => [
@@ -241,6 +252,14 @@ export async function insertTestData() {
      ('kunde001', '$2b$10$rQZ7.HxSJvtAcMxGmsDKqO1F3tJ1X6W5H1qKjE5J9q8K7.7Wb5rXe', 'kunde', 'K001')
      ON CONFLICT (username) DO NOTHING`
   );
+
+  // Statistikk-MV-ene leses av Kunde-/Varegruppe-fanene — datasettet er lite,
+  // så vent på refresh for umiddelbart konsistent statistikk etter generering.
+  try {
+    await refreshStatisticsAggregates();
+  } catch (err) {
+    etlLogger.warn({ err }, 'Post-testdata statistics refresh failed (non-fatal)');
+  }
 
   return results;
 }

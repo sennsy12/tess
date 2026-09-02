@@ -1,5 +1,7 @@
+import { Check } from 'lucide-react';
 import type { OrderDetail } from '../types/order';
 import { ORDER_WORKFLOW_LABELS, type OrderWorkflowStatus } from '../types/notification';
+import { formatCurrency, formatDateNb } from '../lib/formatters';
 
 interface OrderTimelineProps {
   order: OrderDetail;
@@ -18,14 +20,13 @@ const APPROVAL_STEP_ORDER: OrderWorkflowStatus[] = [
 ];
 
 const STEP_DETAILS: Partial<Record<OrderWorkflowStatus, (order: OrderDetail) => string>> = {
-  new: (order) => new Date(order.dato).toLocaleDateString('nb-NO'),
+  new: (order) => formatDateNb(order.dato),
   pending_approval: (order) =>
-    `Sendt ${new Date(order.status_updated_at || order.dato).toLocaleDateString('nb-NO')} – venter på godkjenning`,
+    `Sendt ${formatDateNb(order.status_updated_at || order.dato)} – venter på godkjenning`,
   approved: () => 'Godkjent – klar for behandling',
   processing: (order) => `${order.lines.filter((l) => l.linjestatus === 1).length} av ${order.lines.length} aktive linjer`,
   shipped: (order) => order.lagernavn || 'Sendt fra lager',
-  invoiced: (order) =>
-    new Intl.NumberFormat('nb-NO', { style: 'currency', currency: order.valutaid || 'NOK' }).format(order.sum),
+  invoiced: (order) => formatCurrency(order.sum, order.valutaid || 'NOK'),
 };
 
 /** Visual order progress from workflow status and line data. */
@@ -77,7 +78,7 @@ export function OrderTimeline({ order }: OrderTimelineProps) {
               }`}
               aria-hidden
             >
-              {step.done ? '✓' : index + 1}
+              {step.done ? <Check className="h-4 w-4" strokeWidth={3} /> : index + 1}
             </span>
             {index < steps.length - 1 && (
               <span className={`w-0.5 flex-1 min-h-[2rem] ${step.done ? 'bg-green-700/50' : 'bg-dark-700'}`} />

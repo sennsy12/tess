@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { AlarmClock } from 'lucide-react';
 import { useAuth } from '../context/useAuth';
 import toast from 'react-hot-toast';
 import { idleTimeoutSeconds, idleWarningSeconds } from '../lib/appConfig';
+import { ModalShell } from './ModalShell';
 
 const PRE_WARNING_SECONDS = 60;
 
@@ -58,7 +60,7 @@ export function IdleTimer() {
       ) {
         preWarningShownRef.current = true;
         const minutesLeft = Math.max(1, Math.round((idleTimeoutSeconds - idleTimeRef.current) / 60));
-        toast(`Du logges ut om ca. ${minutesLeft} min pga. inaktivitet`, { icon: '⏰', duration: 5000 });
+        toast(`Du logges ut om ca. ${minutesLeft} min pga. inaktivitet`, { duration: 5000 });
       }
 
       if (idleTimeRef.current >= idleTimeoutSeconds) {
@@ -80,37 +82,38 @@ export function IdleTimer() {
     };
   }, [resetTimer, handleLogout]);
 
-  if (!showWarning) {
-    return null;
-  }
-
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-      <div className="bg-dark-900 border border-dark-700 rounded-xl shadow-2xl max-w-md w-full p-6 animate-fade-in">
-        <div className="text-center">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-yellow-500/20 flex items-center justify-center">
-            <span className="text-3xl" aria-hidden>
-              ⏰
-            </span>
-          </div>
-          <h2 className="text-xl font-semibold text-dark-50 mb-2">Inaktivitetsvarsel</h2>
-          <p className="text-dark-300 mb-4">
-            Du har vært inaktiv en stund. Du blir automatisk logget ut om{' '}
-            <span className="font-bold text-yellow-400">{countdown}</span> sekunder.
-          </p>
-          <p className="text-dark-400 text-sm mb-6">
-            Klikk på knappen under for å fortsette økten din.
-          </p>
-          <div className="flex gap-3">
-            <button type="button" onClick={handleLogout} className="flex-1 btn-secondary">
-              Logg ut nå
-            </button>
-            <button type="button" onClick={handleStayLoggedIn} className="flex-1 btn-primary">
-              Fortsett økten
-            </button>
-          </div>
+    // alertdialog without dismissal — the user must choose an action,
+    // same as before the ModalShell migration.
+    <ModalShell
+      open={showWarning}
+      onClose={handleStayLoggedIn}
+      labelledBy="idle-warning-title"
+      role="alertdialog"
+      zIndex="z-[100]"
+      dismissable={false}
+    >
+      <div className="text-center">
+        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-yellow-500/20 flex items-center justify-center">
+          <AlarmClock className="h-8 w-8 text-yellow-400" aria-hidden />
+        </div>
+        <h2 id="idle-warning-title" className="text-xl font-semibold text-dark-50 mb-2">Inaktivitetsvarsel</h2>
+        <p className="text-dark-300 mb-4">
+          Du har vært inaktiv en stund. Du blir automatisk logget ut om{' '}
+          <span className="font-bold text-yellow-400">{countdown}</span> sekunder.
+        </p>
+        <p className="text-dark-400 text-sm mb-6">
+          Klikk på knappen under for å fortsette økten din.
+        </p>
+        <div className="flex gap-3">
+          <button type="button" onClick={handleLogout} className="flex-1 btn-secondary">
+            Logg ut nå
+          </button>
+          <button type="button" onClick={handleStayLoggedIn} className="flex-1 btn-primary" data-autofocus>
+            Fortsett økten
+          </button>
         </div>
       </div>
-    </div>
+    </ModalShell>
   );
 }

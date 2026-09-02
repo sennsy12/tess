@@ -1,16 +1,18 @@
 import { useMemo, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Layout } from '../../components/Layout';
 import { LineChart, PieChart } from '../../components/Charts';
 import { ExportButton } from '../../components/ExportButton';
 import { statisticsApi, ordersApi } from '../../lib/api';
+import { kundeKeys } from '../../lib/queryKeys';
 import { useAuth } from '../../context/useAuth';
-import { AnimatedStatCard } from '../../components/dashboard/AnimatedStatCard';
+import { StatCard } from '../../components/StatCard';
 import { StatCardSkeleton, ChartSkeleton } from '../../components/admin';
 import { QueryErrorBanner } from '../../components/QueryErrorBanner';
 import { revenueTrendSummary } from '../../lib/chartSummary';
 import { fillMissingPeriods } from '../../lib/chartUtils';
+import { formatCurrencyNok, formatDateNb, formatMoneyNok, formatNumberNb } from '../../lib/formatters';
 
 export function KundeDashboard() {
   const { user } = useAuth();
@@ -18,30 +20,34 @@ export function KundeDashboard() {
   const navigate = useNavigate();
 
   const summaryQuery = useQuery({
-    queryKey: ['kunde', 'summary'],
+    queryKey: kundeKeys.summary(),
     queryFn: () => statisticsApi.summary().then((res) => res.data),
+    staleTime: 60_000,
   });
 
   const recentOrdersQuery = useQuery({
-    queryKey: ['kunde', 'recentOrders'],
+    queryKey: kundeKeys.recentOrders(),
     queryFn: async () => {
       const res = await ordersApi.getAll({ limit: 5, page: 1 });
       const ordersData = res.data?.data || res.data || [];
       return ordersData.slice(0, 5);
     },
+    staleTime: 60_000,
   });
 
   const varegruppeQuery = useQuery({
-    queryKey: ['kunde', 'varegruppeStats'],
+    queryKey: kundeKeys.varegruppeStats(),
     queryFn: async () => {
       const res = await statisticsApi.byVaregruppe();
       return res.data?.data || res.data || [];
     },
+    staleTime: 60_000,
   });
 
   const timeSeriesQuery = useQuery({
-    queryKey: ['kunde', 'timeSeries'],
+    queryKey: kundeKeys.timeSeries(),
     queryFn: () => statisticsApi.timeSeries({ groupBy: 'month' }).then((res) => res.data),
+    staleTime: 60_000,
   });
 
   const summary = summaryQuery.data;
@@ -76,8 +82,7 @@ export function KundeDashboard() {
     );
   }
 
-  const currencyFormatter = (value: number) =>
-    new Intl.NumberFormat('nb-NO', { style: 'currency', currency: 'NOK', maximumFractionDigits: 0 }).format(value);
+  const currencyFormatter = formatCurrencyNok;
 
   return (
     <Layout title="Kunde Dashboard">
@@ -98,7 +103,7 @@ export function KundeDashboard() {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
               <h3 className="text-xl font-semibold text-dark-50">
-                Velkommen, {user?.kundenr || user?.username}! 👋
+                Velkommen, {user?.kundenr || user?.username}!
               </h3>
               <p className="text-dark-300 mt-1">
                 Her er en oversikt over dine ordrer og statistikk.
@@ -115,30 +120,34 @@ export function KundeDashboard() {
         </div>
 
         {/* Stats cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 stagger-fade-in">
-          <AnimatedStatCard
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 animate-fade-in">
+          <StatCard
             label="Totale Ordrer"
-            value={summary?.totalOrders || 0}
+            value={formatNumberNb(summary?.totalOrders || 0)}
+            numericValue={summary?.totalOrders || 0}
             sparkData={timeSeries.map((t: any) => ({ value: t.order_count ?? t.total_orders ?? 0 }))}
-            sparkKey="value"
+            sparkDataKey="value"
             sparkColor="#6366f1"
           />
-          <AnimatedStatCard
+          <StatCard
             label="Total Omsetning"
-            value={summary?.totalRevenue || 0}
-            formatter={currencyFormatter}
+            value={currencyFormatter(summary?.totalRevenue || 0)}
+            numericValue={summary?.totalRevenue || 0}
+            format={currencyFormatter}
             sparkData={timeSeries.map((t: any) => ({ value: t.total_sum ?? 0 }))}
-            sparkKey="value"
+            sparkDataKey="value"
             sparkColor="#10b981"
           />
-          <AnimatedStatCard
+          <StatCard
             label="Produkter Bestilt"
-            value={summary?.productsOrdered || 0}
+            value={formatNumberNb(summary?.productsOrdered || 0)}
+            numericValue={summary?.productsOrdered || 0}
           />
-          <AnimatedStatCard
+          <StatCard
             label="Gjennomsnitt/Ordre"
-            value={Math.round((summary?.totalRevenue || 0) / Math.max(summary?.totalOrders || 1, 1))}
-            formatter={currencyFormatter}
+            value={currencyFormatter(Math.round((summary?.totalRevenue || 0) / Math.max(summary?.totalOrders || 1, 1)))}
+            numericValue={Math.round((summary?.totalRevenue || 0) / Math.max(summary?.totalOrders || 1, 1))}
+            format={currencyFormatter}
           />
         </div>
 
@@ -221,27 +230,24 @@ export function KundeDashboard() {
                 {recentOrders.map((order: any) => (
                   <tr
                     key={order.ordrenr}
-                    role="link"
-                    tabIndex={0}
                     className="cursor-pointer hover:bg-dark-800/30"
                     onClick={() => navigate(`/kunde/orders/${order.ordrenr}`)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        navigate(`/kunde/orders/${order.ordrenr}`);
-                      }
-                    }}
                   >
                     <td className="table-cell font-medium text-primary-400">
-                      #{order.ordrenr}
+                      <Link
+                        to={`/kunde/orders/${order.ordrenr}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50 rounded"
+                      >
+                        #{order.ordrenr}
+                      </Link>
                     </td>
                     <td className="table-cell">
-                      {new Date(order.dato).toLocaleDateString('nb-NO')}
+                      {formatDateNb(order.dato)}
                     </td>
                     <td className="table-cell">{order.firmanavn || '-'}</td>
                     <td className="table-cell font-semibold">
-                      {new Intl.NumberFormat('nb-NO', { style: 'currency', currency: 'NOK' })
-                        .format(order.sum)}
+                      {formatMoneyNok(order.sum)}
                     </td>
                   </tr>
                 ))}

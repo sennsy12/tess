@@ -1,6 +1,19 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  Building2,
+  ClipboardList,
+  Folder,
+  Link2,
+  Package,
+  Phone,
+  Search,
+  Tag,
+  User,
+  type LucideIcon,
+} from 'lucide-react';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import { useOnClickOutside } from '../hooks/useOnClickOutside';
+import { Spinner } from './Spinner';
 
 interface Suggestion {
   suggestion: string;
@@ -17,6 +30,22 @@ interface AutocompleteInputProps {
   minChars?: number;
   debounceMs?: number;
   className?: string;
+}
+
+const TYPE_ICONS: Record<string, LucideIcon> = {
+  kunde: User,
+  referanse: ClipboardList,
+  kunderef: Phone,
+  firma: Building2,
+  lager: Package,
+  vare: Tag,
+  varegruppe: Folder,
+  henvisning: Link2,
+};
+
+function SuggestionTypeIcon({ type }: { type: string }) {
+  const TypeIcon = TYPE_ICONS[type] ?? Search;
+  return <TypeIcon className="h-3.5 w-3.5 opacity-60 shrink-0" aria-hidden />;
 }
 
 export function AutocompleteInput({
@@ -104,19 +133,8 @@ export function AutocompleteInput({
     }
   };
 
-  const getTypeIcon = (type: string) => {
-    switch (type) {
-      case 'kunde': return '👤';
-      case 'referanse': return '📋';
-      case 'kunderef': return '📞';
-      case 'firma': return '🏢';
-      case 'lager': return '📦';
-      case 'vare': return '🏷️';
-      case 'varegruppe': return '📁';
-      case 'henvisning': return '🔗';
-      default: return '🔍';
-    }
-  };
+  const listId = id ? `${id}-listbox` : undefined;
+  const listOpen = isOpen && suggestions.length > 0;
 
   return (
     <div ref={containerRef} className="relative">
@@ -131,27 +149,38 @@ export function AutocompleteInput({
           onFocus={() => suggestions.length > 0 && setIsOpen(true)}
           placeholder={placeholder}
           className={`input pr-10 ${className}`}
+          role="combobox"
+          aria-expanded={listOpen}
+          aria-controls={listId}
+          aria-autocomplete="list"
         />
         {isLoading && (
           <div className="absolute right-3 top-1/2 -translate-y-1/2">
-            <div className="animate-spin w-4 h-4 border-2 border-primary-500 border-t-transparent rounded-full"></div>
+            <Spinner size="xs" className="text-primary-500" />
           </div>
         )}
       </div>
 
-      {isOpen && suggestions.length > 0 && (
-        <div className="absolute z-[9999] w-full mt-1 bg-dark-800 border border-dark-700 rounded-md shadow-2xl overflow-y-auto max-h-48 ring-1 ring-black/50">
+      {listOpen && (
+        <div
+          id={listId}
+          role="list"
+          aria-label="Forslag"
+          className="absolute z-[9999] w-full mt-1 bg-dark-800 border border-dark-700 rounded-md shadow-2xl overflow-y-auto max-h-48 ring-1 ring-black/50"
+        >
           {suggestions.map((suggestion, index) => (
             <button
               key={`${suggestion.suggestion}-${suggestion.type}-${index}`}
               onClick={() => handleSelect(suggestion)}
+              onMouseEnter={() => setHighlightedIndex(index)}
+              aria-current={index === highlightedIndex ? true : undefined}
               className={`w-full px-2 py-1 flex items-center gap-2 text-left transition-colors border-b border-dark-700/20 last:border-0 ${
                 index === highlightedIndex
                   ? 'bg-primary-600/40 text-primary-100'
                   : 'hover:bg-dark-700/50'
               }`}
             >
-              <span className="text-xs opacity-60">{getTypeIcon(suggestion.type)}</span>
+              <SuggestionTypeIcon type={suggestion.type} />
               <div className="flex-1 min-w-0 leading-tight">
                 <span className="block truncate text-xs font-medium">{suggestion.suggestion}</span>
               </div>

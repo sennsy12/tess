@@ -32,7 +32,10 @@ jest.mock('../services/notificationService.js', () => ({
   notifyOrderStatusChange: jest.fn().mockResolvedValue(undefined),
 }));
 jest.mock('../services/auditService.js', () => ({
-  auditService: { log: jest.fn().mockResolvedValue(undefined) },
+  auditService: {
+    log: jest.fn().mockResolvedValue(undefined),
+    logFromRequest: jest.fn().mockResolvedValue(undefined),
+  },
 }));
 jest.mock('../models/orderModel.js', () => ({
   orderModel: {

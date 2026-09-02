@@ -1,7 +1,7 @@
 // ── Row tuple types for type-safe bulk data ─────────────────────────
 export type KundeRow = [kundenr: string, kundenavn: string];
 export type BrukerRow = [username: string, passwordHash: string, role: string, kundenr: string];
-export type VareRow = [varekode: string, varenavn: string, varegruppe: string];
+export type VareRow = [varekode: string, varenavn: string, varegruppe: string, base_price: number];
 export type OrdreRow = [
   ordrenr: number, dato: string, kundenr: string, kundeordreref: string,
   kunderef: string, firmaid: number, lagernavn: string, valutaid: string, sum: number,

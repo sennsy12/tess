@@ -1,5 +1,7 @@
 /** Visual helpers for kunde company profile. */
 
+import { formatCurrencyNok } from './formatters';
+
 export function companyInitials(name: string | null | undefined): string {
   if (!name?.trim()) return '?';
   const words = name.trim().split(/\s+/).filter(Boolean);
@@ -57,9 +59,5 @@ export function formatProfileDate(iso: string | null | undefined): string {
   });
 }
 
-export const profileCurrency = (value: number) =>
-  new Intl.NumberFormat('nb-NO', {
-    style: 'currency',
-    currency: 'NOK',
-    maximumFractionDigits: 0,
-  }).format(value);
+/** @deprecated Use formatCurrencyNok from ./formatters */
+export const profileCurrency = formatCurrencyNok;

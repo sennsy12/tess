@@ -16,7 +16,10 @@ tessxapp.mooo.com {
         reverse_proxy frontend:80
     }
 
+    # NOTE: GET /metrics (Prometheus, no auth) is intentionally not routed.
+    # Access logs go to stdout so the docker log driver (with rotation in
+    # docker-compose.prod.yml) applies — never to a file inside the container.
     log {
-        output file /var/log/caddy/access.log
+        output stdout
     }
 }

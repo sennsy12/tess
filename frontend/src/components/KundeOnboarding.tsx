@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X } from 'lucide-react';
+import { ModalShell } from './ModalShell';
 
 const STORAGE_KEY = 'kunde-onboarding-v1';
 
@@ -58,28 +59,29 @@ export function KundeOnboardingModal({ open, onDismiss }: { open: boolean; onDis
   const [step, setStep] = useState(0);
   const navigate = useNavigate();
 
-  if (!open) return null;
-
   const current = STEPS[step];
   const isLast = step === STEPS.length - 1;
 
   return (
-    <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div
-        className="relative w-full max-w-md rounded-xl border border-dark-700 bg-dark-900 p-6 shadow-2xl"
-        role="dialog"
-        aria-labelledby="onboarding-title"
-        aria-modal="true"
-      >
+    // Dismissal stays explicit (Lukk / Hopp over / CTA) — no backdrop/Escape
+    // dismiss, same as before the ModalShell migration.
+    <ModalShell
+      open={open}
+      onClose={onDismiss}
+      labelledBy="onboarding-title"
+      zIndex="z-[150]"
+      dismissable={false}
+    >
+      <div className="relative">
         <button
           type="button"
           onClick={onDismiss}
-          className="absolute right-4 top-4 text-dark-400 hover:text-white"
+          className="absolute -right-2 -top-2 text-dark-400 hover:text-white"
           aria-label="Lukk"
         >
           <X className="h-5 w-5" />
         </button>
-        <p className="text-xs text-primary-400 font-medium mb-2">
+        <p className="text-xs text-primary-400 font-medium mb-2" aria-live="polite">
           Steg {step + 1} av {STEPS.length}
         </p>
         <h2 id="onboarding-title" className="text-xl font-semibold text-dark-50 pr-8">
@@ -126,6 +128,6 @@ export function KundeOnboardingModal({ open, onDismiss }: { open: boolean; onDis
           </button>
         )}
       </div>
-    </div>
+    </ModalShell>
   );
 }

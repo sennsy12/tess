@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Layout } from '../../../components/Layout';
 import { Breadcrumb } from '../../../components/Breadcrumb';
 import { SavedViewsPanel } from '../../../components/SavedViewsPanel';
-import { Tabs, TabContent } from '../../../components/Tabs';
+import { Tabs, TabContent } from '../../../components/Tabs';
+import { Spinner } from '../../../components/Spinner';
 import { useSavedViews } from '../../../hooks/useSavedViews';
 import { usePricingData } from './usePricingData';
 import {
@@ -128,7 +129,7 @@ export function AdminPricing() {
     return (
       <Layout title="Prisstyring">
         <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-500"></div>
+          <Spinner size="lg" className="text-primary-500" label="Laster prisstyring…" />
         </div>
       </Layout>
     );

@@ -1,5 +1,6 @@
 import { INITIAL_LIST_FORM, ListsTabProps } from '../../../../types/pricing';
 import { EmptyState } from '../../../../components/EmptyState';
+import { formatDateNb } from '../../../../lib/formatters';
 import { List } from 'lucide-react';
 
 export function ListsTab({
@@ -159,9 +160,9 @@ export function ListsTab({
                 <td className="py-3 px-4 text-sm">
                   {list.valid_from || list.valid_to ? (
                     <>
-                      {list.valid_from && new Date(list.valid_from).toLocaleDateString('nb-NO')}
+                      {list.valid_from && formatDateNb(list.valid_from)}
                       {' - '}
-                      {list.valid_to && new Date(list.valid_to).toLocaleDateString('nb-NO')}
+                      {list.valid_to && formatDateNb(list.valid_to)}
                     </>
                   ) : (
                     <span className="text-dark-400">Alltid gyldig</span>

@@ -45,7 +45,7 @@ export function PasswordInput({
         onClick={() => setVisible((v) => !v)}
         className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-dark-400 hover:text-dark-200"
         aria-label={visible ? 'Skjul passord' : 'Vis passord'}
-        tabIndex={-1}
+        aria-pressed={visible}
       >
         {visible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
       </button>

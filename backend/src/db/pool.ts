@@ -36,16 +36,18 @@ function resolveDatabaseUrl(): string {
 
 const poolConfig: PoolConfig = {
   connectionString: resolveDatabaseUrl(),
-  // Maximum number of clients in the pool (increased for parallel COPY)
-  max: 50,
-  // Minimum number of idle clients
-  min: 10,
+  // Single-Postgres defaults: small idle footprint, sized via env.
+  // 4 API replicas x 20 max = 80 < default max_connections=100.
+  max: getEnv().PG_POOL_MAX,
+  min: getEnv().PG_POOL_MIN,
   // Close idle clients after 30 seconds
   idleTimeoutMillis: 30000,
   // Return error after 10 seconds if connection cannot be established
   connectionTimeoutMillis: 10000,
-  // Maximum time a query can run before timing out (5 minutes for large operations)
-  statement_timeout: 300000,
+  // Kill runaway analytics queries (default 60s; override per-env).
+  // Long ETL COPY jobs should use their own client with a higher timeout.
+  statement_timeout: getEnv().PG_STATEMENT_TIMEOUT_MS,
+  idle_in_transaction_session_timeout: getEnv().PG_IDLE_TXN_TIMEOUT_MS,
 };
 
 const pool = new Pool(poolConfig);

@@ -1,9 +1,11 @@
+import { useId } from 'react';
 import {
   ResponsiveContainer,
   AreaChart,
   Area,
   YAxis,
 } from 'recharts';
+import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion';
 
 interface SparklineProps {
   /** Array of data points, each must have the key specified by `dataKey` */
@@ -29,14 +31,19 @@ export function Sparkline({
   height = 32,
   width = '100%',
 }: SparklineProps) {
+  const rawId = useId().replace(/[^a-zA-Z0-9]/g, '');
+  // Phase 0: unique gradient id per instance — the old color-derived id
+  // (`spark-6366f1`) collided whenever two sparklines shared a colour.
+  const gradientId = `spark-${rawId}`;
+  const reduceMotion = usePrefersReducedMotion();
   if (!data || data.length < 2) return null;
 
   return (
-    <div style={{ width, height }}>
+    <div style={{ width, height }} aria-hidden="true">
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={data} margin={{ top: 2, right: 2, bottom: 2, left: 2 }}>
           <defs>
-            <linearGradient id={`spark-${color.replace('#', '')}`} x1="0" y1="0" x2="0" y2="1">
+            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor={color} stopOpacity={0.4} />
               <stop offset="100%" stopColor={color} stopOpacity={0.05} />
             </linearGradient>
@@ -47,8 +54,8 @@ export function Sparkline({
             dataKey={dataKey}
             stroke={color}
             strokeWidth={1.5}
-            fill={`url(#spark-${color.replace('#', '')})`}
-            isAnimationActive={true}
+            fill={`url(#${gradientId})`}
+            isAnimationActive={!reduceMotion}
             animationDuration={800}
           />
         </AreaChart>

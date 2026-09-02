@@ -12,7 +12,7 @@ export function OrderWorkflowBadge({ status, className = '' }: OrderWorkflowBadg
   const style = ORDER_WORKFLOW_STYLES[value] ?? 'bg-dark-600/40 text-dark-300';
 
   return (
-    <span className={`inline-flex px-2 py-1 rounded text-xs font-medium ${style} ${className}`}>
+    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${style} ${className}`}>
       {label}
     </span>
   );

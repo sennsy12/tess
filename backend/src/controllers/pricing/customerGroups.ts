@@ -7,7 +7,6 @@ import { buildListResponse } from '../../lib/listResponse.js';
 import { pricingCustomerSearchSchema } from '../../middleware/validation.js';
 import { z } from 'zod';
 import { CreateCustomerGroupInput } from '../../types/pricing.js';
-import { getAuditUser } from './shared.js';
 
 /**
  * Pricing Controller - customer groups handlers
@@ -39,9 +38,9 @@ export const customerGroupsHandlers = {
 
     const group = await customerGroupModel.create(data);
 
-    await auditService.log({
-      user: getAuditUser(req), action: 'CREATE', entityType: 'customer_group',
-      entityId: group.id, entityName: group.name, ipAddress: req.ip,
+    await auditService.logFromRequest({
+      req, action: 'CREATE', entityType: 'customer_group',
+      entityId: group.id, entityName: group.name,
     });
 
     res.status(201).json(group);
@@ -65,10 +64,10 @@ export const customerGroupsHandlers = {
       throw new NotFoundError('Group not found');
     }
 
-    await auditService.log({
-      user: getAuditUser(req), action: 'UPDATE', entityType: 'customer_group',
+    await auditService.logFromRequest({
+      req, action: 'UPDATE', entityType: 'customer_group',
       entityId: id, entityName: group.name,
-      oldData: oldGroup as any, newData: group as any, ipAddress: req.ip,
+      oldData: oldGroup as any, newData: group as any,
     });
 
     res.json(group);
@@ -88,9 +87,9 @@ export const customerGroupsHandlers = {
       throw new NotFoundError('Group not found');
     }
 
-    await auditService.log({
-      user: getAuditUser(req), action: 'DELETE', entityType: 'customer_group',
-      entityId: id, entityName: oldGroup?.name, oldData: oldGroup as any, ipAddress: req.ip,
+    await auditService.logFromRequest({
+      req, action: 'DELETE', entityType: 'customer_group',
+      entityId: id, entityName: oldGroup?.name, oldData: oldGroup as any,
     });
 
     res.json({ message: 'Group deleted successfully' });

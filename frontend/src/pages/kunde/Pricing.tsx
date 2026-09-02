@@ -13,12 +13,13 @@ import { QueryErrorBanner } from '../../components/QueryErrorBanner';
 import { EmptyState } from '../../components/EmptyState';
 import { pricingApi } from '../../lib/api';
 import { pricingKeys } from '../../lib/queryKeys';
+import { formatMoneyNok } from '../../lib/formatters';
 import { useAuth } from '../../context/useAuth';
 import type { CustomerPriceRule } from '../../types/pricing';
 
 function formatRuleValue(rule: CustomerPriceRule): string {
   if (rule.fixed_price != null) {
-    return new Intl.NumberFormat('nb-NO', { style: 'currency', currency: 'NOK' }).format(rule.fixed_price);
+    return formatMoneyNok(rule.fixed_price);
   }
   if (rule.discount_percent != null) {
     return `${rule.discount_percent} % rabatt`;

@@ -2,30 +2,28 @@ import { Response } from 'express';
 import { z } from 'zod';
 import { AuthRequest } from '../middleware/auth.js';
 import { orderModel, OrderFilters } from '../models/orderModel.js';
-import { NotFoundError, ValidationError } from '../middleware/errorHandler.js';
+import { NotFoundError } from '../middleware/errorHandler.js';
 import { buildListResponse } from '../lib/listResponse.js';
 import {
   orderQuerySchema,
   updateOrderStatusSchema,
   createOrderSchema,
 } from '../middleware/validation.js';
-import {
-  isOrderWorkflowStatus,
-  canTransition,
-  KUNDE_CANCELLABLE_STATUSES,
-  ORDER_WORKFLOW_LABELS,
-  type OrderWorkflowStatus,
-} from '../lib/orderWorkflow.js';
-import { notifyOrderStatusChange, notifyOrderSubmitted } from '../services/notificationService.js';
+import { parsePagination } from '../http/pagination.js';
+import { resolveOrderKundenr } from '../http/ownership.js';
 import { summarizeOrderLines } from '../lib/orderTotals.js';
 import { orderPlacementService } from '../services/orderPlacementService.js';
-import { auditService } from '../services/auditService.js';
+import { orderWorkflowService } from '../services/orderWorkflowService.js';
+import { publishOrderSubmitted } from '../services/orderEvents.js';
 
 export const orderController = {
   getAll: async (req: AuthRequest, res: Response) => {
     const q = req.query as unknown as z.infer<typeof orderQuerySchema>;
-    const { page, limit, sortBy, sortDir, startDate, endDate, kundenr, ordrenr, firmaid, lagernavn, search, q: searchQ, workflowStatus } = q;
-    const offset = (page - 1) * limit;
+    const { sortBy, sortDir, startDate, endDate, kundenr, ordrenr, firmaid, lagernavn, search, q: searchQ, workflowStatus } = q;
+    const { page, limit, offset } = parsePagination(
+      q as unknown as Record<string, unknown>,
+      { page: q.page, limit: q.limit },
+    );
 
     const filters: OrderFilters = {
       startDate,
@@ -47,13 +45,14 @@ export const orderController = {
 
   getOne: async (req: AuthRequest, res: Response) => {
     const { ordrenr } = req.params;
-    const order = await orderModel.findByOrderNr(Number(ordrenr), req.user);
+    const [order, lines] = await Promise.all([
+      orderModel.findByOrderNr(Number(ordrenr), req.user),
+      orderModel.findLines(Number(ordrenr)),
+    ]);
 
     if (!order) {
       throw new NotFoundError('Order not found');
     }
-
-    const lines = await orderModel.findLines(Number(ordrenr));
 
     res.json({
       ...order,
@@ -73,42 +72,12 @@ export const orderController = {
     const { ordrenr } = req.params;
     const { workflowStatus } = req.body as z.infer<typeof updateOrderStatusSchema>;
 
-    if (!isOrderWorkflowStatus(workflowStatus)) {
-      throw new ValidationError('Invalid workflow status');
-    }
-
-    const existing = await orderModel.findByOrderNr(Number(ordrenr));
-    if (!existing) {
-      throw new NotFoundError('Order not found');
-    }
-
-    const previousStatus = (existing.workflow_status ?? 'new') as OrderWorkflowStatus;
-    if (previousStatus === workflowStatus) {
-      return res.json({ ordrenr: Number(ordrenr), workflow_status: workflowStatus });
-    }
-
-    if (!canTransition(previousStatus, workflowStatus)) {
-      throw new ValidationError('Ugyldig statusovergang');
-    }
-
-    const updated = await orderModel.updateWorkflowStatus(Number(ordrenr), workflowStatus);
-    if (!updated) {
-      throw new NotFoundError('Order not found');
-    }
-
-    await notifyOrderStatusChange({
-      ordrenr: Number(ordrenr),
-      kundenr: updated.kundenr,
-      previousStatus,
-      newStatus: workflowStatus,
-      changedBy: req.user?.username,
-    });
-
-    res.json({
-      ordrenr: updated.ordrenr,
-      workflow_status: updated.workflow_status,
-      status_updated_at: new Date().toISOString(),
-    });
+    const result = await orderWorkflowService.updateStatus(
+      Number(ordrenr),
+      workflowStatus,
+      req.user?.username,
+    );
+    res.json(result);
   },
 
   listStatuses: async (_req: AuthRequest, res: Response) => {
@@ -130,18 +99,7 @@ export const orderController = {
     const body = req.body as z.infer<typeof createOrderSchema>;
     const user = req.user!;
 
-    let kundenr: string;
-    if (user.role === 'kunde') {
-      if (!user.kundenr) {
-        throw new ValidationError('Brukeren mangler kundenummer');
-      }
-      kundenr = user.kundenr;
-    } else {
-      if (!body.kundenr) {
-        throw new ValidationError('kundenr er påkrevd for administratorbestillinger');
-      }
-      kundenr = body.kundenr;
-    }
+    const kundenr = resolveOrderKundenr(user, body.kundenr);
 
     const created = await orderPlacementService.createOrder({
       kundenr,
@@ -154,25 +112,12 @@ export const orderController = {
     });
 
     // Post-commit side effects (audit never throws; notifications are awaited for delivery guarantees)
-    await auditService.log({
-      user: { id: user.id, username: user.username },
-      action: 'CREATE',
-      entityType: 'ordre',
-      entityId: created.ordrenr,
-      entityName: `Kundeordre ${created.ordrenr}`,
-      newData: { ...created } as Record<string, unknown>,
-      ipAddress: req.ip,
+    await publishOrderSubmitted({
+      req,
+      created,
+      lineCount: body.items.length,
+      submittedBy: user.username,
     });
-
-    if (!created.duplicate) {
-      await notifyOrderSubmitted({
-        ordrenr: created.ordrenr,
-        kundenr: created.kundenr,
-        sum: created.sum,
-        lineCount: body.items.length,
-        submittedBy: user.username,
-      });
-    }
 
     res.status(created.duplicate ? 200 : 201).json(created);
   },
@@ -185,46 +130,7 @@ export const orderController = {
     const ordrenr = Number(req.params.ordrenr);
     const user = req.user!;
 
-    const existing = await orderModel.findByOrderNr(ordrenr, user);
-    if (!existing) {
-      throw new NotFoundError('Order not found');
-    }
-
-    const previousStatus = (existing.workflow_status ?? 'new') as OrderWorkflowStatus;
-    if (!KUNDE_CANCELLABLE_STATUSES.includes(previousStatus)) {
-      throw new ValidationError(
-        `Ordre kan ikke kanselleres i status «${ORDER_WORKFLOW_LABELS[previousStatus]}»`,
-      );
-    }
-
-    const cancelled = await orderModel.cancelByOwner(ordrenr, user);
-    if (!cancelled) {
-      throw new ValidationError('Ordren kan ikke lenger kanselleres');
-    }
-
-    await auditService.log({
-      user: { id: user.id, username: user.username },
-      action: 'UPDATE',
-      entityType: 'ordre',
-      entityId: ordrenr,
-      entityName: `Kansellert av ${user.role === 'kunde' ? 'kunde' : 'admin'}`,
-      oldData: { workflow_status: previousStatus },
-      newData: { workflow_status: 'cancelled' },
-      ipAddress: req.ip,
-    });
-
-    await notifyOrderStatusChange({
-      ordrenr,
-      kundenr: cancelled.kundenr,
-      previousStatus,
-      newStatus: 'cancelled',
-      changedBy: user.username,
-    });
-
-    res.json({
-      ordrenr,
-      workflow_status: cancelled.workflow_status,
-      status_updated_at: new Date().toISOString(),
-    });
+    const result = await orderWorkflowService.cancel(ordrenr, user, req);
+    res.json(result);
   },
 };

@@ -1,4 +1,6 @@
 import { query } from '../db/index.js';
+import { refreshStatisticsAggregates } from '../services/statsAggregateService.js';
+import { etlLogger } from '../lib/logger.js';
 import {
   generateRealisticCustomers,
   generateRealisticFirms,
@@ -102,11 +104,16 @@ export async function insertRealData() {
   }
   results.valutaer = data.valutaer.length;
 
-  // Insert varer
+  // Insert varer (base_price fra generatorens pris; backfill under for
+  // varer som allerede fantes med 0 fra eldre demodato)
   for (const vare of data.varer) {
     await query(
-      'INSERT INTO vare (varekode, varenavn, varegruppe) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
-      [vare.varekode, vare.varenavn, vare.varegruppe]
+      'INSERT INTO vare (varekode, varenavn, varegruppe, base_price) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING',
+      [vare.varekode, vare.varenavn, vare.varegruppe, vare.pris ?? 0]
+    );
+    await query(
+      'UPDATE vare SET base_price = $2 WHERE varekode = $1 AND (base_price IS NULL OR base_price = 0) AND $2 > 0',
+      [vare.varekode, vare.pris ?? 0]
     );
   }
   results.varer = data.varer.length;
@@ -145,6 +152,14 @@ export async function insertRealData() {
     henvisningerInserted++;
   }
   results.ordre_henvisninger = henvisningerInserted;
+
+  // Statistikk-MV-ene leses av Kunde-/Varegruppe-fanene — vent på refresh for
+  // umiddelbart konsistent statistikk etter generering.
+  try {
+    await refreshStatisticsAggregates();
+  } catch (err) {
+    etlLogger.warn({ err }, 'Post-realdata statistics refresh failed (non-fatal)');
+  }
 
   return results;
 }

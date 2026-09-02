@@ -31,14 +31,25 @@ INSERT INTO public.lager (lagernavn, firmaid) VALUES
 ('Sørlager', 3)
 ON CONFLICT DO NOTHING;
 
--- Sample products
-INSERT INTO public.vare (varekode, varenavn, varegruppe) VALUES 
-('V001', 'Produkt A', 'Elektronikk'),
-('V002', 'Produkt B', 'Elektronikk'),
-('V003', 'Produkt C', 'Møbler'),
-('V004', 'Produkt D', 'Møbler'),
-('V005', 'Produkt E', 'Verktøy')
+-- Sample products (base_price matcher nettpris i ordrelinjene under)
+INSERT INTO public.vare (varekode, varenavn, varegruppe, base_price) VALUES 
+('V001', 'Produkt A', 'Elektronikk', 1000.00),
+('V002', 'Produkt B', 'Elektronikk', 1000.00),
+('V003', 'Produkt C', 'Møbler', 5000.00),
+('V004', 'Produkt D', 'Møbler', 5000.00),
+('V005', 'Produkt E', 'Verktøy', 2000.00)
 ON CONFLICT DO NOTHING;
+
+-- Backfill for databaser seedet før base_price fantes (rører ikke admin-satte priser)
+UPDATE public.vare AS v SET base_price = c.base_price
+FROM (VALUES
+  ('V001', 1000.00),
+  ('V002', 1000.00),
+  ('V003', 5000.00),
+  ('V004', 5000.00),
+  ('V005', 2000.00)
+) AS c(varekode, base_price)
+WHERE v.varekode = c.varekode AND (v.base_price IS NULL OR v.base_price = 0);
 
 -- Sample orders
 INSERT INTO public.ordre (ordrenr, dato, kundenr, kundeordreref, kunderef, firmaid, lagernavn, valutaid, sum) VALUES 

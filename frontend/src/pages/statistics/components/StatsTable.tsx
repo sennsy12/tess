@@ -1,10 +1,7 @@
-import { useMemo, useRef, useState } from 'react';
-import { useVirtualizer } from '@tanstack/react-virtual';
+import { useMemo, useState } from 'react';
 import { Pagination } from '../../../components/admin';
+import { Spinner } from '../../../components/Spinner';
 import { StatsTableProps } from '../../../types/statistics';
-
-const VIRTUALIZE_THRESHOLD = 50;
-const ROW_HEIGHT = 41;
 
 export function StatsTable({
   data,
@@ -27,10 +24,8 @@ export function StatsTable({
   const startIndex = (page - 1) * limit + 1;
   const endIndex = Math.min(page * limit, total);
   const isRowClickable = Boolean(onRowClick);
-  const useVirtual = filteredData.length >= VIRTUALIZE_THRESHOLD;
-  const parentRef = useRef<HTMLDivElement>(null);
 
-  // Share-of-total within the visible rows
+  // Share-of-total within the visible rows (this page only, not global).
   const totalValue = useMemo(() => {
     let sum = 0;
     for (const item of filteredData) {
@@ -38,21 +33,6 @@ export function StatsTable({
     }
     return sum;
   }, [filteredData]);
-
-  const virtualizer = useVirtualizer({
-    count: filteredData.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize: () => ROW_HEIGHT,
-    overscan: 8,
-    enabled: useVirtual,
-  });
-
-  const virtualRows = virtualizer.getVirtualItems();
-  const paddingTop = virtualRows.length > 0 ? virtualRows[0].start : 0;
-  const paddingBottom =
-    virtualRows.length > 0
-      ? virtualizer.getTotalSize() - virtualRows[virtualRows.length - 1].end
-      : 0;
 
   const renderRow = (item: (typeof data)[number], index: number) => {
     const value = Number(item.total_sum) || 0;
@@ -62,9 +42,10 @@ export function StatsTable({
       <tr
         key={String(item[nameKey] ?? index)}
         className={`table-row ${isRowClickable ? 'cursor-pointer' : ''}`}
-        style={{ height: ROW_HEIGHT }}
         onClick={() => onRowClick?.(item)}
-        role={isRowClickable ? 'button' : undefined}
+        // Note: no role="button" — a button role on <tr> is invalid HTML
+        // and breaks table navigation. The row stays focusable with
+        // Enter/Space activation instead.
         tabIndex={isRowClickable ? 0 : undefined}
         onKeyDown={(event) => {
           if (!onRowClick) return;
@@ -114,50 +95,34 @@ export function StatsTable({
           )}
         </div>
       </div>
-      <div
-        ref={parentRef}
-        className={`overflow-x-auto scrollbar-thin scrollbar-thumb-dark-700 scrollbar-track-transparent relative ${useVirtual ? 'max-h-[420px] overflow-y-auto' : ''}`}
-      >
+      <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-dark-700 scrollbar-track-transparent relative">
         {isLoading && (
           <div className="absolute inset-0 bg-dark-900/50 flex items-center justify-center z-10">
-            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary-500" />
+            <Spinner size="md" className="text-primary-500" label="Laster statistikk…" />
           </div>
         )}
         <table className="w-full table-fixed">
-          <thead className={useVirtual ? 'sticky top-0 z-[1] bg-dark-900' : undefined}>
+          <thead>
             <tr>
               <th className="table-header">{title.replace('Statistikk per ', '')}</th>
               <th className="table-header w-[10%] whitespace-nowrap text-right">Antall ordrer</th>
               <th className="table-header w-[15%] whitespace-nowrap text-right">Total sum</th>
-              <th className="table-header w-[10%] whitespace-nowrap text-right">Andel</th>
+              <th
+                className="table-header w-[10%] whitespace-nowrap text-right"
+                title="Andel av radene på denne siden"
+              >
+                Andel
+              </th>
             </tr>
           </thead>
           <tbody>
-            {useVirtual ? (
-              <>
-                {paddingTop > 0 && (
-                  <tr aria-hidden>
-                    <td colSpan={4} style={{ height: paddingTop, padding: 0, border: 0 }} />
-                  </tr>
-                )}
-                {virtualRows.map((virtualRow) => renderRow(filteredData[virtualRow.index], virtualRow.index))}
-                {paddingBottom > 0 && (
-                  <tr aria-hidden>
-                    <td colSpan={4} style={{ height: paddingBottom, padding: 0, border: 0 }} />
-                  </tr>
-                )}
-              </>
-            ) : (
-              <>
-                {filteredData.map((item, index) => renderRow(item, index))}
-                {filteredData.length === 0 && !isLoading && (
-                  <tr>
-                    <td colSpan={4} className="table-cell text-center text-dark-400 py-8">
-                      {rowFilter.trim() ? 'Ingen rader matcher filteret' : 'Ingen data å vise'}
-                    </td>
-                  </tr>
-                )}
-              </>
+            {filteredData.map((item, index) => renderRow(item, index))}
+            {filteredData.length === 0 && !isLoading && (
+              <tr>
+                <td colSpan={4} className="table-cell text-center text-dark-400 py-8">
+                  {rowFilter.trim() ? 'Ingen rader matcher filteret' : 'Ingen data å vise'}
+                </td>
+              </tr>
             )}
           </tbody>
         </table>

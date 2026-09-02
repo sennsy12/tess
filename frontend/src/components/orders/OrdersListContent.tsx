@@ -18,6 +18,7 @@ import { ordersApi, suggestionsApi } from '../../lib/api';
 import { buildOrderFilterChips, clearOrderFilter } from '../../lib/orderFilterChips';
 import { orderKeys, type OrderFilters } from '../../lib/queryKeys';
 import { orderFiltersFromSearchParams, orderFiltersToSearchParams } from '../../lib/listPageUrl';
+import { formatDateNb, formatMoneyNok } from '../../lib/formatters';
 import { ORDER_WORKFLOW_LABELS, type OrderWorkflowStatus } from '../../types/notification';
 import type { Suggestion } from '../../types/order';
 
@@ -34,7 +35,7 @@ const COLUMNS = [
   {
     key: 'dato',
     header: 'Dato',
-    render: (value: string) => new Date(value).toLocaleDateString('nb-NO'),
+    render: (value: string) => formatDateNb(value),
   },
   { key: 'kundenavn', header: 'Kunde' },
   {
@@ -55,10 +56,7 @@ const COLUMNS = [
     header: 'Sum',
     render: (value: number) => (
       <span className="font-semibold">
-        {new Intl.NumberFormat('nb-NO', {
-          style: 'currency',
-          currency: 'NOK',
-        }).format(value)}
+        {formatMoneyNok(value)}
       </span>
     ),
   },
@@ -371,6 +369,8 @@ export function OrdersListContent({ variant }: OrdersListContentProps) {
               enableColumnManagement
               enableCsvExport
               exportFilename={`${variant}-orders`}
+              exportLabel="Eksporter siden (CSV)"
+              exportTitle="Eksporterer radene som er lastet inn på denne siden"
               title="Ordretabell"
               storageKey={`table:${variant}-orders`}
               state={tableState}

@@ -1,10 +1,11 @@
 import { useState, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { BarChart3, Clock, Radio, Wrench } from 'lucide-react';
 import { Layout } from '../../components/Layout';
 import { ActionKeyModal, ConfirmModal } from '../../components/admin';
 import { Tabs, TabContent } from '../../components/Tabs';
 import { etlApi, schedulerApi } from '../../lib/api';
-import { ETL_JOBS_QUERY_KEY, useEtlJobsList } from '../../hooks/useEtlJobs';
+import { useEtlJobsList } from '../../hooks/useEtlJobs';
 import { etlKeys, schedulerKeys } from '../../lib/queryKeys';
 import { getApiError } from '../../lib/apiErrors';
 import { EtlActionsPanel, type EtlActionDefinition } from './etl/EtlActionsPanel';
@@ -78,7 +79,10 @@ export function AdminETL() {
   const invalidateAfterDataChange = () => {
     void queryClient.invalidateQueries({ queryKey: etlKeys.tableCounts() });
     void queryClient.invalidateQueries({ queryKey: schedulerKeys.jobs() });
-    void queryClient.invalidateQueries({ queryKey: ETL_JOBS_QUERY_KEY });
+    void queryClient.invalidateQueries({ queryKey: etlKeys.all() });
+    // Deliberate cross-scope sweeps after an import replaces large
+    // portions of the data: everything admin-, statistics- and
+    // order-related (kunde included) is potentially stale.
     void queryClient.invalidateQueries({ queryKey: ['admin'] });
     void queryClient.invalidateQueries({ queryKey: ['statistics'] });
     void queryClient.invalidateQueries({ queryKey: ['orders'] });
@@ -168,14 +172,14 @@ export function AdminETL() {
       <div className="space-y-6">
         <Tabs
           tabs={[
-            { id: 'etl', label: 'ETL', icon: '🔧' },
-            { id: 'bulk', label: 'Bulk Data', icon: '📊' },
+            { id: 'etl', label: 'ETL', icon: <Wrench className="h-4 w-4" aria-hidden /> },
+            { id: 'bulk', label: 'Bulk Data', icon: <BarChart3 className="h-4 w-4" aria-hidden /> },
             {
               id: 'jobs',
               label: activePipelineJobs > 0 ? `Jobber (${activePipelineJobs})` : 'Jobber',
-              icon: '📡',
+              icon: <Radio className="h-4 w-4" aria-hidden />,
             },
-            { id: 'scheduler', label: 'Scheduler', icon: '⏰' },
+            { id: 'scheduler', label: 'Scheduler', icon: <Clock className="h-4 w-4" aria-hidden /> },
           ]}
           activeTab={activeTab}
           onChange={(tab) => setActiveTab(tab as EtlPageTab)}

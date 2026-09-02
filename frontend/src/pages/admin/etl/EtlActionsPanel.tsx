@@ -38,7 +38,7 @@ export function EtlActionsPanel({ isLoading, loadingActionId, onAction }: EtlAct
           Destruktive ETL-handlinger er deaktivert i produksjon.
         </div>
       )}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 stagger-fade-in">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 animate-fade-in">
         {ETL_ACTIONS.map((action) => (
           <button
             key={action.id}

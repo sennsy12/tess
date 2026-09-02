@@ -1,13 +1,33 @@
-import { ReactNode, useEffect, useMemo, useState } from 'react';
+import { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  PackageSearch,
+} from 'lucide-react';
 import { downloadCsv } from '../lib/csv';
+import { useOnClickOutside } from '../hooks/useOnClickOutside';
 
-interface Column<T> {
-  key: keyof T | string;
+/**
+ * A single table column.
+ *
+ * `render` / `csvValue` are declared with method syntax on purpose: method
+ * parameters are checked bivariantly, so call sites may narrow the `value`
+ * parameter to the concrete type a column holds (e.g. `(value: number) => …`)
+ * without a cast, while the row itself stays fully typed.
+ */
+export interface Column<T> {
+  /** Property of T to display, or a custom key handled by `render`. */
+  key: keyof T & string | (string & {});
   header: string;
   sortable?: boolean;
   align?: 'left' | 'center' | 'right';
-  render?: (value: any, row: T) => React.ReactNode;
-  csvValue?: (value: any, row: T) => string | number;
+  render?(value: T[keyof T] | undefined, row: T): React.ReactNode;
+  csvValue?(value: T[keyof T] | undefined, row: T): string | number;
   hideable?: boolean;
 }
 
@@ -24,6 +44,11 @@ interface DataTableProps<T> {
   enableColumnManagement?: boolean;
   enableCsvExport?: boolean;
   exportFilename?: string;
+  /** Export button label (default "Eksporter CSV"). Server-paged tables
+   * should pass "Eksporter siden (CSV)" since only loaded rows export. */
+  exportLabel?: string;
+  /** Tooltip explaining the export scope. */
+  exportTitle?: string;
   title?: string;
   toolbarExtras?: ReactNode;
   storageKey?: string;
@@ -43,7 +68,7 @@ export interface DataTableState {
   visibleColumnKeys: string[];
 }
 
-const getColumnKey = <T extends Record<string, any>>(column: Column<T>) => String(column.key);
+const getColumnKey = <T extends object>(column: Column<T>) => String(column.key);
 
 const areStringArraysEqual = (a: string[], b: string[]) =>
   a.length === b.length && a.every((value, index) => value === b[index]);
@@ -92,7 +117,7 @@ const getComparableValue = (value: unknown) => {
   return String(value).toLowerCase();
 };
 
-export function DataTable<T extends Record<string, any>>({
+export function DataTable<T extends object>({
   data,
   columns,
   onRowClick,
@@ -105,6 +130,8 @@ export function DataTable<T extends Record<string, any>>({
   enableColumnManagement = false,
   enableCsvExport = false,
   exportFilename = 'table-export',
+  exportLabel = 'Eksporter CSV',
+  exportTitle,
   title,
   toolbarExtras,
   storageKey,
@@ -146,6 +173,22 @@ export function DataTable<T extends Record<string, any>>({
   const tableState = isControlled ? externalState : internalState;
   const [isColumnMenuOpen, setIsColumnMenuOpen] = useState(false);
   const [columnSearch, setColumnSearch] = useState('');
+  const columnMenuRef = useRef<HTMLDivElement>(null);
+  const columnMenuButtonRef = useRef<HTMLButtonElement>(null);
+
+  // Column menu: outside-click + Escape dismissal with focus return.
+  useOnClickOutside(columnMenuRef, () => setIsColumnMenuOpen(false));
+  useEffect(() => {
+    if (!isColumnMenuOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsColumnMenuOpen(false);
+        columnMenuButtonRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isColumnMenuOpen]);
   const densityKey = storageKey ? `${storageKey}:density` : null;
   const [density, setDensity] = useState<'comfortable' | 'compact'>(() => {
     if (!densityKey || typeof window === 'undefined') return 'comfortable';
@@ -213,8 +256,8 @@ export function DataTable<T extends Record<string, any>>({
     const sortKey = tableState.sortKey;
 
     return [...data].sort((a, b) => {
-      const aValue = getComparableValue(a[sortKey]);
-      const bValue = getComparableValue(b[sortKey]);
+      const aValue = getComparableValue(a[sortKey as keyof T]);
+      const bValue = getComparableValue(b[sortKey as keyof T]);
 
       if (aValue === null || aValue === undefined) return 1;
       if (bValue === null || bValue === undefined) return -1;
@@ -246,22 +289,28 @@ export function DataTable<T extends Record<string, any>>({
     }
   }, [storageKey, tableState]);
 
-  const getRowKey = (row: T, index: number) => {
+  const getRowKey = (row: T, index: number): string | number => {
     if (rowKey) return rowKey(row);
-    if (row.id !== undefined && row.id !== null) return row.id;
-    if (row.key !== undefined && row.key !== null) return row.key;
+    // T is only constrained to `object`; fall back to common id fields.
+    const record = row as Record<string, unknown>;
+    if (record.id !== undefined && record.id !== null) return record.id as string | number;
+    if (record.key !== undefined && record.key !== null) return record.key as string | number;
     const firstColumnKey = columns[0]?.key;
-    if (firstColumnKey && row[firstColumnKey as keyof T] !== undefined) {
-      return row[firstColumnKey as keyof T] as string | number;
+    if (firstColumnKey) {
+      const value = row[firstColumnKey as keyof T];
+      if (value !== undefined && value !== null) return value as string | number;
     }
     return index;
   };
 
   const getSortIcon = (key: string) => {
-    if (tableState.sortKey !== key) return <span className="text-dark-600 opacity-20">↕</span>;
-    if (tableState.sortDirection === 'asc') return <span className="text-primary-400">↑</span>;
-    if (tableState.sortDirection === 'desc') return <span className="text-primary-400">↓</span>;
-    return <span className="text-dark-600 opacity-20">↕</span>;
+    if (tableState.sortKey !== key)
+      return <ArrowUpDown className="h-3.5 w-3.5 text-dark-600 opacity-20" aria-hidden />;
+    if (tableState.sortDirection === 'asc')
+      return <ArrowUp className="h-3.5 w-3.5 text-primary-400" aria-hidden />;
+    if (tableState.sortDirection === 'desc')
+      return <ArrowDown className="h-3.5 w-3.5 text-primary-400" aria-hidden />;
+    return <ArrowUpDown className="h-3.5 w-3.5 text-dark-600 opacity-20" aria-hidden />;
   };
 
   const getCellAlignment = (align?: 'left' | 'center' | 'right') => {
@@ -310,7 +359,9 @@ export function DataTable<T extends Record<string, any>>({
   if (data.length === 0) {
     return (
       <div className={`card flex flex-col items-center justify-center py-16 text-center ${className}`}>
-        <div className="w-16 h-16 bg-dark-800 rounded-full flex items-center justify-center mb-4 text-3xl">∅</div>
+        <div className="w-16 h-16 bg-dark-800 rounded-full flex items-center justify-center mb-4">
+          <PackageSearch className="h-8 w-8 text-dark-500" aria-hidden />
+        </div>
         <p className="text-dark-300 font-medium text-lg">{emptyMessage}</p>
         <p className="text-dark-500 text-sm mt-2">Prøv å endre søkekriteriene dine</p>
       </div>
@@ -330,9 +381,11 @@ export function DataTable<T extends Record<string, any>>({
           <div className="flex flex-wrap items-center gap-2">
             {toolbarExtras}
             {enableColumnManagement && (
-              <div className="relative">
+              <div className="relative" ref={columnMenuRef}>
                 <button
+                  ref={columnMenuButtonRef}
                   onClick={() => setIsColumnMenuOpen((open) => !open)}
+                  aria-expanded={isColumnMenuOpen}
                   className="btn-secondary text-sm"
                 >
                   Kolonner
@@ -396,8 +449,8 @@ export function DataTable<T extends Record<string, any>>({
               </div>
             )}
             {enableCsvExport && (
-              <button onClick={exportRows} className="btn-secondary text-sm">
-                Eksporter CSV
+              <button onClick={exportRows} className="btn-secondary text-sm" title={exportTitle}>
+                {exportLabel}
               </button>
             )}
           </div>
@@ -408,27 +461,41 @@ export function DataTable<T extends Record<string, any>>({
           {title && <caption className="sr-only">{title}</caption>}
           <thead>
             <tr>
-              {visibleColumns.map((column, columnIndex) => (
-                <th
-                  key={getColumnKey(column)}
-                  scope="col"
-                  className={`${headerClass} whitespace-nowrap group ${
-                    column.sortable !== false && !disableClientSort
-                      ? 'cursor-pointer hover:bg-dark-700/60 transition-colors'
-                      : ''
-                  } ${getCellAlignment(column.align)} ${getStickyClasses(columnIndex)}`}
-                  onClick={() =>
-                    column.sortable !== false && !disableClientSort && handleSort(String(column.key))
-                  }
-                >
-                  <div className={`flex items-center gap-2 ${column.align === 'right' ? 'justify-end' : column.align === 'center' ? 'justify-center' : 'justify-start'}`}>
-                    <span className="group-hover:text-dark-200 transition-colors">{column.header}</span>
-                    {column.sortable !== false && !disableClientSort && (
-                      <span className="text-xs transition-all duration-200 transform scale-75 group-hover:scale-100">{getSortIcon(String(column.key))}</span>
+              {visibleColumns.map((column, columnIndex) => {
+                const sortable = column.sortable !== false && !disableClientSort;
+                const sorted = tableState.sortKey === String(column.key);
+                return (
+                  <th
+                    key={getColumnKey(column)}
+                    scope="col"
+                    aria-sort={
+                      sortable
+                        ? sorted
+                          ? tableState.sortDirection === 'asc'
+                            ? 'ascending'
+                            : 'descending'
+                          : 'none'
+                        : undefined
+                    }
+                    className={`${headerClass} whitespace-nowrap group ${getCellAlignment(column.align)} ${getStickyClasses(columnIndex)}`}
+                  >
+                    {sortable ? (
+                      <button
+                        type="button"
+                        onClick={() => handleSort(String(column.key))}
+                        className={`flex items-center gap-2 w-full bg-transparent p-0 font-inherit text-inherit cursor-pointer hover:bg-dark-700/60 hover:text-dark-200 transition-colors rounded ${column.align === 'right' ? 'justify-end' : column.align === 'center' ? 'justify-center' : 'justify-start'}`}
+                      >
+                        <span className="group-hover:text-dark-200 transition-colors">{column.header}</span>
+                        <span className="text-xs transition-all duration-200 transform scale-75 group-hover:scale-100">{getSortIcon(String(column.key))}</span>
+                      </button>
+                    ) : (
+                      <div className={`flex items-center gap-2 ${column.align === 'right' ? 'justify-end' : column.align === 'center' ? 'justify-center' : 'justify-start'}`}>
+                        <span className="group-hover:text-dark-200 transition-colors">{column.header}</span>
+                      </div>
                     )}
-                  </div>
-                </th>
-              ))}
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody>
@@ -446,7 +513,9 @@ export function DataTable<T extends Record<string, any>>({
                     onRowClick(row);
                   }
                 }}
-                role={onRowClick ? 'button' : undefined}
+                // Note: no role="button" — a button role on <tr> is invalid
+                // HTML and breaks table navigation. The row stays focusable
+                // with Enter/Space activation instead.
                 tabIndex={onRowClick ? 0 : undefined}
               >
                 {visibleColumns.map((column, columnIndex) => (
@@ -456,7 +525,11 @@ export function DataTable<T extends Record<string, any>>({
                   >
                     {column.render
                       ? column.render(row[column.key as keyof T], row)
-                      : row[column.key as keyof T] ?? <span className="text-dark-500">-</span>}
+                      // Raw cell values are trusted to be display-safe here
+                      // (strings/numbers/booleans); anything object-shaped
+                      // must supply a `render` function for the column.
+                      : (row[column.key as keyof T] as ReactNode) ??
+                        <span className="text-dark-500">-</span>}
                   </td>
                 ))}
               </tr>
@@ -479,7 +552,7 @@ export function DataTable<T extends Record<string, any>>({
               title="Første side"
             >
               <span className="sr-only">Første</span>
-              ««
+              <ChevronsLeft className="h-4 w-4" aria-hidden />
             </button>
             <button
               onClick={() => updateTableState((previous) => ({ ...previous, currentPage: Math.max(1, previous.currentPage - 1) }))}
@@ -488,7 +561,7 @@ export function DataTable<T extends Record<string, any>>({
               title="Forrige side"
             >
               <span className="sr-only">Forrige</span>
-              «
+              <ChevronLeft className="h-4 w-4" aria-hidden />
             </button>
             
             <div className="px-4 py-1.5 text-sm font-medium bg-dark-900 rounded-lg border border-dark-700 mx-1 min-w-[3rem] text-center">
@@ -502,7 +575,7 @@ export function DataTable<T extends Record<string, any>>({
               title="Neste side"
             >
               <span className="sr-only">Neste</span>
-              »
+              <ChevronRight className="h-4 w-4" aria-hidden />
             </button>
             <button
               onClick={() => updateTableState((previous) => ({ ...previous, currentPage: totalPages }))}
@@ -511,7 +584,7 @@ export function DataTable<T extends Record<string, any>>({
               title="Siste side"
             >
               <span className="sr-only">Siste</span>
-              »»
+              <ChevronsRight className="h-4 w-4" aria-hidden />
             </button>
           </div>
         </div>

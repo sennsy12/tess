@@ -1,5 +1,6 @@
 import { auditModel, CreateAuditLogInput } from '../models/auditModel.js';
 import { createLogger } from '../lib/logger.js';
+import type { AuthRequest } from '../middleware/auth.js';
 
 const logger = createLogger('audit');
 
@@ -18,6 +19,11 @@ interface AuditLogParams {
   newData?: Record<string, any> | null;
   metadata?: Record<string, any> | null;
   ipAddress?: string;
+}
+
+/** Extract audit user from an authenticated request. */
+function getAuditUser(req: AuthRequest): AuditUser {
+  return { id: req.user?.id, username: req.user?.username || 'unknown' };
 }
 
 /**
@@ -92,5 +98,32 @@ export const auditService = {
       // Never let audit failures break the main operation
       logger.error({ error, params: { action: params.action, entityType: params.entityType } }, 'Failed to write audit log');
     }
+  },
+
+  /**
+   * Log an audit event from an authenticated request.
+   * Extracts user and IP from the request so callers don't repeat it.
+   */
+  logFromRequest: async (params: {
+    req: AuthRequest;
+    action: 'CREATE' | 'UPDATE' | 'DELETE';
+    entityType: string;
+    entityId: string | number;
+    entityName?: string;
+    oldData?: Record<string, any> | null;
+    newData?: Record<string, any> | null;
+    metadata?: Record<string, any> | null;
+  }): Promise<void> => {
+    return auditService.log({
+      user: getAuditUser(params.req),
+      ipAddress: params.req.ip,
+      action: params.action,
+      entityType: params.entityType,
+      entityId: params.entityId,
+      entityName: params.entityName,
+      oldData: params.oldData,
+      newData: params.newData,
+      metadata: params.metadata,
+    });
   },
 };

@@ -1,28 +1,29 @@
 import { DataStatusWidgetProps } from '../../../../types/dashboard';
+import { formatDateNb } from '../../../../lib/formatters';
 import { WidgetError } from './WidgetError';
 
 export function DataStatusWidget({ data, isLoading, isError, onRetry }: DataStatusWidgetProps) {
   if (isError) {
     return (
       <div className="card">
-        <h3 className="text-lg font-semibold mb-4">📊 Datastatus</h3>
+        <h3 className="text-lg font-semibold mb-4">Datastatus</h3>
         <WidgetError onRetry={onRetry} />
       </div>
     );
   }
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return 'Ukjent';
-    return new Date(dateStr).toLocaleDateString('nb-NO', { 
-      day: 'numeric', 
-      month: 'short', 
-      year: 'numeric' 
+    return formatDateNb(dateStr, {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
     });
   };
 
   if (isLoading) {
     return (
       <div className="card">
-        <h3 className="text-lg font-semibold mb-4">📊 Datastatus</h3>
+        <h3 className="text-lg font-semibold mb-4">Datastatus</h3>
         <div className="animate-pulse space-y-3">
           <div className="h-16 bg-dark-700 rounded" />
           <div className="h-8 bg-dark-700 rounded" />
@@ -35,7 +36,7 @@ export function DataStatusWidget({ data, isLoading, isError, onRetry }: DataStat
 
   return (
     <div className="card">
-      <h3 className="text-lg font-semibold mb-4">📊 Datastatus</h3>
+      <h3 className="text-lg font-semibold mb-4">Datastatus</h3>
       
       {data ? (
         <div className="space-y-4">

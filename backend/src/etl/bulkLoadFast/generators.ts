@@ -17,10 +17,39 @@ const LAGER_BY_FIRMA: Record<number, string> = {
   5: 'Region Nord Hovedlager',
 };
 
+/**
+ * Deterministiske linjeformler for bulk-generatoren. MÅ være identiske i
+ * ordre- og ordrelinje-generatoren, ellers spriker ordresum og linjesum.
+ */
+export function bulkNumLines(i: number, linesPerOrder: number): number {
+  return ((i * 7) % linesPerOrder) + 1;
+}
+
+export function bulkAntall(i: number, j: number): number {
+  return ((i + j) % 50) + 1;
+}
+
+export function bulkNettpris(i: number, j: number): number {
+  return ((i * 11 + j) % 5000) + 50;
+}
+
+export function bulkLinjesum(i: number, j: number): number {
+  return bulkAntall(i, j) * bulkNettpris(i, j);
+}
+
+/** Ordresum = summen av linjene ordrelinje-generatoren skriver for samme ordre. */
+export function bulkOrderSum(i: number, linesPerOrder: number): number {
+  let sum = 0;
+  const numLines = bulkNumLines(i, linesPerOrder);
+  for (let j = 1; j <= numLines; j++) sum += bulkLinjesum(i, j);
+  return sum;
+}
+
 /** Async generator yielding COPY buffer chunks for ordre table (buffer pool, no per-row arrays). */
 export async function* generateOrdreCopyBuffers(
   totalOrders: number,
   customers: number,
+  linesPerOrder: number,
   metrics: TableMetrics,
   batchStats: BatchStats
 ): AsyncGenerator<Buffer> {
@@ -40,7 +69,7 @@ export async function* generateOrdreCopyBuffers(
       const kunderef = 'Auto Bulk Kunde';
       const lagernavn = LAGER_BY_FIRMA[firmaid];
       const valuta = 'NOK';
-      const sum = 0;
+      const sum = bulkOrderSum(i, linesPerOrder);
 
       offset = writeCopyValue(buf, offset, ordrenr);
       offset = writeCopyField(buf, offset, dato);
@@ -85,12 +114,12 @@ export async function* generateOrdrelinjeCopyBuffers(
   try {
     for (let i = 1; i <= totalOrders; i++) {
       const ordrenr = 10000 + i;
-      const numLines = ((i * 7) % linesPerOrder) + 1;
+      const numLines = bulkNumLines(i, linesPerOrder);
 
       for (let j = 1; j <= numLines; j++) {
         const varekode = `V${String((i * j) % 500 + 1).padStart(5, '0')}`;
-        const antall = ((i + j) % 50) + 1;
-        const nettpris = ((i * 11 + j) % 5000) + 50;
+        const antall = bulkAntall(i, j);
+        const nettpris = bulkNettpris(i, j);
         const linjesum = antall * nettpris;
 
         offset = writeCopyValue(buf, offset, j);

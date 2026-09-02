@@ -23,7 +23,7 @@ export function SchedulerPanel({
         {isLoading && jobs.length === 0 ? (
           <ListSkeleton count={3} />
         ) : (
-          <div className="space-y-3 stagger-fade-in">
+          <div className="space-y-3 animate-fade-in">
             {jobs.map((job) => (
               <div
                 key={job.id}

@@ -11,9 +11,10 @@ import {
   ordersApi,
 } from '../../lib/api';
 import { StatCardSkeleton, ChartSkeleton } from '../../components/admin';
-import { formatCurrencyNok, abbreviateCurrencyNok } from '../../lib/formatters';
+import { formatCurrencyNok, formatNumberNb, abbreviateCurrencyNok } from '../../lib/formatters';
+import { statusKeys, dashboardKeys } from '../../lib/queryKeys';
 import { fillMissingPeriods } from '../../lib/chartUtils';
-import { AnimatedStatCard } from '../../components/dashboard/AnimatedStatCard';
+import { StatCard } from '../../components/StatCard';
 import {
   TopProductsWidget,
   TopCustomersWidget,
@@ -29,7 +30,7 @@ export function AdminDashboard() {
   const queriesEnabled = isAuthenticated && !authLoading;
 
   const { data: status } = useQuery({
-    queryKey: ['admin', 'status'],
+    queryKey: statusKeys.system(),
     queryFn: () => statusApi.getStatus().then(res => res.data).catch(() => null),
     enabled: queriesEnabled,
   });
@@ -39,19 +40,19 @@ export function AdminDashboard() {
     isError: widgetsError,
     refetch: refetchWidgets,
   } = useQuery({
-    queryKey: ['admin', 'widgets'],
+    queryKey: dashboardKeys.widgets(),
     queryFn: () => dashboardApi.getWidgets().then((res) => res.data),
     enabled: queriesEnabled,
   });
 
   const { data: apiMetrics } = useQuery({
-    queryKey: ['admin', 'dashboard-api-metrics'],
+    queryKey: dashboardKeys.apiMetrics(),
     queryFn: () => statusApi.getApiMetrics().then((res) => res.data).catch(() => null),
     enabled: queriesEnabled,
   });
 
   const { data: ordersNeedingAttention = 0 } = useQuery({
-    queryKey: ['admin', 'orders-needing-attention'],
+    queryKey: dashboardKeys.ordersNeedingAttention(),
     enabled: queriesEnabled,
     queryFn: async () => {
       const response = await ordersApi.getAll({ limit: 100 });
@@ -61,7 +62,7 @@ export function AdminDashboard() {
   });
 
   const { data: pendingApprovalCount = 0 } = useQuery({
-    queryKey: ['admin', 'pending-approval-count'],
+    queryKey: dashboardKeys.pendingApprovalCount(),
     enabled: queriesEnabled,
     queryFn: async () => {
       const response = await ordersApi.getAll({ workflowStatus: 'pending_approval', limit: 1 });
@@ -71,7 +72,7 @@ export function AdminDashboard() {
   });
 
   const { data: analytics, isLoading } = useQuery({
-    queryKey: ['admin', 'analytics'],
+    queryKey: dashboardKeys.analytics(),
     queryFn: () => dashboardApi.getAnalyticsBatch().then(res => res.data as DashboardAnalytics),
     enabled: queriesEnabled,
   });
@@ -100,7 +101,13 @@ export function AdminDashboard() {
             </div>
             <div className="text-right">
               <span className="text-sm text-dark-400">Database</span>
-              <p className="font-medium">{status?.database?.connected ? '✅ Tilkoblet' : '❌ Frakoblet'}</p>
+              <p className="font-medium inline-flex items-center gap-1.5">
+                <span
+                  className={`h-2 w-2 rounded-full ${status?.database?.connected ? 'bg-emerald-400' : 'bg-red-400'}`}
+                  aria-hidden
+                />
+                {status?.database?.connected ? 'Tilkoblet' : 'Frakoblet'}
+              </p>
             </div>
           </div>
         </div>
@@ -114,11 +121,11 @@ export function AdminDashboard() {
             <StatCardSkeleton />
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 stagger-fade-in">
-            <AnimatedStatCard label="Ordrer i DB" value={status?.tables?.orders || 0} />
-            <AnimatedStatCard label="Kunder i DB" value={status?.tables?.customers || 0} />
-            <AnimatedStatCard label="Produkter i DB" value={status?.tables?.products || 0} />
-            <AnimatedStatCard label="Brukere i DB" value={status?.tables?.users || 0} />
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 animate-fade-in">
+            <StatCard label="Ordrer i DB" value={formatNumberNb(status?.tables?.orders || 0)} numericValue={status?.tables?.orders || 0} />
+            <StatCard label="Kunder i DB" value={formatNumberNb(status?.tables?.customers || 0)} numericValue={status?.tables?.customers || 0} />
+            <StatCard label="Produkter i DB" value={formatNumberNb(status?.tables?.products || 0)} numericValue={status?.tables?.products || 0} />
+            <StatCard label="Brukere i DB" value={formatNumberNb(status?.tables?.users || 0)} numericValue={status?.tables?.users || 0} />
           </div>
         )}
 
@@ -131,35 +138,39 @@ export function AdminDashboard() {
             <StatCardSkeleton />
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 stagger-fade-in">
-            <AnimatedStatCard
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 animate-fade-in">
+            <StatCard
               label="Total Omsetning"
-              value={summary?.totalRevenue || 0}
-              formatter={formatCurrencyNok}
+              value={formatCurrencyNok(summary?.totalRevenue || 0)}
+              numericValue={summary?.totalRevenue || 0}
+              format={formatCurrencyNok}
               className="gradient-primary text-white"
               labelClassName="text-white/80"
               sparkData={timeSeries.map((t: TimeSeriesPoint) => ({ value: t.total_sum }))}
-              sparkKey="value"
+              sparkDataKey="value"
               sparkColor="#ffffff"
             />
-            <AnimatedStatCard
+            <StatCard
               label="Totale Ordrer"
-              value={summary?.totalOrders || 0}
+              value={formatNumberNb(summary?.totalOrders || 0)}
+              numericValue={summary?.totalOrders || 0}
               className="gradient-success text-white"
               labelClassName="text-white/80"
               sparkData={timeSeries.map((t: TimeSeriesPoint) => ({ value: t.order_count }))}
-              sparkKey="value"
+              sparkDataKey="value"
               sparkColor="#ffffff"
             />
-            <AnimatedStatCard
+            <StatCard
               label="Aktive Kunder"
-              value={summary?.activeCustomers || 0}
+              value={formatNumberNb(summary?.activeCustomers || 0)}
+              numericValue={summary?.activeCustomers || 0}
               className="gradient-warning text-white"
               labelClassName="text-white/80"
             />
-            <AnimatedStatCard
+            <StatCard
               label="Produkter Solgt"
-              value={summary?.productsOrdered || 0}
+              value={formatNumberNb(summary?.productsOrdered || 0)}
+              numericValue={summary?.productsOrdered || 0}
               className="gradient-danger text-white"
               labelClassName="text-white/80"
             />
@@ -261,7 +272,7 @@ export function AdminDashboard() {
                 data={timeSeries}
                 xKey="period"
                 yKey="total_sum"
-                title="📈 Omsetning over tid"
+                title="Omsetning over tid"
                 color="#10b981"
                 seriesName="Omsetning"
                 valueFormatter={formatCurrencyNok}
@@ -271,7 +282,7 @@ export function AdminDashboard() {
                 data={timeSeries}
                 xKey="period"
                 yKey="order_count"
-                title="📊 Ordrer per måned"
+                title="Ordrer per måned"
                 color="#8b5cf6"
                 seriesName="Antall Ordrer"
               />
@@ -282,7 +293,7 @@ export function AdminDashboard() {
                 data={firmaStats}
                 nameKey="firmanavn"
                 valueKey="total_sum"
-                title="🏢 Omsetning per Firma"
+                title="Omsetning per Firma"
                 seriesName="Omsetning"
                 valueFormatter={formatCurrencyNok}
                 height={360}
@@ -291,7 +302,7 @@ export function AdminDashboard() {
                 data={lagerStats}
                 xKey="lagernavn"
                 yKey="total_sum"
-                title="📦 Omsetning per Lager"
+                title="Omsetning per Lager"
                 color="#f59e0b"
                 seriesName="Omsetning"
                 valueFormatter={formatCurrencyNok}

@@ -151,6 +151,51 @@ export const priceRuleModel = {
   },
 
   /**
+   * Bulk variant of findApplicable: fetch candidate rules for many items in
+   * ONE round-trip. Caller filters per-item by quantity + product match.
+   *
+   * We filter SQL by maxQuantity (min_quantity <= max) and do the exact
+   * per-item quantity check in JS, since items can have different quantities.
+   * Result keeps the same global ORDER BY as findApplicable, so the first
+   * matching rule per item is the best rule.
+   */
+  findApplicableBulk: async (params: {
+    varekoder: string[];
+    varegrupper: Array<string | null>;
+    kundenr: string;
+    customerGroupId?: number | null;
+    maxQuantity: number;
+  }): Promise<PriceRule[]> => {
+    if (params.varekoder.length === 0) return [];
+    // Dedupe + drop nulls for ANY() params; NULL varegruppe never matches
+    // pr.varegruppe = ANY() anyway, but keeps the arrays small.
+    const varekoder = [...new Set(params.varekoder)];
+    const varegrupper = [...new Set(params.varegrupper.filter((g): g is string => g != null))];
+    const result = await query(
+      `SELECT pr.*, pl.name as price_list_name, pl.priority as list_priority
+       FROM price_rule pr
+       INNER JOIN price_list pl ON pr.price_list_id = pl.id
+       WHERE pl.is_active = TRUE
+         AND (pl.valid_from IS NULL OR pl.valid_from <= NOW())
+         AND (pl.valid_to IS NULL OR pl.valid_to >= NOW())
+         AND pr.min_quantity <= $5
+         AND (
+           (pr.varekode = ANY($1) OR pr.varegruppe = ANY($2) OR (pr.varekode IS NULL AND pr.varegruppe IS NULL))
+         )
+         AND (
+           (pr.kundenr = $3 OR pr.customer_group_id = $4 OR (pr.kundenr IS NULL AND pr.customer_group_id IS NULL))
+         )
+       ORDER BY
+         pl.priority DESC,
+         CASE WHEN pr.varekode IS NOT NULL THEN 0 WHEN pr.varegruppe IS NOT NULL THEN 1 ELSE 2 END,
+         CASE WHEN pr.kundenr IS NOT NULL THEN 0 WHEN pr.customer_group_id IS NOT NULL THEN 1 ELSE 2 END,
+         pr.min_quantity DESC`,
+      [varekoder, varegrupper, params.kundenr, params.customerGroupId || null, params.maxQuantity]
+    );
+    return result.rows;
+  },
+
+  /**
    * Get customers with the largest price deviations (special discounts)
    * Shows customers who have specific pricing rules that differ most from base prices
    */

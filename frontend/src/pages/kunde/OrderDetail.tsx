@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { AnimatePresence, motion } from 'framer-motion';
 import { Repeat, XCircle } from 'lucide-react';
 import { Layout } from '../../components/Layout';
 import { Breadcrumb } from '../../components/Breadcrumb';
@@ -10,14 +9,19 @@ import { OrderTimeline } from '../../components/OrderTimeline';
 import { OrderWorkflowBadge } from '../../components/orders/OrderWorkflowBadge';
 import { OrderLineSummaryCard } from '../../components/orders/OrderLineSummaryCard';
 import { QueryErrorBanner } from '../../components/QueryErrorBanner';
+import { ConfirmModal } from '../../components/admin/ConfirmModal';
+import { Spinner } from '../../components/Spinner';
+import { StatusBadge } from '../../components/StatusBadge';
 import { ordersApi } from '../../lib/api';
 import { downloadOrderCsv } from '../../lib/orderExport';
 import { getApiError } from '../../lib/apiErrors';
+import { kundeKeys } from '../../lib/queryKeys';
 import { addOrderToCart } from '../../lib/reorder';
 import { downloadOrderPdf } from '../../lib/orderPdf';
 import { useCart } from '../../context/useCart';
 import { KUNDE_CANCELLABLE_STATUSES, type OrderWorkflowStatus } from '../../types/notification';
 import type { OrderDetail } from '../../types/order';
+import { formatCurrency, formatDateNb, formatDecimalNb, formatMoneyNok } from '../../lib/formatters';
 
 export function KundeOrderDetail() {
   const { ordrenr } = useParams<{ ordrenr: string }>();
@@ -29,7 +33,7 @@ export function KundeOrderDetail() {
   const [isPdfBusy, setIsPdfBusy] = useState(false);
 
   const { data: order, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ['kunde', 'order', orderId],
+    queryKey: kundeKeys.order(orderId),
     queryFn: async () => {
       const response = await ordersApi.getOne(orderId);
       return response.data as OrderDetail;
@@ -41,7 +45,7 @@ export function KundeOrderDetail() {
     mutationFn: () => ordersApi.cancel(orderId),
     onSuccess: () => {
       setConfirmCancelOpen(false);
-      void queryClient.invalidateQueries({ queryKey: ['kunde'] });
+      void queryClient.invalidateQueries({ queryKey: kundeKeys.root() });
       toast.success('Ordren er kansellert');
     },
     onError: (err) => {
@@ -86,7 +90,7 @@ export function KundeOrderDetail() {
     return (
       <Layout title="Ordre detaljer">
         <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-500" />
+          <Spinner size="lg" className="text-primary-500" label="Laster ordre…" />
         </div>
       </Layout>
     );
@@ -152,57 +156,19 @@ export function KundeOrderDetail() {
         </div>
 
         {/* Cancel confirmation */}
-        <AnimatePresence>
-          {confirmCancelOpen && (
-            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="absolute inset-0 bg-black/70 backdrop-blur-sm"
-                onClick={() => !cancelMutation.isPending && setConfirmCancelOpen(false)}
-                role="presentation"
-              />
-              <motion.div
-                initial={{ scale: 0.95, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.95, opacity: 0 }}
-                className="relative card w-full max-w-md z-10"
-                role="dialog"
-                aria-modal="true"
-                aria-label="Bekreft kansellering"
-              >
-                <h3 className="text-lg font-semibold mb-2">Kansellere ordre #{order.ordrenr}?</h3>
-                <p className="text-sm text-dark-400 mb-5">
-                  Ordren fjernes fra godkjenningskøen. Denne handlingen kan ikke angres.
-                </p>
-                <div className="flex justify-end gap-3">
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    disabled={cancelMutation.isPending}
-                    onClick={() => setConfirmCancelOpen(false)}
-                  >
-                    Behold ordre
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-primary bg-red-600 border-red-600 hover:bg-red-500 flex items-center gap-2"
-                    disabled={cancelMutation.isPending}
-                    onClick={() => cancelMutation.mutate()}
-                  >
-                    {cancelMutation.isPending ? (
-                      <span className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white" />
-                    ) : (
-                      <XCircle className="h-4 w-4" aria-hidden />
-                    )}
-                    Kanseller
-                  </button>
-                </div>
-              </motion.div>
-            </div>
-          )}
-        </AnimatePresence>
+        <ConfirmModal
+          open={confirmCancelOpen}
+          onClose={() => setConfirmCancelOpen(false)}
+          onConfirm={() => cancelMutation.mutate()}
+          title={`Kansellere ordre #${order?.ordrenr}?`}
+          confirmLabel="Kanseller"
+          cancelLabel="Behold ordre"
+          intent="danger"
+          loading={cancelMutation.isPending}
+          dismissable={!cancelMutation.isPending}
+        >
+          Ordren fjernes fra godkjenningskøen. Denne handlingen kan ikke angres.
+        </ConfirmModal>
 
         <div className="card">
           <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
@@ -220,7 +186,7 @@ export function KundeOrderDetail() {
             </div>
             <div>
               <span className="text-sm text-dark-400">Dato</span>
-              <p className="text-lg font-medium">{new Date(order.dato).toLocaleDateString('nb-NO')}</p>
+              <p className="text-lg font-medium">{formatDateNb(order.dato)}</p>
             </div>
             <div>
               <span className="text-sm text-dark-400">Kunde</span>
@@ -229,10 +195,7 @@ export function KundeOrderDetail() {
             <div>
               <span className="text-sm text-dark-400">Total sum</span>
               <p className="text-xl font-bold text-green-400">
-                {new Intl.NumberFormat('nb-NO', {
-                  style: 'currency',
-                  currency: order.valutaid || 'NOK',
-                }).format(order.sum)}
+                {formatCurrency(order.sum, order.valutaid || 'NOK')}
               </p>
             </div>
           </div>
@@ -264,9 +227,7 @@ export function KundeOrderDetail() {
                   #{line.linjenr} {line.varenavn || line.varekode}
                 </span>
                 <span>
-                  {new Intl.NumberFormat('nb-NO', { style: 'currency', currency: 'NOK' }).format(
-                    line.linjesum,
-                  )}
+                  {formatMoneyNok(line.linjesum)}
                 </span>
               </div>
               <p className="text-dark-400 mt-1">
@@ -307,25 +268,15 @@ export function KundeOrderDetail() {
                     <td className="table-cell text-right">{line.antall}</td>
                     <td className="table-cell">{line.enhet}</td>
                     <td className="table-cell text-right">
-                      {new Intl.NumberFormat('nb-NO', { minimumFractionDigits: 2 }).format(
-                        line.nettpris,
-                      )}
+                      {formatDecimalNb(line.nettpris)}
                     </td>
                     <td className="table-cell text-right font-semibold">
-                      {new Intl.NumberFormat('nb-NO', { minimumFractionDigits: 2 }).format(
-                        line.linjesum,
-                      )}
+                      {formatDecimalNb(line.linjesum)}
                     </td>
                     <td className="table-cell">
-                      <span
-                        className={`px-2 py-1 rounded text-xs font-medium ${
-                          line.linjestatus === 1
-                            ? 'bg-green-600/20 text-green-300'
-                            : 'bg-dark-600/40 text-dark-300'
-                        }`}
-                      >
+                      <StatusBadge tone={line.linjestatus === 1 ? 'success' : 'neutral'}>
                         {line.linjestatus === 1 ? 'Aktiv' : 'Inaktiv'}
-                      </span>
+                      </StatusBadge>
                     </td>
                   </tr>
                 ))}

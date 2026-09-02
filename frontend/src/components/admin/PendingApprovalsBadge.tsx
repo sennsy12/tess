@@ -1,11 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import { ordersApi } from '../../lib/api';
 import { NavCountBadge } from '../NavCountBadge';
+import { approvalsKeys } from '../../lib/queryKeys';
 
 /** Live count of orders awaiting approval, shown in the admin sidebar. */
 export function PendingApprovalsBadge() {
   const { data } = useQuery({
-    queryKey: ['admin', 'approvals-count', 'pending_approval'],
+    queryKey: approvalsKeys.count('pending_approval'),
     queryFn: async () => {
       const response = await ordersApi.getAll({ workflowStatus: 'pending_approval', limit: 1 });
       return response.data?.pagination?.total ?? 0;

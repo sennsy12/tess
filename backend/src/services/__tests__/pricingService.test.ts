@@ -17,6 +17,7 @@ jest.mock('../../db/index', () => ({
 jest.mock('../../models/pricingModel', () => ({
   priceRuleModel: {
     findApplicable: jest.fn(),
+    findApplicableBulk: jest.fn(),
   },
   priceListModel: {},
   customerGroupModel: {},
@@ -28,6 +29,8 @@ import { priceRuleModel } from '../../models/pricingModel';
 
 const mockQuery = query as jest.MockedFunction<typeof query>;
 const mockFindApplicable = priceRuleModel.findApplicable as jest.Mock;
+const mockFindApplicableBulk = (priceRuleModel as unknown as { findApplicableBulk: jest.Mock })
+  .findApplicableBulk as jest.Mock;
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -285,24 +288,59 @@ describe('pricingService', () => {
   // calculatePricesForOrder
   // ────────────────────────────────────────────────────────────────────
   describe('calculatePricesForOrder', () => {
-    it('calculates prices for multiple items', async () => {
+    it('calculates prices for multiple items with a single bulk query', async () => {
       const items = [
         { varekode: 'V00001', varegruppe: 'Slanger', quantity: 5, base_price: 100 },
         { varekode: 'V00002', quantity: 2, base_price: 200 },
       ];
 
-      // First item call
+      // One group lookup, one bulk rule fetch (no N+1)
       mockCustomerGroup(1);
-      mockFindApplicable.mockResolvedValueOnce([]);
-      // Second item call
-      mockCustomerGroup(1);
-      mockFindApplicable.mockResolvedValueOnce([]);
+      mockFindApplicableBulk.mockResolvedValueOnce([]);
 
       const results = await pricingService.calculatePricesForOrder(items, 'K000001');
 
       expect(results).toHaveLength(2);
       expect(results[0].original_price).toBe(500);
       expect(results[1].original_price).toBe(400);
+      expect(mockFindApplicableBulk).toHaveBeenCalledTimes(1);
+      expect(mockFindApplicableBulk).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kundenr: 'K000001',
+          maxQuantity: 5,
+        })
+      );
+      // Single-item path untouched
+      expect(mockFindApplicable).not.toHaveBeenCalled();
+    });
+
+    it('applies per-item quantity filtering from the bulk candidate set', async () => {
+      const items = [
+        { varekode: 'V00001', quantity: 10, base_price: 100 },
+        { varekode: 'V00001', quantity: 1, base_price: 100 },
+      ];
+
+      mockCustomerGroup(1);
+      mockFindApplicableBulk.mockResolvedValueOnce([
+        {
+          id: 7,
+          price_list_id: 1,
+          varekode: 'V00001',
+          varegruppe: null,
+          kundenr: null,
+          customer_group_id: null,
+          min_quantity: 10,
+          discount_percent: 20,
+          fixed_price: null,
+          price_list_name: 'Bulk',
+          list_priority: 1,
+        },
+      ]);
+
+      const results = await pricingService.calculatePricesForOrder(items, 'K000001');
+
+      expect(results[0].discount_applied).toBe(true); // qty 10 meets min_quantity
+      expect(results[1].discount_applied).toBe(false); // qty 1 does not
     });
   });
 });

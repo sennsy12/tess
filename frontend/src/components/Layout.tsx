@@ -1,7 +1,7 @@
 import { ReactNode, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { Menu, X as XIcon, LogOut, HelpCircle, Search } from 'lucide-react';
+import { Menu, X as XIcon, LogOut, HelpCircle, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useAuth } from '../context/useAuth';
 import { IdleTimer } from './IdleTimer';
 import { EnvironmentBanner } from './EnvironmentBanner';
@@ -12,7 +12,7 @@ import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { AssistantChat } from './assistant';
 import { NotificationBell } from './NotificationBell';
 import { useEtlJobToasts } from '../hooks/useEtlJobToasts';
-import { KundeMobileNav } from './KundeMobileNav';
+import { KundeMobileNav, AnalyseMobileNav } from './KundeMobileNav';
 import { KundeOnboardingModal, useKundeOnboarding } from './KundeOnboarding';
 import {
   adminNavItems,
@@ -28,18 +28,6 @@ interface LayoutProps {
   children: ReactNode;
   title: string;
 }
-
-const ChevronLeftIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M15 18l-6-6 6-6" />
-  </svg>
-);
-
-const ChevronRightIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M9 18l6-6-6-6" />
-  </svg>
-);
 
 export function Layout({ children, title }: LayoutProps) {
   const { user, logout } = useAuth();
@@ -64,10 +52,25 @@ export function Layout({ children, title }: LayoutProps) {
     mainRef.current?.focus({ preventScroll: true });
   }, [location.pathname]);
 
+  // Phase 0: keyboard-dismissable mobile drawer (additive, no visual change).
+  useEffect(() => {
+    if (!isMobileMenuOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsMobileMenuOpen(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isMobileMenuOpen]);
+
   const isAdminOnKundeRoute =
     user?.role === 'admin' && location.pathname.startsWith('/kunde');
   const showKundeMobileNav =
     (user?.role === 'kunde' || isAdminOnKundeRoute) && !location.pathname.includes('/login');
+  // Analyse has only 2 entries — they fit the same bottom-bar pattern.
+  // Admin on its own routes intentionally stays drawer-only.
+  const showAnalyseMobileNav =
+    user?.role === 'analyse' && !location.pathname.includes('/login');
+  const showBottomNav = showKundeMobileNav || showAnalyseMobileNav;
 
   const { open: onboardingOpen, dismiss: dismissOnboarding } = useKundeOnboarding();
 
@@ -141,6 +144,8 @@ export function Layout({ children, title }: LayoutProps) {
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
           className="p-2 text-dark-300 hover:text-white transition-colors"
           aria-label={isMobileMenuOpen ? 'Lukk meny' : 'Åpne meny'}
+          aria-expanded={isMobileMenuOpen}
+          aria-controls="app-sidebar"
         >
           {isMobileMenuOpen ? <XIcon className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
           </button>
@@ -156,6 +161,7 @@ export function Layout({ children, title }: LayoutProps) {
       )}
 
       <aside
+        id="app-sidebar"
         className={`
         fixed inset-y-0 left-0 bg-dark-900 border-r border-dark-800 flex flex-col z-50 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]
         lg:translate-x-0 lg:static lg:inset-auto shadow-2xl lg:shadow-none
@@ -179,7 +185,7 @@ export function Layout({ children, title }: LayoutProps) {
             className={`p-2 rounded-lg text-dark-400 hover:text-white hover:bg-dark-800 transition-all duration-200 ${isSidebarCollapsed ? 'mx-auto' : ''}`}
             aria-label={isSidebarCollapsed ? 'Utvid sidemeny' : 'Skjul sidemeny'}
           >
-            {isSidebarCollapsed ? <ChevronRightIcon /> : <ChevronLeftIcon />}
+            {isSidebarCollapsed ? <ChevronRight className="h-5 w-5" aria-hidden /> : <ChevronLeft className="h-5 w-5" aria-hidden />}
           </button>
         </div>
 
@@ -194,6 +200,7 @@ export function Layout({ children, title }: LayoutProps) {
                 to={item.path}
                 onClick={() => setIsMobileMenuOpen(false)}
                 onMouseEnter={() => prefetchRoute(queryClient, item.path)}
+                onFocus={() => prefetchRoute(queryClient, item.path)}
                 className={`
                   nav-link group relative flex items-center gap-3
                   ${active ? 'active' : ''}
@@ -208,7 +215,7 @@ export function Layout({ children, title }: LayoutProps) {
                 </span>
                 {Badge && <Badge collapsed={isSidebarCollapsed} />}
                 {isSidebarCollapsed && (
-                  <div className="absolute left-full ml-4 px-3 py-2 rounded-lg text-sm font-medium bg-dark-800 text-white border border-dark-700 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all pointer-events-none z-[100] whitespace-nowrap shadow-xl">
+                  <div aria-hidden="true" className="absolute left-full ml-4 px-3 py-2 rounded-lg text-sm font-medium bg-dark-800 text-white border border-dark-700 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all pointer-events-none z-[100] whitespace-nowrap shadow-xl">
                     {item.label}
                   </div>
                 )}
@@ -264,7 +271,7 @@ export function Layout({ children, title }: LayoutProps) {
         id="main-content"
         ref={mainRef}
         tabIndex={-1}
-        className={`flex-1 overflow-auto min-w-0 h-screen relative scroll-smooth focus:outline-none ${showKundeMobileNav ? 'pb-16 lg:pb-0' : ''}`}
+        className={`flex-1 overflow-auto min-w-0 h-screen supports-[height:100dvh]:h-[100dvh] relative scroll-smooth focus:outline-none ${showBottomNav ? 'pb-16 lg:pb-0' : ''}`}
       >
         <EnvironmentBanner />
         <header className="hidden lg:block bg-dark-950/90 backdrop-blur-sm border-b border-gold-500/15 sticky top-0 z-10">
@@ -290,7 +297,7 @@ export function Layout({ children, title }: LayoutProps) {
             </div>
           </div>
         </header>
-        <div className="p-4 lg:p-8 animate-fade-in">
+        <div className="p-4 sm:p-6 lg:p-8 animate-fade-in">
           <h2 className="text-2xl font-bold text-white mb-6 lg:hidden">{title}</h2>
           {isAdminOnKundeRoute && <ImpersonationBanner />}
           {children}
@@ -298,12 +305,13 @@ export function Layout({ children, title }: LayoutProps) {
       </main>
 
       {showKundeMobileNav && <KundeMobileNav />}
+      {showAnalyseMobileNav && <AnalyseMobileNav />}
       {user?.role === 'kunde' && (
         <KundeOnboardingModal open={onboardingOpen} onDismiss={dismissOnboarding} />
       )}
 
       <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
-      <AssistantChat elevatedBottom={showKundeMobileNav} />
+      <AssistantChat elevatedBottom={showBottomNav} />
       <IdleTimer />
     </div>
   );

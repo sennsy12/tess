@@ -5,7 +5,6 @@ import { detectConflicts } from '../../services/conflictDetectionService.js';
 import { auditService } from '../../services/auditService.js';
 import { ValidationError, NotFoundError } from '../../middleware/errorHandler.js';
 import { CreatePriceRuleInput, UpdatePriceRuleInput } from '../../types/pricing.js';
-import { getAuditUser } from './shared.js';
 
 /**
  * Pricing Controller - price rule handlers
@@ -61,9 +60,9 @@ export const priceRulesHandlers = {
 
     const rule = await priceRuleModel.create(data);
 
-    await auditService.log({
-      user: getAuditUser(req), action: 'CREATE', entityType: 'price_rule',
-      entityId: rule.id, entityName: `Regel #${rule.id} (liste ${rule.price_list_id})`, ipAddress: req.ip,
+    await auditService.logFromRequest({
+      req, action: 'CREATE', entityType: 'price_rule',
+      entityId: rule.id, entityName: `Regel #${rule.id} (liste ${rule.price_list_id})`,
     });
 
     res.status(201).json(rule);
@@ -92,10 +91,10 @@ export const priceRulesHandlers = {
       throw new NotFoundError('Price rule not found');
     }
 
-    await auditService.log({
-      user: getAuditUser(req), action: 'UPDATE', entityType: 'price_rule',
+    await auditService.logFromRequest({
+      req, action: 'UPDATE', entityType: 'price_rule',
       entityId: id, entityName: `Regel #${id} (liste ${existing.price_list_id})`,
-      oldData: existing as any, newData: rule as any, ipAddress: req.ip,
+      oldData: existing as any, newData: rule as any,
     });
 
     res.json(rule);
@@ -115,9 +114,9 @@ export const priceRulesHandlers = {
       throw new NotFoundError('Price rule not found');
     }
 
-    await auditService.log({
-      user: getAuditUser(req), action: 'DELETE', entityType: 'price_rule',
-      entityId: id, entityName: `Regel #${id}`, oldData: oldRule as any, ipAddress: req.ip,
+    await auditService.logFromRequest({
+      req, action: 'DELETE', entityType: 'price_rule',
+      entityId: id, entityName: `Regel #${id}`, oldData: oldRule as any,
     });
 
     res.json({ message: 'Price rule deleted successfully' });

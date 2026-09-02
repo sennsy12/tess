@@ -76,6 +76,7 @@ export function SavedViewsPanel<TState>({
               value={name}
               onChange={(event) => setName(event.target.value)}
               placeholder="Navn på arbeidsflate"
+              aria-label="Navn på arbeidsflate"
               className="input"
               onKeyDown={(event) => {
                 if (event.key === 'Enter') {

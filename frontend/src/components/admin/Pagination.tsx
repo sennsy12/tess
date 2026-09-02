@@ -1,4 +1,5 @@
 import { useMemo, useCallback } from 'react';
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 
 // ────────────────────────────────────────────────────────────
 // Types
@@ -61,7 +62,7 @@ function buildPageRange(
 // ────────────────────────────────────────────────────────────
 
 const NAV_BTN =
-  'px-2.5 py-1.5 rounded-lg text-sm transition-colors disabled:opacity-30 disabled:cursor-not-allowed hover:bg-dark-800 text-dark-300';
+  'px-2.5 py-1.5 rounded-lg text-sm transition-colors disabled:opacity-30 disabled:cursor-not-allowed hover:bg-dark-800 text-dark-300 inline-flex items-center justify-center';
 
 const PAGE_BTN_BASE =
   'min-w-[36px] py-1.5 rounded-lg text-sm font-medium transition-all';
@@ -174,12 +175,13 @@ export function Pagination({
           disabled={isFirst}
           className={NAV_BTN}
           title="Første side"
+          aria-label="Første side"
         >
-          ««
+          <ChevronsLeft className="h-4 w-4" aria-hidden />
         </button>
         {/* Prev */}
-        <button onClick={goPrev} disabled={isFirst} className={NAV_BTN}>
-          «
+        <button onClick={goPrev} disabled={isFirst} className={NAV_BTN} aria-label="Forrige side">
+          <ChevronLeft className="h-4 w-4" aria-hidden />
         </button>
 
         {/* Page numbers */}
@@ -192,6 +194,7 @@ export function Pagination({
             <button
               key={p}
               onClick={() => onPageChange(p)}
+              aria-current={p === page ? 'page' : undefined}
               className={`${PAGE_BTN_BASE} ${p === page ? PAGE_BTN_ACTIVE : PAGE_BTN_INACTIVE}`}
             >
               {p}
@@ -200,8 +203,8 @@ export function Pagination({
         )}
 
         {/* Next */}
-        <button onClick={goNext} disabled={isLast} className={NAV_BTN}>
-          »
+        <button onClick={goNext} disabled={isLast} className={NAV_BTN} aria-label="Neste side">
+          <ChevronRight className="h-4 w-4" aria-hidden />
         </button>
         {/* Last */}
         <button
@@ -209,8 +212,9 @@ export function Pagination({
           disabled={isLast}
           className={NAV_BTN}
           title="Siste side"
+          aria-label="Siste side"
         >
-          »»
+          <ChevronsRight className="h-4 w-4" aria-hidden />
         </button>
       </div>
     </div>

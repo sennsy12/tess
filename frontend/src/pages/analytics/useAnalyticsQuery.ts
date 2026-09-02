@@ -26,5 +26,9 @@ export function useAnalyticsQuery(scope: AnalyticsScope, config: AnalyticsConfig
       });
       return response.data;
     },
+    // Keep the previous chart on screen while a new config loads instead
+    // of flashing an empty skeleton on every select change.
+    placeholderData: (prev) => prev,
+    staleTime: 60_000,
   });
 }

@@ -16,9 +16,13 @@ function resolveMigrationsDir(): string {
 }
 
 function createPool(): Pool {
-  const connectionString =
-    process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/tess';
-  return new Pool({ connectionString });
+  const connectionString = process.env.DATABASE_URL;
+  if (connectionString) return new Pool({ connectionString });
+  // Fail closed in production — never guess superuser credentials.
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('CRITICAL: DATABASE_URL is not defined in production. Refusing to migrate.');
+  }
+  return new Pool({ connectionString: 'postgresql://postgres:postgres@localhost:5432/tess' });
 }
 
 /**
@@ -47,26 +51,42 @@ export async function runMigrations(pool?: Pool): Promise<void> {
       .filter((f) => f.endsWith('.sql'))
       .sort();
 
-    for (const file of files) {
-      const existing = await db.query('SELECT 1 FROM schema_migrations WHERE version = $1', [file]);
-      if (existing.rowCount && existing.rowCount > 0) {
-        continue;
-      }
-
-      const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
-      const client = await db.connect();
+    // Serialize multi-replica deploys: only one migrator runs at a time.
+    // pg_advisory_lock is session-scoped, so hold ONE client for the whole run.
+    const lockClient = await db.connect();
+    try {
+      await lockClient.query("SELECT pg_advisory_lock(hashtext('tess_schema_migrations'))");
       try {
-        await client.query('BEGIN');
-        await client.query(sql);
-        await client.query('INSERT INTO schema_migrations (version) VALUES ($1)', [file]);
-        await client.query('COMMIT');
-        logger.info({ migration: file }, 'Applied database migration');
-      } catch (err) {
-        await client.query('ROLLBACK');
-        throw err;
+        for (const file of files) {
+          const existing = await lockClient.query(
+            'SELECT 1 FROM schema_migrations WHERE version = $1',
+            [file],
+          );
+          if (existing.rowCount && existing.rowCount > 0) {
+            continue;
+          }
+
+          const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
+          try {
+            await lockClient.query('BEGIN');
+            await lockClient.query(sql);
+            await lockClient.query('INSERT INTO schema_migrations (version) VALUES ($1)', [file]);
+            await lockClient.query('COMMIT');
+            logger.info({ migration: file }, 'Applied database migration');
+          } catch (err) {
+            try {
+              await lockClient.query('ROLLBACK');
+            } catch {
+              // ignore — original error is what matters
+            }
+            throw err;
+          }
+        }
       } finally {
-        client.release();
+        await lockClient.query("SELECT pg_advisory_unlock(hashtext('tess_schema_migrations'))");
       }
+    } finally {
+      lockClient.release();
     }
   } finally {
     if (ownsPool) {

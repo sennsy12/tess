@@ -15,6 +15,12 @@ const envSchema = z.object({
   // Database
   DATABASE_URL: z.string().optional(),
 
+  // Database pool tuning (single Postgres; keep idle footprint small)
+  PG_POOL_MAX: z.coerce.number().int().min(1).max(100).default(20),
+  PG_POOL_MIN: z.coerce.number().int().min(0).max(20).default(2),
+  PG_STATEMENT_TIMEOUT_MS: z.coerce.number().int().min(1000).max(600000).default(60000),
+  PG_IDLE_TXN_TIMEOUT_MS: z.coerce.number().int().min(1000).max(600000).default(30000),
+
   // Auth - only enforced in production
   JWT_SECRET: z.string().optional(),
 

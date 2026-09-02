@@ -1,14 +1,16 @@
 import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { Loader2, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import { Layout } from '../../components/Layout';
 import { Breadcrumb } from '../../components/Breadcrumb';
+import { Spinner } from '../../components/Spinner';
 import { Pagination, TableSkeleton } from '../../components/admin';
 import { OrderWorkflowBadge } from '../../components/orders/OrderWorkflowBadge';
 import { ordersApi } from '../../lib/api';
-import { formatCurrencyNok } from '../../lib/formatters';
+import { formatCurrencyNok, formatDateNb } from '../../lib/formatters';
+import { approvalsKeys, orderKeys } from '../../lib/queryKeys';
 import {
   executeBulkStatusUpdate,
   partitionByLegalTransition,
@@ -34,7 +36,7 @@ const MODAL_SAMPLE_LIMIT = 5;
 
 function StatusCount({ status }: { status: OrderWorkflowStatus }) {
   const { data } = useQuery({
-    queryKey: ['admin', 'approvals-count', status],
+    queryKey: approvalsKeys.count(status),
     queryFn: async () => {
       const response = await ordersApi.getAll({ workflowStatus: status, limit: 1 });
       return response.data?.pagination?.total ?? 0;
@@ -62,7 +64,7 @@ export function AdminApprovals() {
   );
 
   const rowsQuery = useQuery({
-    queryKey: ['admin', 'approvals', activeStatus, page],
+    queryKey: approvalsKeys.list(activeStatus, page),
     queryFn: async () => {
       const response = await ordersApi.getAll({ workflowStatus: activeStatus, page, limit: PAGE_SIZE });
       return response.data;
@@ -151,9 +153,9 @@ export function AdminApprovals() {
       }
     })
       .then(async (result) => {
-        await queryClient.invalidateQueries({ queryKey: ['admin', 'orders'] });
-        await queryClient.invalidateQueries({ queryKey: ['admin', 'approvals'] });
-        await queryClient.invalidateQueries({ queryKey: ['admin', 'approvals-count'] });
+        await queryClient.invalidateQueries({ queryKey: orderKeys.root() });
+        await queryClient.invalidateQueries({ queryKey: approvalsKeys.root() });
+        await queryClient.invalidateQueries({ queryKey: approvalsKeys.countRoot() });
 
         setRunProgress(null);
         setSelectedIds((previous) => {
@@ -235,7 +237,7 @@ export function AdminApprovals() {
             <div className="flex flex-wrap items-center gap-2 ml-auto">
               {isBusy ? (
                 <span className="flex items-center gap-2 text-sm text-dark-200 py-2">
-                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                  <Spinner size="xs" />
                   Behandler {runProgress?.done ?? 0} / {runProgress?.total ?? 0}…
                 </span>
               ) : (
@@ -351,10 +353,16 @@ export function AdminApprovals() {
                             />
                           </td>
                           <td className="table-cell font-medium text-primary-400">
-                            #{order.ordrenr}
+                            <Link
+                              to={`/admin/orders/${order.ordrenr}`}
+                              onClick={(event) => event.stopPropagation()}
+                              className="hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50 rounded"
+                            >
+                              #{order.ordrenr}
+                            </Link>
                           </td>
                           <td className="table-cell whitespace-nowrap text-dark-300">
-                            {new Date(order.dato).toLocaleDateString('nb-NO')}
+                            {formatDateNb(order.dato)}
                           </td>
                           <td className="table-cell overflow-hidden text-ellipsis whitespace-nowrap">
                             <span title={`${order.kundenavn || order.kundenr}`}>
@@ -373,7 +381,7 @@ export function AdminApprovals() {
                             {formatCurrencyNok(order.sum)}
                           </td>
                           <td className="table-cell whitespace-nowrap text-right">
-                            <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${ageStyle}`}>
+                            <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${ageStyle}`}>
                               {age.label}
                             </span>
                           </td>

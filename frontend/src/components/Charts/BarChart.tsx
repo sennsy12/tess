@@ -1,3 +1,4 @@
+import { useId } from 'react';
 import {
   BarChart as RechartsBarChart,
   Bar,
@@ -8,7 +9,8 @@ import {
   ResponsiveContainer,
   Cell,
 } from 'recharts';
-import { abbreviateNumber, truncateLabel } from '../../lib/formatters';
+import { abbreviateNumber, truncateLabel, formatNumberNb } from '../../lib/formatters';
+import { usePrefersReducedMotion } from '../../hooks/usePrefersReducedMotion';
 
 interface BarChartProps {
   data: any[];
@@ -40,8 +42,12 @@ export function BarChart({
   height = 300,
   summary,
 }: BarChartProps) {
-  const defaultFormatter = (value: number) => 
-    new Intl.NumberFormat('nb-NO').format(value);
+  const defaultFormatter = formatNumberNb;
+  // Phase 0: unique gradient id per instance — duplicate `barGradient` ids
+  // caused the 2nd+ chart on a page to reuse the first chart's gradient.
+  const gradientId = useId().replace(/[^a-zA-Z0-9]/g, '');
+  // Phase 2: skip entrance animation for reduced-motion users.
+  const reduceMotion = usePrefersReducedMotion();
 
   // Full-precision formatter for tooltips
   const tooltipFormatter = valueFormatter || defaultFormatter;
@@ -78,8 +84,8 @@ export function BarChart({
 
   return (
     <div className="chart-container relative rounded-lg p-5">
-      {title && <h3 className="text-lg font-semibold mb-6 text-dark-100 flex items-center gap-2">
-        <span className="w-0.5 h-5 bg-gold-500 rounded-full"></span>
+      {title && <h3 className="h-card-title mb-6">
+        <span className="w-0.5 h-5 bg-gold-500 rounded-full" aria-hidden="true"></span>
         {title}
       </h3>}
       <ResponsiveContainer width="100%" height={height}>
@@ -88,7 +94,7 @@ export function BarChart({
           margin={{ top: 10, right: 10, left: 0, bottom: rotateTicks ? 30 : 10 }}
         >
           <defs>
-            <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
+            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
               <stop offset="5%" stopColor={color} stopOpacity={0.9}/>
               <stop offset="95%" stopColor={color} stopOpacity={0.2}/>
             </linearGradient>
@@ -137,9 +143,9 @@ export function BarChart({
             }}
             formatter={(value: number) => [tooltipFormatter(value), seriesName]}
           />
-          <Bar dataKey={yKey} radius={[6, 6, 0, 0]} maxBarSize={60}>
+          <Bar dataKey={yKey} radius={[6, 6, 0, 0]} maxBarSize={60} isAnimationActive={!reduceMotion}>
             {data.map((_entry, index) => (
-              <Cell key={`cell-${index}`} fill="url(#barGradient)" />
+              <Cell key={`cell-${index}`} fill={`url(#${gradientId})`} />
             ))}
           </Bar>
         </RechartsBarChart>

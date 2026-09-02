@@ -1,10 +1,20 @@
-version: '3.8'
+# Production defaults: log rotation on every service (JSON logs can fill
+# disk otherwise) and memory caps so one service can't OOM the host.
+x-logging: &prod-logging
+  logging:
+    driver: json-file
+    options:
+      max-size: '10m'
+      max-file: '3'
 
 services:
   # Database
   db:
     image: postgres:15-alpine
+    <<: *prod-logging
     container_name: tess-db-prod
+    mem_limit: 2g
+    mem_reservation: 512m
     environment:
       POSTGRES_USER: ${DB_USER:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
@@ -27,13 +37,21 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile.prod
+    <<: *prod-logging
     container_name: tess-backend-prod
+    mem_limit: 1g
+    mem_reservation: 256m
     environment:
       NODE_ENV: production
       DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD}@db:5432/tess
       JWT_SECRET: ${JWT_SECRET}
       ADMIN_ACTION_KEY: ${ADMIN_ACTION_KEY}
       FRONTEND_URL: ${FRONTEND_URL}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      PG_POOL_MAX: ${PG_POOL_MAX:-20}
+      PG_POOL_MIN: ${PG_POOL_MIN:-2}
+      PG_STATEMENT_TIMEOUT_MS: ${PG_STATEMENT_TIMEOUT_MS:-60000}
+      PG_IDLE_TXN_TIMEOUT_MS: ${PG_IDLE_TXN_TIMEOUT_MS:-30000}
       ENABLE_DESTRUCTIVE_ETL: ${ENABLE_DESTRUCTIVE_ETL:-false}
       ENABLE_SCHEDULER_JOBS: ${ENABLE_SCHEDULER_JOBS:-false}
       PORT: 5000
@@ -63,14 +81,21 @@ services:
       dockerfile: Dockerfile.prod
       args:
         - VITE_API_URL=${VITE_API_URL:-/api}
+    <<: *prod-logging
     container_name: tess-frontend-prod
+    mem_limit: 512m
+    mem_reservation: 128m
     networks:
       - tess-prod-network
     restart: always
 
   # Reverse Proxy (Caddy)
+  # NOTE: only /api/* is proxied to the backend. GET /metrics (Prometheus
+  # scrape, no auth) is intentionally NOT routed here — it stays inside the
+  # compose network. Do not add a catch-all that would expose it.
   caddy:
-    image: caddy:latest
+    image: caddy:2-alpine
+    <<: *prod-logging
     container_name: tess-proxy
     ports:
       - '80:80'
@@ -88,12 +113,37 @@ services:
       - tess-prod-network
     restart: always
 
+  # Nightly database backups (pg_dump custom format → local volume).
+  # RPO: 24h. Retention: BACKUP_RETENTION_DAYS (default 7).
+  # Restore procedure: docs/DEPLOY.md ("Backups & restore").
+  backup:
+    image: postgres:15-alpine
+    <<: *prod-logging
+    container_name: tess-backup-prod
+    command: ['sh', '/backup/pgbackup.sh']
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: tess
+      POSTGRES_HOST: db
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-7}
+    volumes:
+      - pgbackup_prod_data:/backups
+      - ./backup/pgbackup.sh:/backup/pgbackup.sh:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - tess-prod-network
+    restart: always
+
 networks:
   tess-prod-network:
     driver: bridge
 
 volumes:
   postgres_prod_data:
+  pgbackup_prod_data:
   uploads_prod_data:
   caddy_data:
   caddy_config:

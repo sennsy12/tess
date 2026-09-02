@@ -7,6 +7,7 @@ import { DataTable, type DataTableState } from '../../components/DataTable';
 import { userKeys } from '../../lib/queryKeys';
 import { PageHeader, Pagination, FormModal, ConfirmModal, ActionKeyModal, TableSkeleton } from '../../components/admin';
 import { usersApi } from '../../lib/api';
+import { formatDateNb } from '../../lib/formatters';
 import type { UserPublic, CreateUserPayload, UpdateUserPayload, UserRole } from '../../types/user';
 
 // ────────────────────────────────────────────────────────────
@@ -177,12 +178,12 @@ export function AdminUsers() {
 
   // ── Mutations ───────────────────────────────────────────
   const invalidateUsers = () =>
-    queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+    queryClient.invalidateQueries({ queryKey: userKeys.root() });
 
   const createMutation = useMutation({
     mutationFn: (data: CreateUserPayload) => usersApi.create(data),
     onMutate: async (newUser) => {
-      await queryClient.cancelQueries({ queryKey: ['admin', 'users'] });
+      await queryClient.cancelQueries({ queryKey: userKeys.root() });
       const previousData = queryClient.getQueryData(userKeys.list(page));
       queryClient.setQueryData(userKeys.list(page), (old: any) => {
         if (!old) return old;
@@ -218,7 +219,7 @@ export function AdminUsers() {
     mutationFn: ({ id, data }: { id: number; data: UpdateUserPayload }) =>
       usersApi.update(id, data),
     onMutate: async ({ id, data }) => {
-      await queryClient.cancelQueries({ queryKey: ['admin', 'users'] });
+      await queryClient.cancelQueries({ queryKey: userKeys.root() });
       const previousData = queryClient.getQueryData(userKeys.list(page));
       queryClient.setQueryData(userKeys.list(page), (old: any) => {
         if (!old) return old;
@@ -255,7 +256,7 @@ export function AdminUsers() {
     mutationFn: ({ id, actionKey }: { id: number; actionKey: string }) =>
       usersApi.delete(id, actionKey),
     onMutate: async ({ id }) => {
-      await queryClient.cancelQueries({ queryKey: ['admin', 'users'] });
+      await queryClient.cancelQueries({ queryKey: userKeys.root() });
       const previousData = queryClient.getQueryData(userKeys.list(page));
       queryClient.setQueryData(userKeys.list(page), (old: any) => {
         if (!old) return old;
@@ -410,8 +411,8 @@ export function AdminUsers() {
     {
       key: 'created_at',
       header: 'Opprettet',
-      render: (value: string) => (value ? new Date(value).toLocaleDateString('nb-NO') : '-'),
-      csvValue: (value: string) => (value ? new Date(value).toLocaleDateString('nb-NO') : '-'),
+      render: (value: string) => (value ? formatDateNb(value) : '-'),
+      csvValue: (value: string) => (value ? formatDateNb(value) : '-'),
     },
     {
       key: 'actions',

@@ -2,8 +2,40 @@ import pino from 'pino';
 
 const isDevelopment = process.env.NODE_ENV !== 'production';
 
+/**
+ * Log keys/paths that are always redacted. Secrets must never reach
+ * stdout/shipper output even if a caller logs a whole config object.
+ * `*` covers any nesting depth for the named keys.
+ */
+export const loggerRedactPaths = [
+  '*.password',
+  '*.passwd',
+  '*.token',
+  '*.authorization',
+  '*.api_key',
+  '*.apiKey',
+  '*.secret',
+  '*.DATABASE_URL',
+  '*.JWT_SECRET',
+  '*.ADMIN_ACTION_KEY',
+  '*.SMTP_PASS',
+  'password',
+  'passwd',
+  'token',
+  'authorization',
+  'api_key',
+  'DATABASE_URL',
+  'JWT_SECRET',
+  'ADMIN_ACTION_KEY',
+  'SMTP_PASS',
+];
+
 export const logger = pino({
   level: process.env.LOG_LEVEL || (isDevelopment ? 'debug' : 'info'),
+  redact: {
+    paths: loggerRedactPaths,
+    censor: '[REDACTED]',
+  },
   transport: isDevelopment
     ? {
         target: 'pino-pretty',

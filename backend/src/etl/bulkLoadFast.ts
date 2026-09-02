@@ -23,6 +23,7 @@ import {
   generateHenvisningCopyBuffers,
 } from './bulkLoadFast/generators.js';
 import { copyIntoStagingFromChunks, migrateStagingToFinal } from './bulkLoadFast/staging.js';
+import { scheduleStatisticsRefreshAfterEtl } from '../services/statsAggregateService.js';
 
 export type { BulkFastConfig, TableMetrics };
 export type { BatchStats };
@@ -98,7 +99,7 @@ export async function runBulkLoadFast(config: BulkFastConfig): Promise<{
       client,
       'staging_ordre',
       ORDRE_COLS,
-      generateOrdreCopyBuffers(totalOrders, customers, ordreMetrics, batchStats),
+      generateOrdreCopyBuffers(totalOrders, customers, linesPerOrder, ordreMetrics, batchStats),
       batchStats,
       heapOptions
     );
@@ -144,6 +145,12 @@ export async function runBulkLoadFast(config: BulkFastConfig): Promise<{
 
     // Phase 5: migrate from staging to final tables and build indexes concurrently.
     const migrated = await migrateStagingToFinal(client);
+
+    // Statistikk-MV-ene (mv_stats_by_kunde/varegruppe) leses av Kunde- og
+    // Varegruppe-fanene — oppdater dem i bakgrunnen så de ikke blir stale.
+    // Ikke-blokkerende: bulk-refresh på store datasett tar tid, men sperrer
+    // ikke lesing (REFRESH CONCURRENTLY).
+    scheduleStatisticsRefreshAfterEtl('ordre');
 
     const duration = Date.now() - startTime;
     const totalRows = migrated.ordrer + migrated.ordrelinjer + migrated.ordre_henvisninger;

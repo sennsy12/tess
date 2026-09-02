@@ -1,5 +1,6 @@
 import { ChevronRight, Calendar, Building2, Hash } from 'lucide-react';
 import { OrderWorkflowBadge } from './OrderWorkflowBadge';
+import { formatDateNb, formatMoneyNok } from '../../lib/formatters';
 
 export interface OrderMobileCardData {
   ordrenr: number;
@@ -15,9 +16,6 @@ interface OrderMobileCardProps {
   order: OrderMobileCardData;
   onClick: () => void;
 }
-
-const currency = (value: number) =>
-  new Intl.NumberFormat('nb-NO', { style: 'currency', currency: 'NOK' }).format(value);
 
 export function OrderMobileCard({ order, onClick }: OrderMobileCardProps) {
   const ref = order.kunderef || order.kundeordreref;
@@ -38,7 +36,7 @@ export function OrderMobileCard({ order, onClick }: OrderMobileCardProps) {
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-dark-400">
             <span className="inline-flex items-center gap-1">
               <Calendar className="h-3.5 w-3.5 shrink-0" aria-hidden />
-              {new Date(order.dato).toLocaleDateString('nb-NO', {
+              {formatDateNb(order.dato, {
                 day: 'numeric',
                 month: 'short',
                 year: 'numeric',
@@ -60,7 +58,7 @@ export function OrderMobileCard({ order, onClick }: OrderMobileCardProps) {
         </div>
 
         <div className="flex flex-col items-end gap-2 shrink-0">
-          <span className="text-sm font-bold text-white tabular-nums">{currency(order.sum)}</span>
+          <span className="text-sm font-bold text-white tabular-nums">{formatMoneyNok(order.sum)}</span>
           <ChevronRight
             className="h-4 w-4 text-dark-500 group-hover:text-primary-400 group-hover:translate-x-0.5 transition-all"
             aria-hidden

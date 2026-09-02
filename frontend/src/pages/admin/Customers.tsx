@@ -14,6 +14,7 @@ import { DataTable, type DataTableState } from '../../components/DataTable';
 import { PageHeader, FilterBar, TableSkeleton, Pagination } from '../../components/admin';
 import { pricingApi, ordersApi } from '../../lib/api';
 import type { Order } from '../../types/order';
+import { formatDateNb, formatMoneyNok } from '../../lib/formatters';
 
 interface Customer {
   kundenr: string;
@@ -30,7 +31,6 @@ interface CustomerGroup {
 const PAGE_SIZE = 25;
 const ORDERS_PAGE_SIZE = 20;
 
-const NOK = new Intl.NumberFormat('nb-NO', { style: 'currency', currency: 'NOK' });
 const EMPTY_FILTERS: CustomerFilters = { search: '', groupFilter: '' };
 
 function mapGroupFilterToApi(groupFilter: string): string | undefined {
@@ -71,7 +71,7 @@ function CustomerOrdersModal({
   );
 
   const { data, isLoading } = useQuery({
-    queryKey: ['admin', 'customer-orders', filters],
+    queryKey: customerKeys.orders(filters),
     queryFn: () => ordersApi.getAll(filters).then((r) => r.data),
     placeholderData: (prev) => prev,
   });
@@ -203,12 +203,12 @@ function CustomerOrdersModal({
                       <span className="font-medium text-primary-400">#{order.ordrenr}</span>
                     </td>
                     <td className="px-4 py-3 text-dark-300">
-                      {new Date(order.dato).toLocaleDateString('nb-NO')}
+                      {formatDateNb(order.dato)}
                     </td>
                     <td className="px-4 py-3 text-dark-300">{order.kunderef || '—'}</td>
                     <td className="px-4 py-3 text-dark-300">{order.firmanavn || '—'}</td>
                     <td className="px-4 py-3 text-dark-300">{order.lagernavn || '—'}</td>
-                    <td className="px-4 py-3 text-right font-semibold">{NOK.format(order.sum)}</td>
+                    <td className="px-4 py-3 text-right font-semibold">{formatMoneyNok(order.sum)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -219,7 +219,7 @@ function CustomerOrdersModal({
                       Sum denne siden:
                     </td>
                     <td className="px-4 py-3 text-right font-bold text-white">
-                      {NOK.format(totalSum)}
+                      {formatMoneyNok(totalSum)}
                     </td>
                   </tr>
                 </tfoot>

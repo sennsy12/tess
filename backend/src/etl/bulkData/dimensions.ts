@@ -4,6 +4,22 @@ import { KundeRow, BrukerRow, VareRow } from './rows.js';
 // Pre-calculated hash for 'kunde123' to save CPU time during generation
 const KUNDE_PASSWORD_HASH = '$2b$10$55MITFPNmmdu9pau6zk9Iul2mIJU0g.hJccUnCfYT.9ChAfcUz20W';
 
+// Realistisk prisspenn per varegruppe (eks. mva) brukt som basispris i demodato.
+const GROUP_PRICE_RANGE: Record<string, [min: number, max: number]> = {
+  Slanger: [320, 2400],
+  Kuplinger: [250, 900],
+  Fittings: [45, 650],
+  Hydraulikk: [1500, 12000],
+  Tetninger: [15, 120],
+  'Verktøy': [350, 9500],
+};
+
+/** Deterministisk basispris per varegruppe — samme pris ved hver generering. */
+function priceForGroup(gruppe: string, n: number): number {
+  const [min, max] = GROUP_PRICE_RANGE[gruppe] ?? [100, 1000];
+  return min + ((n * 137) % (max - min + 1));
+}
+
 /** Returns kunde, brukere, and vare arrays for bulk pipeline (shared by generate and staged). */
 export function getDimensionData(customers: number): { kundeData: KundeRow[]; brukerData: BrukerRow[]; vareData: VareRow[] } {
   const kundeData: KundeRow[] = [];
@@ -53,6 +69,7 @@ export function getDimensionData(customers: number): { kundeData: KundeRow[]; br
         `V${String(vareTeller).padStart(5, '0')}`,
         `${template.prefix} ${variant}`,
         template.gruppe,
+        priceForGroup(template.gruppe, vareTeller),
       ]);
       vareTeller++;
     }
@@ -60,7 +77,8 @@ export function getDimensionData(customers: number): { kundeData: KundeRow[]; br
   }
   while (vareTeller <= 500) {
     const restGrupper = ['Slanger', 'Kuplinger', 'Fittings', 'Hydraulikk', 'Tetninger', 'Verktøy'];
-    vareData.push([`V${String(vareTeller).padStart(5, '0')}`, `Industriprodukt ${vareTeller}`, restGrupper[vareTeller % restGrupper.length]]);
+    const gruppe = restGrupper[vareTeller % restGrupper.length];
+    vareData.push([`V${String(vareTeller).padStart(5, '0')}`, `Industriprodukt ${vareTeller}`, gruppe, priceForGroup(gruppe, vareTeller)]);
     vareTeller++;
   }
   return { kundeData, brukerData, vareData };
@@ -93,7 +111,16 @@ export async function ensureDimensionData(customers: number): Promise<{ brukere:
 
   await bulkCopy('kunde', ['kundenr', 'kundenavn'], kundeData);
   const brukere = await bulkCopy('users', ['username', 'password_hash', 'role', 'kundenr'], brukerData, 'nothing');
-  await bulkCopy('vare', ['varekode', 'varenavn', 'varegruppe'], vareData);
+  await bulkCopy('vare', ['varekode', 'varenavn', 'varegruppe', 'base_price'], vareData);
+
+  // Backfill: varer som allerede fantes med 0 får generert basispris.
+  // Rører ikke priser en admin allerede har satt (kun 0/NULL).
+  await query(
+    `UPDATE vare AS v SET base_price = c.base_price
+     FROM UNNEST($1::text[], $2::numeric[]) AS c(varekode, base_price)
+     WHERE v.varekode = c.varekode AND (v.base_price IS NULL OR v.base_price = 0)`,
+    [vareData.map((v) => v[0]), vareData.map((v) => v[3])]
+  );
 
   return { brukere };
 }

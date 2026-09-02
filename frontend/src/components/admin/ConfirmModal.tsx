@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react';
+import { useId, type ReactNode } from 'react';
+import { ModalShell } from '../ModalShell';
 
 // ────────────────────────────────────────────────────────────
 // Types
@@ -21,10 +22,12 @@ export interface ConfirmModalProps {
   cancelLabel?: string;
   /** Visual intent – controls confirm-button colour (default "danger") */
   intent?: 'danger' | 'primary';
-  /** Whether the confirm action is in progress (shows spinner, disables button) */
+  /** Whether the confirm action is in progress (disables buttons) */
   loading?: boolean;
   /** Max width class (default "max-w-sm") */
   maxWidth?: string;
+  /** Allow backdrop-click + Escape dismissal (default true) */
+  dismissable?: boolean;
 }
 
 // ────────────────────────────────────────────────────────────
@@ -34,7 +37,7 @@ export interface ConfirmModalProps {
 /**
  * Lightweight confirm/action modal used across admin pages.
  *
- * Keeps focus-trap simple: clicking the backdrop or cancel closes.
+ * Backdrop, motion, Escape and focus handling come from `ModalShell`.
  *
  * @example
  * ```tsx
@@ -60,46 +63,38 @@ export function ConfirmModal({
   intent = 'danger',
   loading = false,
   maxWidth = 'max-w-sm',
+  dismissable = true,
 }: ConfirmModalProps) {
-  if (!open) return null;
+  const titleId = useId();
 
-  const confirmBtnClass =
-    intent === 'danger'
-      ? 'bg-red-600 hover:bg-red-700 text-white'
-      : 'bg-primary-600 hover:bg-primary-700 text-white';
+  const confirmBtnClass = intent === 'danger' ? 'btn-danger' : 'btn-primary';
 
   return (
-    <div
-      className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-      onClick={onClose}
+    <ModalShell
+      open={open}
+      onClose={onClose}
+      labelledBy={titleId}
+      maxWidth={maxWidth}
+      dismissable={dismissable}
     >
-      <div
-        className={`bg-dark-900 border border-dark-700 rounded-xl w-full ${maxWidth} shadow-2xl`}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="p-6 space-y-4">
-          <h3
-            className={`text-lg font-semibold ${intent === 'danger' ? 'text-red-400' : ''}`}
-          >
-            {title}
-          </h3>
+      <h3 id={titleId} className={`text-lg font-semibold ${intent === 'danger' ? 'text-red-400' : ''}`}>
+        {title}
+      </h3>
 
-          <div className="text-dark-300">{children}</div>
+      <div className="text-dark-300 mt-2">{children}</div>
 
-          <div className="flex justify-end gap-3 pt-2">
-            <button onClick={onClose} className="btn-secondary">
-              {cancelLabel}
-            </button>
-            <button
-              onClick={onConfirm}
-              disabled={loading}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 ${confirmBtnClass}`}
-            >
-              {loading ? 'Venter...' : confirmLabel}
-            </button>
-          </div>
-        </div>
+      <div className="flex justify-end gap-3 pt-4">
+        <button onClick={onClose} className="btn-secondary">
+          {cancelLabel}
+        </button>
+        <button
+          onClick={onConfirm}
+          disabled={loading}
+          className={`${confirmBtnClass} disabled:opacity-50 disabled:cursor-not-allowed`}
+        >
+          {loading ? 'Venter...' : confirmLabel}
+        </button>
       </div>
-    </div>
+    </ModalShell>
   );
 }

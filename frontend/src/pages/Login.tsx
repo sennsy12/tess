@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { AlertCircle, Building2, User } from 'lucide-react';
 import { useAuth } from '../context/useAuth';
 import { PasswordInput } from '../components/PasswordInput';
+import { Spinner } from '../components/Spinner';
 import { supportMailto } from '../lib/appConfig';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
@@ -156,9 +157,10 @@ export function Login() {
               <div className="space-y-4">
                 {mode === 'standard' ? (
                   <div className="space-y-1.5 animate-in-up">
-                    <label className="label text-xs uppercase tracking-wider font-semibold text-dark-400">Brukernavn</label>
+                    <label htmlFor="login-username" className="label text-xs uppercase tracking-wider font-semibold text-dark-400">Brukernavn</label>
                     <div className="relative group">
                       <input
+                        id="login-username"
                         type="text"
                         value={username}
                         onChange={(e) => setUsername(e.target.value)}
@@ -173,9 +175,10 @@ export function Login() {
                   </div>
                 ) : (
                   <div className="space-y-1.5 animate-in-up">
-                    <label className="label text-xs uppercase tracking-wider font-semibold text-dark-400">Kundenummer</label>
+                    <label htmlFor="login-kundenr" className="label text-xs uppercase tracking-wider font-semibold text-dark-400">Kundenummer</label>
                     <div className="relative group">
                       <input
+                        id="login-kundenr"
                         type="text"
                         value={kundenr}
                         onChange={(e) => setKundenr(e.target.value)}
@@ -202,7 +205,7 @@ export function Login() {
                     autoComplete="current-password"
                     required
                     disabled={isLoading}
-                    className="input w-full"
+                    className="input w-full pr-10"
                   />
                 </div>
               </div>
@@ -224,7 +227,7 @@ export function Login() {
                 </span>
                 {isLoading && (
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                    <Spinner size="sm" className="text-white" />
                   </div>
                 )}
               </button>

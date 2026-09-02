@@ -26,17 +26,32 @@ export interface NavItem {
   label: string;
   Icon: LucideIcon;
   /** Optional live badge (e.g. cart item count). */
-  Badge?: ComponentType<{ collapsed?: boolean }>;
+  Badge?: ComponentType<{ collapsed?: boolean; badgeClassName?: string }>;
+  /** Optional compact label for bottom-bar / condensed contexts (Phase 1). */
+  shortLabel?: string;
 }
 
 export const kundeNavItems: NavItem[] = [
-  { path: '/kunde', label: 'Dashboard', Icon: LayoutDashboard },
-  { path: '/kunde/konto', label: 'Min konto', Icon: UserCircle },
-  { path: '/kunde/order/new', label: 'Ny bestilling', Icon: ShoppingCart, Badge: CartBadge },
-  { path: '/kunde/orders', label: 'Ordrer', Icon: ClipboardList },
-  { path: '/kunde/pricing', label: 'Mine priser', Icon: CircleDollarSign },
-  { path: '/kunde/statistics', label: 'Statistikk', Icon: BarChart3 },
-  { path: '/kunde/analytics', label: 'Avansert Analyse', Icon: LineChart },
+  { path: '/kunde', label: 'Dashboard', shortLabel: 'Hjem', Icon: LayoutDashboard },
+  { path: '/kunde/konto', label: 'Min konto', shortLabel: 'Konto', Icon: UserCircle },
+  { path: '/kunde/order/new', label: 'Ny bestilling', shortLabel: 'Bestill', Icon: ShoppingCart, Badge: CartBadge },
+  { path: '/kunde/orders', label: 'Ordrer', shortLabel: 'Ordrer', Icon: ClipboardList },
+  { path: '/kunde/pricing', label: 'Mine priser', shortLabel: 'Priser', Icon: CircleDollarSign },
+  { path: '/kunde/statistics', label: 'Statistikk', shortLabel: 'Statistikk', Icon: BarChart3 },
+  { path: '/kunde/analytics', label: 'Avansert Analyse', shortLabel: 'Analyse', Icon: LineChart },
+];
+
+/**
+ * Shared mobile tabs (consumed by `KundeMobileNav`) — same objects as the
+ * sidebar entries, so order/labels/icons/badges cannot drift. Entries with
+ * no tab live in the bottom bar's "Mer" sheet (derived in KundeMobileNav).
+ */
+export const kundeMobileItems: NavItem[] = [
+  kundeNavItems[0],
+  kundeNavItems[3],
+  kundeNavItems[2],
+  kundeNavItems[5],
+  kundeNavItems[1],
 ];
 
 export const analyseNavItems: NavItem[] = [

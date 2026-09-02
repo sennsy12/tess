@@ -6,7 +6,8 @@ import {
   ResponsiveContainer,
   Legend,
 } from 'recharts';
-import { truncateLabel } from '../../lib/formatters';
+import { truncateLabel, formatNumberNb } from '../../lib/formatters';
+import { usePrefersReducedMotion } from '../../hooks/usePrefersReducedMotion';
 
 // Executive Dark palette: indigo family, champagne-gold highlight, slate falloff
 const COLORS = ['#6366f1', '#818cf8', '#a5b4fc', '#c9a962', '#94a3b8', '#64748b', '#475569', '#3f4c63'];
@@ -31,10 +32,10 @@ export function PieChart({
   height = 340,
   summary,
 }: PieChartProps) {
-  const defaultFormatter = (value: number) => 
-    new Intl.NumberFormat('nb-NO').format(value);
+  const defaultFormatter = formatNumberNb;
 
   const formatter = valueFormatter || defaultFormatter;
+  const reduceMotion = usePrefersReducedMotion();
 
   // Custom label renderer: truncates name, shows percent
   const renderLabel = ({ name, percent, cx, x, y }: any) => {
@@ -80,7 +81,10 @@ export function PieChart({
 
   return (
     <div className="chart-container">
-      {title && <h3 className="text-lg font-semibold mb-4 text-dark-100">{title}</h3>}
+      {title && <h3 className="h-card-title mb-4">
+        <span className="w-0.5 h-5 bg-gold-500 rounded-full" aria-hidden="true"></span>
+        {title}
+      </h3>}
       <ResponsiveContainer width="100%" height={height}>
         <RechartsPieChart>
           <Pie
@@ -95,6 +99,7 @@ export function PieChart({
             dataKey={valueKey}
             nameKey={nameKey}
             label={renderLabel}
+            isAnimationActive={!reduceMotion}
           >
             {data.map((_, index) => (
               <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -104,7 +109,7 @@ export function PieChart({
             contentStyle={{
               backgroundColor: 'rgba(15, 23, 42, 0.75)',
               backdropFilter: 'blur(12px)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
+              border: '1px solid rgba(201, 169, 98, 0.22)',
               borderRadius: '16px',
               boxShadow: '0 4px 30px rgba(0, 0, 0, 0.5)',
               padding: '12px 16px',

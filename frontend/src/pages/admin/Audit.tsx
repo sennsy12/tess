@@ -1,10 +1,12 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { ChevronDown } from 'lucide-react';
 import { Layout } from '../../components/Layout';
 import { QueryErrorBanner } from '../../components/QueryErrorBanner';
 import { QueryRefetchBar } from '../../components/QueryRefetchBar';
 import { auditKeys, userKeys } from '../../lib/queryKeys';
 import { EmptyState } from '../../components/EmptyState';
+import { Spinner } from '../../components/Spinner';
 import { Pagination } from '../../components/admin';
 import { auditApi, usersApi } from '../../lib/api';
 import { downloadCsv } from '../../lib/csv';
@@ -306,7 +308,7 @@ export function AdminAudit() {
         {/* Results */}
         {showSkeleton ? (
           <div className="card flex justify-center py-16">
-            <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-primary-500" />
+            <Spinner size="lg" className="text-primary-500" label="Laster endringslogg…" />
           </div>
         ) : isError ? null : entries.length === 0 ? (
           <EmptyState
@@ -340,28 +342,42 @@ export function AdminAudit() {
 
                 return (
                   <div key={entry.id} className="rounded-lg border border-dark-700 overflow-hidden">
-                    <div
-                      className={`flex flex-wrap items-center gap-3 px-4 py-3 ${
-                        hasDetails ? 'cursor-pointer hover:bg-dark-800/50' : ''
-                      }`}
-                      onClick={() => hasDetails && toggleExpand(entry.id)}
-                    >
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded border ${actionInfo.className}`}>
-                        {actionInfo.label}
-                      </span>
-                      <span className="text-sm text-dark-300">{entityLabel}</span>
-                      <span className="text-sm text-dark-100 font-medium">
-                        {entry.entity_name || `#${entry.entity_id}`}
-                      </span>
-                      <span className="text-xs text-dark-500 ml-auto flex-shrink-0">
-                        {entry.username} · {formatTimestamp(entry.timestamp)}
-                      </span>
-                      {hasDetails && (
-                        <span className="text-dark-500 text-xs flex-shrink-0">
-                          {isExpanded ? '▲' : '▼'}
+                    {hasDetails ? (
+                      <button
+                        type="button"
+                        onClick={() => toggleExpand(entry.id)}
+                        aria-expanded={isExpanded}
+                        className="w-full flex flex-wrap items-center gap-3 px-4 py-3 text-left hover:bg-dark-800/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500/50"
+                      >
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded border ${actionInfo.className}`}>
+                          {actionInfo.label}
                         </span>
-                      )}
-                    </div>
+                        <span className="text-sm text-dark-300">{entityLabel}</span>
+                        <span className="text-sm text-dark-100 font-medium">
+                          {entry.entity_name || `#${entry.entity_id}`}
+                        </span>
+                        <span className="text-xs text-dark-500 ml-auto flex-shrink-0">
+                          {entry.username} · {formatTimestamp(entry.timestamp)}
+                        </span>
+                        <ChevronDown
+                          className={`h-4 w-4 text-dark-500 flex-shrink-0 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                          aria-hidden
+                        />
+                      </button>
+                    ) : (
+                      <div className="flex flex-wrap items-center gap-3 px-4 py-3">
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded border ${actionInfo.className}`}>
+                          {actionInfo.label}
+                        </span>
+                        <span className="text-sm text-dark-300">{entityLabel}</span>
+                        <span className="text-sm text-dark-100 font-medium">
+                          {entry.entity_name || `#${entry.entity_id}`}
+                        </span>
+                        <span className="text-xs text-dark-500 ml-auto flex-shrink-0">
+                          {entry.username} · {formatTimestamp(entry.timestamp)}
+                        </span>
+                      </div>
+                    )}
                     {isExpanded && entry.action === 'UPDATE' && entry.changes && (
                       <UpdateDetails changes={entry.changes} />
                     )}

@@ -1,4 +1,6 @@
-import type { ReactNode } from 'react';
+import { useId, type ReactNode } from 'react';
+import { ModalShell } from '../ModalShell';
+import { Spinner } from '../Spinner';
 
 // ────────────────────────────────────────────────────────────
 // Types
@@ -34,6 +36,7 @@ export interface FormModalProps {
  *
  * Takes care of the backdrop, card chrome, and footer buttons while
  * letting the consumer own the form fields via `children`.
+ * Chrome, motion, Escape and focus handling come from `ModalShell`.
  *
  * @example
  * ```tsx
@@ -62,44 +65,37 @@ export function FormModal({
   loading = false,
   maxWidth = 'max-w-md',
 }: FormModalProps) {
-  if (!open) return null;
+  const titleId = useId();
 
   return (
-    <div
-      className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-      onClick={onClose}
-    >
-      <div
-        className={`bg-dark-900 border border-dark-700 rounded-xl w-full ${maxWidth} shadow-2xl`}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-dark-800">
-          <h3 className="text-lg font-semibold">{title}</h3>
+    <ModalShell open={open} onClose={onClose} labelledBy={titleId} maxWidth={maxWidth}>
+      <h3 id={titleId} className="text-lg font-semibold mb-4">
+        {title}
+      </h3>
+
+      <form onSubmit={onSubmit} className="space-y-4">
+        {children}
+
+        <div className="flex justify-end gap-3 pt-2">
+          <button type="button" onClick={onClose} className="btn-secondary">
+            {cancelLabel}
+          </button>
+          <button
+            type="submit"
+            disabled={loading}
+            className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? (
+              <span className="flex items-center gap-2">
+                <Spinner size="xs" />
+                Lagrer...
+              </span>
+            ) : (
+              submitLabel
+            )}
+          </button>
         </div>
-
-        {/* Form body */}
-        <form onSubmit={onSubmit} className="p-6 space-y-4">
-          {children}
-
-          {/* Footer */}
-          <div className="flex justify-end gap-3 pt-2">
-            <button type="button" onClick={onClose} className="btn-secondary">
-              {cancelLabel}
-            </button>
-            <button type="submit" disabled={loading} className="btn-primary">
-              {loading ? (
-                <span className="flex items-center gap-2">
-                  <span className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white" />
-                  Lagrer...
-                </span>
-              ) : (
-                submitLabel
-              )}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+      </form>
+    </ModalShell>
   );
 }

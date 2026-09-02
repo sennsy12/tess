@@ -3,6 +3,15 @@ import { PriceCalculationInput, PriceCalculationResult, PriceRule } from '../typ
 import { query } from '../db/index.js';
 import { applyBestRule, formatRuleName } from './pricingMath.js';
 
+/** Look up the customer group ID for a customer number. */
+async function getCustomerGroupId(kundenr: string): Promise<number | null> {
+  const result = await query(
+    'SELECT customer_group_id FROM kunde WHERE kundenr = $1',
+    [kundenr],
+  );
+  return result.rows[0]?.customer_group_id ?? null;
+}
+
 /**
  * Pricing Service
  * Core business logic for price calculations
@@ -22,16 +31,9 @@ export const pricingService = {
     const { varekode, varegruppe, kundenr, quantity, base_price } = input;
 
     // Get customer's group (skip fetch when pre-fetched for bulk)
-    let customerGroupId: number | null;
-    if (input.customerGroupId !== undefined) {
-      customerGroupId = input.customerGroupId;
-    } else {
-      const customerResult = await query(
-        'SELECT customer_group_id FROM kunde WHERE kundenr = $1',
-        [kundenr]
-      );
-      customerGroupId = customerResult.rows[0]?.customer_group_id ?? null;
-    }
+    const customerGroupId = input.customerGroupId !== undefined
+      ? input.customerGroupId
+      : await getCustomerGroupId(kundenr);
 
     // Find applicable rules (already sorted by priority/specificity)
     const applicableRules = await priceRuleModel.findApplicable({
@@ -80,12 +82,7 @@ export const pricingService = {
   },
 
   getApplicableRulesForCustomer: async (kundenr: string): Promise<PriceRule[]> => {
-    // Get customer's group
-    const customerResult = await query(
-      'SELECT customer_group_id FROM kunde WHERE kundenr = $1',
-      [kundenr]
-    );
-    const customerGroupId = customerResult.rows[0]?.customer_group_id ?? null;
+    const customerGroupId = await getCustomerGroupId(kundenr);
 
     // Get all active rules for this customer or their group
     const result = await query(
@@ -109,33 +106,40 @@ export const pricingService = {
   },
 
   /**
-   * Bulk calculate prices for multiple items (e.g., for order display)
+   * Bulk calculate prices for multiple items (e.g., for order display).
+   * Batched: 1 customer-group lookup + 1 rule query total (not N+1).
    */
   calculatePricesForOrder: async (
     items: Array<{ varekode: string; varegruppe?: string; quantity: number; base_price: number }>,
     kundenr: string
   ): Promise<PriceCalculationResult[]> => {
+    if (items.length === 0) return [];
     // Fetch customer group once for all items
-    const customerResult = await query(
-      'SELECT customer_group_id FROM kunde WHERE kundenr = $1',
-      [kundenr]
-    );
-    const customerGroupId = customerResult.rows[0]?.customer_group_id ?? null;
+    const customerGroupId = await getCustomerGroupId(kundenr);
 
-    // Parallelize per-item rule lookups and calculations
-    const results = await Promise.all(
-      items.map((item) =>
-        pricingService.calculatePrice({
-          varekode: item.varekode,
-          varegruppe: item.varegruppe,
-          kundenr,
-          quantity: item.quantity,
-          base_price: item.base_price,
-          customerGroupId
-        })
-      )
-    );
+    const maxQuantity = Math.max(...items.map((i) => i.quantity));
+    const candidates = await priceRuleModel.findApplicableBulk({
+      varekoder: items.map((i) => i.varekode),
+      varegrupper: items.map((i) => i.varegruppe ?? null),
+      kundenr,
+      customerGroupId,
+      maxQuantity,
+    });
 
-    return results;
+    // Global ORDER BY from SQL is preserved, so first match per item wins.
+    return items.map((item) => {
+      const applicable = candidates.filter(
+        (r) =>
+          (r.min_quantity ?? 0) <= item.quantity &&
+          (r.varekode === item.varekode ||
+            (r.varegruppe != null && r.varegruppe === item.varegruppe) ||
+            (r.varekode == null && r.varegruppe == null)),
+      );
+      return applyBestRule(
+        item.base_price,
+        item.quantity,
+        applicable as Array<PriceRule & { price_list_name: string }>,
+      );
+    });
   }
 };

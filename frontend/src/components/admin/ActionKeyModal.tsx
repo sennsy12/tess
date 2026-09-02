@@ -84,7 +84,7 @@ export function ActionKeyModal({
           onChange={(e) => setActionKey(e.target.value)}
           className="input w-full"
           placeholder={placeholder}
-          autoFocus
+          data-autofocus
           required
         />
       </div>

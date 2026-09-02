@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
-import { PremiumStatCard } from '../PremiumStatCard';
-import { formatNumberNb } from '../../lib/formatters';
+import { StatCard } from '../StatCard';
+import { formatCurrencyNok, formatDateNb, formatNumberNb } from '../../lib/formatters';
 
 interface OrderLike {
   sum: number;
@@ -23,12 +23,12 @@ interface Stat {
   title?: string;
 }
 
-const currency = (value: number) =>
-  new Intl.NumberFormat('nb-NO', { style: 'currency', currency: 'NOK', maximumFractionDigits: 0 }).format(value);
+/** Tooltip shared by page-scoped metrics (all except the global total). */
+const PAGE_SCOPE_TITLE = 'Gjelder kun radene på denne siden';
 
 /**
  * Summary metrics for the orders list. Page-scoped values are labelled
- * explicitly ("denne siden") so they are never mistaken for totals.
+ * explicitly ("denne siden" / "på siden") so they are never mistaken for totals.
  */
 export function OrderStatsStrip({ orders, total, isLoading }: OrderStatsStripProps) {
   const stats = useMemo<Stat[]>(() => {
@@ -44,14 +44,16 @@ export function OrderStatsStrip({ orders, total, isLoading }: OrderStatsStripPro
         format: formatNumberNb,
         accent: 'gold',
       },
-      { label: 'Sum denne siden', value: currency(pageSum), title: currency(pageSum) },
+      { label: 'Sum denne siden', value: formatCurrencyNok(pageSum), title: `${formatCurrencyNok(pageSum)} · ${PAGE_SCOPE_TITLE}` },
       {
         label: 'Snitt ordreverdi',
-        value: orders.length > 0 ? currency(pageSum / orders.length) : '–',
+        value: orders.length > 0 ? formatCurrencyNok(pageSum / orders.length) : '–',
+        title: PAGE_SCOPE_TITLE,
       },
       {
-        label: 'Siste ordredato',
-        value: latestDate ? new Date(latestDate).toLocaleDateString('nb-NO') : '–',
+        label: 'Siste på siden',
+        value: latestDate ? formatDateNb(latestDate) : '–',
+        title: PAGE_SCOPE_TITLE,
       },
     ];
   }, [orders, total]);
@@ -67,9 +69,9 @@ export function OrderStatsStrip({ orders, total, isLoading }: OrderStatsStripPro
   }
 
   return (
-    <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 stagger-1">
+    <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 animate-fade-in">
       {stats.map((stat) => (
-        <PremiumStatCard
+        <StatCard
           key={stat.label}
           label={stat.label}
           value={stat.value}

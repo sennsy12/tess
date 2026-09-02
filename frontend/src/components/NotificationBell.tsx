@@ -1,6 +1,7 @@
 import { Bell, CheckCheck, ChevronRight } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { NavCountBadge } from './NavCountBadge';
 import {
   useMarkAllNotificationsRead,
   useMarkNotificationsRead,
@@ -38,12 +39,13 @@ function NotificationItem({
     <button
       type="button"
       onClick={onActivate}
-      className={`w-full text-left px-4 py-3 border-b border-dark-800/80 transition-colors group ${
+      className={`w-full text-left px-4 py-3 border-b border-dark-800/80 transition-colors group cursor-pointer ${
         unread ? 'bg-primary-950/20 hover:bg-primary-950/30' : 'hover:bg-dark-800/50'
-      } ${clickable ? 'cursor-pointer' : 'cursor-default'}`}
+      }`}
     >
       <div className="flex items-start justify-between gap-2">
         <p className={`text-sm font-medium ${unread ? 'text-white' : 'text-dark-200'}`}>
+          {unread && <span className="sr-only">Ulest: </span>}
           {formatNotificationTitle(item)}
         </p>
         <div className="flex items-center gap-1.5 shrink-0">
@@ -82,8 +84,15 @@ export function NotificationBell() {
         setOpen(false);
       }
     };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
     document.addEventListener('mousedown', onDocClick);
-    return () => document.removeEventListener('mousedown', onDocClick);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onDocClick);
+      document.removeEventListener('keydown', onKeyDown);
+    };
   }, [open]);
 
   const handleActivate = (item: AppNotification) => {
@@ -106,17 +115,18 @@ export function NotificationBell() {
         className="relative p-2 rounded-lg text-dark-300 hover:text-white hover:bg-dark-800 transition-colors"
         aria-label={`Varsler${count > 0 ? `, ${count} uleste` : ''}`}
         aria-expanded={open}
+        aria-haspopup="dialog"
       >
         <Bell className="h-5 w-5" aria-hidden />
-        {count > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-primary-600 text-white text-[10px] font-bold flex items-center justify-center">
-            {count > 99 ? '99+' : count}
-          </span>
-        )}
+        <NavCountBadge count={count} size="sm" className="absolute -top-0.5 -right-0.5" />
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-2 w-80 max-h-[420px] rounded-xl border border-dark-700 bg-dark-900 shadow-2xl z-50 flex flex-col overflow-hidden">
+        <div
+          role="dialog"
+          aria-label="Varsler"
+          className="absolute right-0 mt-2 w-80 max-h-[420px] rounded-xl border border-dark-700 bg-dark-900 shadow-2xl z-50 flex flex-col overflow-hidden"
+        >
           <div className="flex items-center justify-between px-4 py-3 border-b border-dark-800">
             <h3 className="text-sm font-semibold text-white">Varsler</h3>
             {count > 0 && (

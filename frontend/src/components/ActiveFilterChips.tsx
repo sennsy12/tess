@@ -1,3 +1,5 @@
+import { X } from 'lucide-react';
+
 export interface FilterChip {
   id: string;
   label: string;
@@ -28,7 +30,7 @@ export function ActiveFilterChips({ chips, onRemove, onClearAll }: ActiveFilterC
             className="ml-0.5 rounded-full hover:bg-primary-600/30 p-0.5 text-primary-300"
             aria-label={`Fjern filter ${chip.label}`}
           >
-            ×
+            <X className="h-3 w-3" aria-hidden />
           </button>
         </span>
       ))}

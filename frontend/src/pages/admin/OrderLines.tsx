@@ -4,10 +4,11 @@ import toast from 'react-hot-toast';
 import { Layout } from '../../components/Layout';
 import { FormField } from '../../components/FormField';
 import { DataTable } from '../../components/DataTable';
-import { Pagination, FormModal, TableSkeleton } from '../../components/admin';
+import { Pagination, FormModal, ConfirmModal, TableSkeleton } from '../../components/admin';
+import { StatusBadge } from '../../components/StatusBadge';
 import { ordersApi, orderlinesApi, productsApi } from '../../lib/api';
 import { orderLineKeys } from '../../lib/queryKeys';
-import { parseBoundedInt } from '../../lib/formatters';
+import { parseBoundedInt, formatDateNb, formatDecimalNb } from '../../lib/formatters';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { OrderLine, Order } from '../../types/order';
 
@@ -25,6 +26,7 @@ export function AdminOrderLines() {
   const queryClient = useQueryClient();
   const [selectedOrder, setSelectedOrder] = useState<number | null>(null);
   const [showModal, setShowModal] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<OrderLine | null>(null);
   const [editingLine, setEditingLine] = useState<OrderLine | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [productSearch, setProductSearch] = useState('');
@@ -96,7 +98,10 @@ export function AdminOrderLines() {
 
   const deleteMutation = useMutation({
     mutationFn: (line: OrderLine) => orderlinesApi.delete(line.ordrenr!, line.linjenr),
-    onSuccess: () => invalidateLines(),
+    onSuccess: () => {
+      setDeleteTarget(null);
+      invalidateLines();
+    },
     onError: () => toast.error('Kunne ikke slette ordrelinje'),
   });
 
@@ -129,10 +134,9 @@ export function AdminOrderLines() {
 
   const handleDelete = useCallback(
     (line: OrderLine) => {
-      if (!confirm('Er du sikker på at du vil slette denne linjen?')) return;
-      deleteMutation.mutate(line);
+      setDeleteTarget(line);
     },
-    [deleteMutation],
+    [],
   );
 
   const handleSubmit = useCallback(
@@ -153,14 +157,14 @@ export function AdminOrderLines() {
       key: 'nettpris',
       header: 'Pris',
       render: (value: number) =>
-        new Intl.NumberFormat('nb-NO', { minimumFractionDigits: 2 }).format(value),
+        formatDecimalNb(value),
     },
     {
       key: 'linjesum',
       header: 'Sum',
       render: (value: number) => (
         <span className="font-semibold">
-          {new Intl.NumberFormat('nb-NO', { minimumFractionDigits: 2 }).format(value)}
+          {formatDecimalNb(value)}
         </span>
       ),
     },
@@ -169,15 +173,9 @@ export function AdminOrderLines() {
       header: 'Status',
       csvValue: (value: number) => (value === 1 ? 'Aktiv' : 'Inaktiv'),
       render: (value: number) => (
-        <span
-          className={`px-2 py-1 rounded text-xs font-medium ${
-            value === 1
-              ? 'bg-green-600/20 text-green-300'
-              : 'bg-dark-600/40 text-dark-300'
-          }`}
-        >
+        <StatusBadge tone={value === 1 ? 'success' : 'neutral'}>
           {value === 1 ? 'Aktiv' : 'Inaktiv'}
-        </span>
+        </StatusBadge>
       ),
     },
     {
@@ -269,7 +267,7 @@ export function AdminOrderLines() {
                       {orders.map((order) => (
                         <option key={order.ordrenr} value={order.ordrenr}>
                           #{order.ordrenr} - {order.kundenavn || order.kundenr} (
-                          {new Date(order.dato).toLocaleDateString('nb-NO')})
+                          {formatDateNb(order.dato)})
                         </option>
                       ))}
                     </select>
@@ -391,6 +389,16 @@ export function AdminOrderLines() {
             />
           </FormField>
         </FormModal>
+
+        <ConfirmModal
+          open={deleteTarget !== null}
+          onClose={() => setDeleteTarget(null)}
+          onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget)}
+          title="Slett ordrelinje"
+          loading={deleteMutation.isPending}
+        >
+          Er du sikker på at du vil slette linje {deleteTarget?.linjenr} ({deleteTarget?.varekode})?
+        </ConfirmModal>
       </div>
     </Layout>
   );
