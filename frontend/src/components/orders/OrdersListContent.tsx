@@ -14,6 +14,9 @@ import { OrderMobileCard } from './OrderMobileCard';
 import { OrderStatsStrip } from './OrderStatsStrip';
 import { useSavedViews } from '../../hooks/useSavedViews';
 import { useServerListPage } from '../../hooks/useServerListPage';
+import { useTablePreferences } from '../../hooks/useTablePreferences';
+import { useAuth } from '../../context/useAuth';
+import type { DataTableState } from '../DataTable';
 import { ordersApi, suggestionsApi } from '../../lib/api';
 import { buildOrderFilterChips, clearOrderFilter } from '../../lib/orderFilterChips';
 import { orderKeys, type OrderFilters } from '../../lib/queryKeys';
@@ -41,6 +44,7 @@ const COLUMNS = [
   {
     key: 'kunderef',
     header: 'Kunderef',
+    renamable: true,
     render: (value: string) => value || '-',
   },
   { key: 'firmanavn', header: 'Firma' },
@@ -86,6 +90,10 @@ export function OrdersListContent({ variant }: OrdersListContentProps) {
   const navigate = useNavigate();
   const isAdmin = variant === 'admin';
   const hasAppliedDefaultView = useRef(false);
+  const prefsHydratedFor = useRef<string | null>(null);
+  const tableKey = `${variant}-orders`;
+  const { user } = useAuth();
+  const userKey = user ? `${user.role}:${user.id}` : 'anonymous';
 
   const {
     page,
@@ -146,6 +154,35 @@ export function OrdersListContent({ variant }: OrdersListContentProps) {
 
   const ordersViewState = { filters: appliedFilters, page, tableState };
 
+  // Per-bruker kolonneprefs (server). Base under lagrede visninger:
+  // en eksplisitt default-visning vinner alltid ved innlasting.
+  const prefs = useTablePreferences(tableKey, {
+    defaultVisibleKeys: COLUMNS.map((c) => String(c.key)),
+    knownKeys: COLUMNS.map((c) => String(c.key)),
+    legacyStorageKey: `table:${variant}-orders`,
+  });
+
+  // Splittet onStateChange: sort/side/filtre til listelogikken (som før),
+  // synlighet+labels til prefs-hooken (debouncet serverlagring).
+  const handleDataTableStateChange = useCallback(
+    (next: DataTableState) => {
+      handleTableStateChange(next);
+      const prevLabels = tableState.columnLabels ?? {};
+      const nextLabels = next.columnLabels ?? {};
+      const visibleChanged =
+        next.visibleColumnKeys.length !== tableState.visibleColumnKeys.length ||
+        next.visibleColumnKeys.some((key, i) => key !== tableState.visibleColumnKeys[i]);
+      if (visibleChanged) prefs.setVisibleKeys(next.visibleColumnKeys);
+      const changedKeys = new Set([...Object.keys(prevLabels), ...Object.keys(nextLabels)]);
+      for (const key of changedKeys) {
+        if (prevLabels[key] !== nextLabels[key]) {
+          prefs.setLabel(key, nextLabels[key] ?? '');
+        }
+      }
+    },
+    [handleTableStateChange, tableState, prefs],
+  );
+
   const {
     views,
     defaultView,
@@ -169,6 +206,22 @@ export function OrdersListContent({ variant }: OrdersListContentProps) {
     setPage(viewState.page ?? 1);
     setTableState(viewState.tableState);
   }, [defaultView, applyFilters, setDraftFilters, setPage, setTableState]);
+
+  // Hydrer serverprefs én gang per bruker – ETTER default-visning-effekten,
+  // slik at en eksplisitt visning alltid vinner ved innlasting. Aldri over
+  // brukerens pågående sesjonsendringer (ref-guard).
+  useEffect(() => {
+    if (prefsHydratedFor.current === userKey || prefs.isLoading || defaultView) return;
+    const viewApplied = hasAppliedDefaultView.current;
+    prefsHydratedFor.current = userKey;
+    if (viewApplied) return;
+    setTableState((prev) => ({
+      ...prev,
+      visibleColumnKeys: prefs.visibleKeys,
+      columnLabels: prefs.columnLabels,
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- engangshydrering per bruker med ref-guard
+  }, [userKey, prefs.isLoading, prefs.visibleKeys, prefs.columnLabels, defaultView]);
 
   const fetchSuggestions = useCallback(async (query: string): Promise<Suggestion[]> => {
     try {
@@ -367,6 +420,7 @@ export function OrdersListContent({ variant }: OrdersListContentProps) {
               serverSort={isAdmin}
               stickyFirstColumn
               enableColumnManagement
+              enableColumnRenaming
               enableCsvExport
               exportFilename={`${variant}-orders`}
               exportLabel="Eksporter siden (CSV)"
@@ -374,7 +428,7 @@ export function OrdersListContent({ variant }: OrdersListContentProps) {
               title="Ordretabell"
               storageKey={`table:${variant}-orders`}
               state={tableState}
-              onStateChange={handleTableStateChange}
+              onStateChange={handleDataTableStateChange}
             />
           </div>
 

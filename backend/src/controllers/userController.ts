@@ -114,4 +114,42 @@ export const userController = {
 
     res.json({ message: 'User deleted successfully' });
   },
+
+  linkEntra: async (req: AuthRequest, res: Response) => {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) throw new ValidationError('Invalid user ID');
+
+    const { entraOid, entraUpn, actionKey } = req.body as {
+      entraOid?: string;
+      entraUpn?: string;
+      actionKey?: string;
+    };
+    // Linking changes how the account authenticates — same bar as passwords.
+    assertAdminActionKey(actionKey, 'link Microsoft account');
+
+    const existing = await userModel.findById(id);
+    if (!existing) throw new NotFoundError('User not found');
+
+    const linked = await userModel.findByEntraOid(entraOid as string);
+    if (linked && linked.id !== id) {
+      throw new ValidationError('This Microsoft account is already linked to another user');
+    }
+
+    const updated = await userModel.linkEntra(id, entraOid as string, entraUpn);
+    res.json(updated);
+  },
+
+  unlinkEntra: async (req: AuthRequest, res: Response) => {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) throw new ValidationError('Invalid user ID');
+
+    const { actionKey } = req.body as { actionKey?: string };
+    assertAdminActionKey(actionKey, 'unlink Microsoft account');
+
+    const existing = await userModel.findById(id);
+    if (!existing) throw new NotFoundError('User not found');
+
+    const updated = await userModel.unlinkEntra(id);
+    res.json(updated);
+  },
 };

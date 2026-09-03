@@ -2,6 +2,7 @@ import { ValidationError } from '../../../middleware/errorHandler.js';
 import { apiRowSource } from '../sources/apiSource.js';
 import { csvRowSource } from '../sources/csvSource.js';
 import { jsonRowSource } from '../sources/jsonSource.js';
+import { xlsxRowSource } from '../sources/xlsxSource.js';
 import { StreamingEtlRequest } from '../types.js';
 
 export type SourceStream = AsyncGenerator<Record<string, unknown>>;
@@ -41,6 +42,17 @@ export function getSourceStream(config: StreamingEtlRequest, options: SourceStre
       config.json.compression ?? 'none',
       { skipRows, signal }
     );
+  }
+
+  if (config.sourceType === 'xlsx') {
+    if (!config.xlsx?.filePath) {
+      throw new ValidationError('xlsx.filePath is required for xlsx source');
+    }
+    return xlsxRowSource(config.xlsx.filePath, {
+      sheet: config.xlsx.sheet,
+      skipRows,
+      signal,
+    });
   }
 
   if (config.sourceType === 'api') {

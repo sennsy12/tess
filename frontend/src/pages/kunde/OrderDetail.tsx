@@ -16,6 +16,7 @@ import { ordersApi } from '../../lib/api';
 import { downloadOrderCsv } from '../../lib/orderExport';
 import { getApiError } from '../../lib/apiErrors';
 import { kundeKeys } from '../../lib/queryKeys';
+import { useOrderHistory } from '../../hooks/useOrderHistory';
 import { addOrderToCart } from '../../lib/reorder';
 import { downloadOrderPdf } from '../../lib/orderPdf';
 import { useCart } from '../../context/useCart';
@@ -41,11 +42,14 @@ export function KundeOrderDetail() {
     enabled: Number.isFinite(orderId),
   });
 
+  const historyQuery = useOrderHistory('kunde', Number.isFinite(orderId) ? orderId : undefined);
+
   const cancelMutation = useMutation({
     mutationFn: () => ordersApi.cancel(orderId),
     onSuccess: () => {
       setConfirmCancelOpen(false);
       void queryClient.invalidateQueries({ queryKey: kundeKeys.root() });
+      void queryClient.invalidateQueries({ queryKey: kundeKeys.orderHistory(orderId) });
       toast.success('Ordren er kansellert');
     },
     onError: (err) => {
@@ -175,7 +179,11 @@ export function KundeOrderDetail() {
             <h3 className="text-lg font-semibold">Ordrestatus</h3>
             <OrderWorkflowBadge status={order.workflow_status} />
           </div>
-          <OrderTimeline order={order} />
+          <OrderTimeline
+            order={order}
+            history={historyQuery.data}
+            historyLoading={historyQuery.isLoading}
+          />
         </div>
 
         <div className="card">

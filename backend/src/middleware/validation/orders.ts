@@ -21,6 +21,8 @@ export const orderQuerySchema = paginationSchema.merge(dateRangeSchema).merge(so
 
 export const updateOrderStatusSchema = z.object({
   workflowStatus: z.enum(ORDER_WORKFLOW_STATUSES),
+  /** Decision comment — required when rejecting, optional otherwise (max 500). */
+  comment: z.string().max(500).optional(),
 });
 
 // ============================================================

@@ -319,5 +319,28 @@ CREATE TABLE IF NOT EXISTS public.etl_job_progress (
 
 CREATE INDEX IF NOT EXISTS idx_etl_job_progress_updated_at ON public.etl_job_progress (updated_at DESC);
 
+-- Order workflow history (dedicated timeline; see migration 012).
+-- audit_log stays generic/best-effort; this table is the source of truth
+-- for the order timeline incl. the decider's comment (e.g. reject reason).
+CREATE TABLE IF NOT EXISTS public.ordre_status_history (
+    id BIGSERIAL PRIMARY KEY,
+    ordrenr INTEGER NOT NULL REFERENCES public.ordre(ordrenr) ON DELETE CASCADE,
+    previous_status TEXT
+        CHECK (previous_status IS NULL OR previous_status IN
+            ('new', 'pending_approval', 'approved', 'rejected', 'processing', 'shipped', 'invoiced', 'cancelled')),
+    new_status TEXT NOT NULL
+        CHECK (new_status IN
+            ('new', 'pending_approval', 'approved', 'rejected', 'processing', 'shipped', 'invoiced', 'cancelled')),
+    changed_by_id INTEGER REFERENCES public.users(id) ON DELETE SET NULL,
+    changed_by_username TEXT NOT NULL DEFAULT 'system',
+    changed_by_role TEXT NOT NULL DEFAULT 'admin'
+        CHECK (changed_by_role IN ('admin', 'kunde', 'analyse', 'system')),
+    comment TEXT CHECK (comment IS NULL OR char_length(comment) <= 500),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_ordre_status_history_ordrenr
+    ON public.ordre_status_history (ordrenr, created_at DESC);
+
 COMMIT;
 

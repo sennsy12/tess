@@ -9,7 +9,9 @@ const isSameTableState = (a: DataTableState, b: DataTableState) =>
   a.sortDirection === b.sortDirection &&
   a.currentPage === b.currentPage &&
   a.visibleColumnKeys.length === b.visibleColumnKeys.length &&
-  a.visibleColumnKeys.every((key, index) => key === b.visibleColumnKeys[index]);
+  a.visibleColumnKeys.every((key, index) => key === b.visibleColumnKeys[index]) &&
+  Object.keys(a.columnLabels).length === Object.keys(b.columnLabels).length &&
+  Object.entries(a.columnLabels).every(([key, value]) => b.columnLabels[key] === value);
 
 export interface UrlSyncConfig<TFilters extends Record<string, string>> {
   read: (params: URLSearchParams) => Partial<{
@@ -70,6 +72,7 @@ export function useServerListPage<TFilters extends Record<string, string>, TData
     sortDirection: null,
     currentPage: 1,
     visibleColumnKeys: defaultVisibleColumns,
+    columnLabels: {},
   });
 
   useEffect(() => {

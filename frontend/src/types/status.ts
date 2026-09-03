@@ -9,6 +9,17 @@ export interface ApiEndpointMetric {
   lastCalled: string;
 }
 
+export interface RecentActivityData {
+  dataFreshness: {
+    lastOrderDate: string | null;
+    daysSinceLastOrder: number | null;
+    totalCustomers: number;
+    totalProducts: number;
+  };
+  status: 'fresh' | 'stale';
+  message: string;
+}
+
 export interface ApiMetricsData {
   summary: {
     totalEndpoints: number;

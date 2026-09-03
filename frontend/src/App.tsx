@@ -14,12 +14,14 @@ import { Spinner } from './components/Spinner'
 
 const Login = lazy(() => import('./pages/Login').then((m) => ({ default: m.Login })))
 const Settings = lazy(() => import('./pages/Settings').then((m) => ({ default: m.Settings })))
+const Help = lazy(() => import('./pages/Help').then((m) => ({ default: m.Help })))
 
 const KundeDashboard = lazy(() => import('./pages/kunde/Dashboard').then((m) => ({ default: m.KundeDashboard })))
 const KundeOrders = lazy(() => import('./pages/kunde/Orders').then((m) => ({ default: m.KundeOrders })))
 const KundeNewOrder = lazy(() => import('./pages/kunde/NewOrder').then((m) => ({ default: m.NewOrder })))
 const KundeOrderDetail = lazy(() => import('./pages/kunde/OrderDetail').then((m) => ({ default: m.KundeOrderDetail })))
 const KundePricing = lazy(() => import('./pages/kunde/Pricing').then((m) => ({ default: m.KundePricing })))
+const KundeNotifications = lazy(() => import('./pages/kunde/Notifications').then((m) => ({ default: m.KundeNotifications })))
 const KundeAccount = lazy(() => import('./pages/kunde/Account').then((m) => ({ default: m.KundeAccount })))
 const AdvancedAnalytics = lazy(() => import('./pages/kunde/AdvancedAnalytics').then((m) => ({ default: m.AdvancedAnalytics })))
 const KundeStatistics = lazy(() => import('./pages/kunde/Statistics').then((m) => ({ default: m.KundeStatistics })))
@@ -41,6 +43,7 @@ const AdminUsers = lazy(() => import('./pages/admin/Users').then((m) => ({ defau
 const AdminCustomers = lazy(() => import('./pages/admin/Customers').then((m) => ({ default: m.AdminCustomers })))
 const AdminProducts = lazy(() => import('./pages/admin/Products').then((m) => ({ default: m.AdminProducts })))
 const AdminAudit = lazy(() => import('./pages/admin/Audit').then((m) => ({ default: m.AdminAudit })))
+const AdminNotifications = lazy(() => import('./pages/admin/Notifications').then((m) => ({ default: m.AdminNotifications })))
 
 const queryClient = new QueryClient({
   queryCache: new QueryCache({
@@ -93,6 +96,10 @@ function App() {
             </Suspense>
           } />
 
+          <Route element={<ProtectedLayout allowedRoles={['kunde', 'analyse', 'admin']} />}>
+            <Route path="/hjelp" element={<Help />} />
+          </Route>
+
           <Route element={<ProtectedLayout allowedRoles={['kunde', 'admin']} />}>
             <Route path="/kunde" element={<KundeDashboard />} />
             <Route path="/kunde/order/new" element={<KundeNewOrder />} />
@@ -102,6 +109,7 @@ function App() {
             <Route path="/kunde/pricing" element={<KundePricing />} />
             <Route path="/kunde/analytics" element={<AdvancedAnalytics />} />
             <Route path="/kunde/statistics" element={<KundeStatistics />} />
+            <Route path="/kunde/varsler" element={<KundeNotifications />} />
             <Route path="/kunde/settings" element={<Settings />} />
           </Route>
 
@@ -126,6 +134,7 @@ function App() {
             <Route path="/admin/customers" element={<AdminCustomers />} />
             <Route path="/admin/products" element={<AdminProducts />} />
             <Route path="/admin/audit" element={<AdminAudit />} />
+            <Route path="/admin/varsler" element={<AdminNotifications />} />
             <Route path="/admin/settings" element={<Settings />} />
           </Route>
 

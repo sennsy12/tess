@@ -156,6 +156,18 @@ export function NotificationBell() {
               ))
             )}
           </div>
+          <div className="border-t border-dark-800">
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                navigate(user?.role === 'kunde' ? '/kunde/varsler' : '/admin/varsler');
+              }}
+              className="w-full px-4 py-2.5 text-sm text-primary-400 hover:text-primary-300 hover:bg-dark-800/50 transition-colors text-center"
+            >
+              Se alle varsler
+            </button>
+          </div>
         </div>
       )}
     </div>

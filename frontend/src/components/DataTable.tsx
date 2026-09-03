@@ -3,14 +3,25 @@ import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
+  Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  Columns3,
+  Download,
   PackageSearch,
+  Pencil,
+  X,
 } from 'lucide-react';
 import { downloadCsv } from '../lib/csv';
 import { useOnClickOutside } from '../hooks/useOnClickOutside';
+import {
+  MAX_COLUMN_LABEL_LENGTH,
+  resolveColumnHeader,
+  sanitizeColumnLabels,
+} from '../types/tablePreferences';
 
 /**
  * A single table column.
@@ -29,6 +40,11 @@ export interface Column<T> {
   render?(value: T[keyof T] | undefined, row: T): React.ReactNode;
   csvValue?(value: T[keyof T] | undefined, row: T): string | number;
   hideable?: boolean;
+  /**
+   * Når sann kan brukeren gi kolonnen et eget visningsnavn (lagres per
+   * bruker via useTablePreferences). Krever `enableColumnRenaming`.
+   */
+  renamable?: boolean;
 }
 
 interface DataTableProps<T> {
@@ -42,6 +58,8 @@ interface DataTableProps<T> {
   paginate?: boolean;
   stickyFirstColumn?: boolean;
   enableColumnManagement?: boolean;
+  /** Vis blyant-ikon for `renamable`-kolonner i kolonnemenyen. */
+  enableColumnRenaming?: boolean;
   enableCsvExport?: boolean;
   exportFilename?: string;
   /** Export button label (default "Eksporter CSV"). Server-paged tables
@@ -66,6 +84,8 @@ export interface DataTableState {
   sortDirection: SortDirection;
   currentPage: number;
   visibleColumnKeys: string[];
+  /** Egne visningsnavn per kolonnenøkkel – tomt objekt = defaults. */
+  columnLabels: Record<string, string>;
 }
 
 const getColumnKey = <T extends object>(column: Column<T>) => String(column.key);
@@ -73,11 +93,18 @@ const getColumnKey = <T extends object>(column: Column<T>) => String(column.key)
 const areStringArraysEqual = (a: string[], b: string[]) =>
   a.length === b.length && a.every((value, index) => value === b[index]);
 
+const areColumnLabelsEqual = (a: Record<string, string>, b: Record<string, string>) => {
+  const aKeys = Object.keys(a);
+  if (aKeys.length !== Object.keys(b).length) return false;
+  return aKeys.every((key) => b[key] === a[key]);
+};
+
 const areTableStatesEqual = (a: DataTableState, b: DataTableState) =>
   a.sortKey === b.sortKey &&
   a.sortDirection === b.sortDirection &&
   a.currentPage === b.currentPage &&
-  areStringArraysEqual(a.visibleColumnKeys, b.visibleColumnKeys);
+  areStringArraysEqual(a.visibleColumnKeys, b.visibleColumnKeys) &&
+  areColumnLabelsEqual(a.columnLabels, b.columnLabels);
 
 const sanitizeVisibleColumnKeys = (keys: string[], defaults: string[]) => {
   const filtered = keys.filter((key) => defaults.includes(key));
@@ -94,17 +121,128 @@ const normalizeState = (
   const nextVisible = input?.visibleColumnKeys
     ? sanitizeVisibleColumnKeys(input.visibleColumnKeys, defaults.visibleColumnKeys)
     : defaults.visibleColumnKeys;
+  // Labels lagres per bruker – stol aldri blindt på det som leses
+  // (localStorage kan redigeres). Ukjente nøkler droppes.
+  const nextLabels = sanitizeColumnLabels(
+    input?.columnLabels,
+    defaults.visibleColumnKeys,
+  );
 
   return {
     sortKey: nextSortKey,
     sortDirection: nextSortKey ? nextSortDirection : null,
     currentPage: nextCurrentPage,
     visibleColumnKeys: nextVisible,
+    columnLabels: nextLabels,
   };
 };
 
-const getComparableValue = (value: unknown) => {
-  if (value === null || value === undefined) return null;
+/**
+ * Én rad i kolonnemenyen: avkrysning + (for renamable) blyant med inline
+ * input. Egen komponent slik at redigeringsdraft lever per rad og ikke
+ * resettes når menyen re-rendres ved hvert tastetrykk.
+ */
+function ColumnMenuRow({
+  defaultHeader,
+  displayLabel,
+  hasCustomLabel,
+  checked,
+  hideableDisabled,
+  canRename,
+  onToggle,
+  onRename,
+}: {
+  defaultHeader: string;
+  displayLabel: string;
+  hasCustomLabel: boolean;
+  checked: boolean;
+  hideableDisabled: boolean;
+  canRename: boolean;
+  onToggle: () => void;
+  onRename: (label: string) => void;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [draft, setDraft] = useState(displayLabel);
+
+  const commit = () => {
+    onRename(draft);
+    setIsEditing(false);
+  };
+
+  if (isEditing) {
+    return (
+      <div className="flex items-center gap-1.5">
+        <input
+          autoFocus
+          type="text"
+          value={draft}
+          maxLength={MAX_COLUMN_LABEL_LENGTH}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') commit();
+            if (e.key === 'Escape') {
+              setDraft(displayLabel);
+              setIsEditing(false);
+            }
+          }}
+          placeholder={defaultHeader}
+          aria-label={`Nytt visningsnavn for ${defaultHeader}`}
+          className="input !px-2 !py-1 w-full text-sm"
+        />
+        <button
+          type="button"
+          onClick={commit}
+          aria-label="Lagre visningsnavn"
+          className="p-1 rounded text-green-400 hover:bg-white/10"
+        >
+          <Check className="h-4 w-4" aria-hidden />
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setDraft(displayLabel);
+            setIsEditing(false);
+          }}
+          aria-label="Avbryt"
+          className="p-1 rounded text-dark-400 hover:bg-white/10 hover:text-white"
+        >
+          <X className="h-4 w-4" aria-hidden />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2 text-sm text-dark-200">
+      <label className="flex items-center gap-2 flex-1 min-w-0 cursor-pointer">
+        <input type="checkbox" checked={checked} onChange={onToggle} disabled={hideableDisabled} />
+        <span className="truncate" title={hasCustomLabel ? `Standardnavn: ${defaultHeader}` : undefined}>
+          {displayLabel}
+        </span>
+      </label>
+      {canRename && (
+        <button
+          type="button"
+          onClick={() => {
+            setDraft(displayLabel === defaultHeader ? '' : displayLabel);
+            setIsEditing(true);
+          }}
+          aria-label={
+            hasCustomLabel
+              ? `Endre visningsnavn for ${defaultHeader} (nå «${displayLabel}», tomt felt tilbakestiller)`
+              : `Gi nytt visningsnavn til ${defaultHeader}`
+          }
+          title={hasCustomLabel ? 'Eget navn – klikk for å endre (tomt felt tilbakestiller)' : 'Gi eget visningsnavn'}
+          className={`p-1 rounded shrink-0 ${hasCustomLabel ? 'text-primary-300 hover:bg-white/10' : 'text-dark-500 hover:text-dark-200 hover:bg-white/10'}`}
+        >
+          <Pencil className="h-3.5 w-3.5" aria-hidden />
+        </button>
+      )}
+    </div>
+  );
+}
+
+const getComparableValue = (value: unknown) => {  if (value === null || value === undefined) return null;
   if (typeof value === 'number') return value;
   if (value instanceof Date) return value.getTime();
   if (typeof value === 'string') {
@@ -128,6 +266,7 @@ export function DataTable<T extends object>({
   paginate = true,
   stickyFirstColumn = false,
   enableColumnManagement = false,
+  enableColumnRenaming = false,
   enableCsvExport = false,
   exportFilename = 'table-export',
   exportLabel = 'Eksporter CSV',
@@ -151,6 +290,7 @@ export function DataTable<T extends object>({
       sortDirection: null,
       currentPage: 1,
       visibleColumnKeys: defaultVisibleColumnKeys,
+      columnLabels: {},
     }),
     [defaultVisibleColumnKeys],
   );
@@ -344,16 +484,38 @@ export function DataTable<T extends object>({
     const exportableRows = sortedData.map((row) =>
       visibleColumns.reduce<Record<string, unknown>>((acc, column) => {
         const value = row[column.key as keyof T];
-        acc[column.header] = column.csvValue ? column.csvValue(value, row) : value;
+        // CSV bruker visningsnavnet – det brukeren ser, er det som eksporteres.
+        acc[resolveColumnHeader(getColumnKey(column), column.header, tableState.columnLabels)] =
+          column.csvValue ? column.csvValue(value, row) : value;
         return acc;
       }, {}),
     );
     downloadCsv(exportFilename, exportableRows);
   };
 
-  const getStickyClasses = (columnIndex: number) => {
+  const headerLabel = (column: Column<T>) =>
+    resolveColumnHeader(getColumnKey(column), column.header, tableState.columnLabels);
+
+  const renameColumn = (key: string, label: string) => {
+    const trimmed = label.trim().slice(0, MAX_COLUMN_LABEL_LENGTH);
+    updateTableState((previous) => {
+      const nextLabels = { ...previous.columnLabels };
+      // Tom streng = tilbakestill til default (lagres ikke).
+      if (trimmed) nextLabels[key] = trimmed;
+      else delete nextLabels[key];
+      return { ...previous, columnLabels: nextLabels };
+    });
+  };
+
+  const getStickyClasses = (columnIndex: number, isHeader = false) => {
     if (!stickyFirstColumn || columnIndex !== 0) return '';
-    return 'sticky left-0 z-10 bg-dark-900/95 shadow-[6px_0_10px_-8px_rgba(0,0,0,0.8)]';
+    // Holdes bevisst lavt (1/2): sideheaderen i Layout ligger på z-30,
+    // så sticky-kolonnen må aldri male over den ved vertikal scroll.
+    // Header-cellen ligger ett hakk over body-cellene ved horisontal scroll.
+    // Solid bg (ikke /95) slik at innhold ikke blør gjennom.
+    return isHeader
+      ? 'sticky left-0 z-[2] bg-dark-900 shadow-[6px_0_10px_-8px_rgba(0,0,0,0.8)]'
+      : 'sticky left-0 z-[1] bg-dark-900 shadow-[6px_0_10px_-8px_rgba(0,0,0,0.8)]';
   };
 
   if (data.length === 0) {
@@ -369,7 +531,7 @@ export function DataTable<T extends object>({
   }
 
   return (
-    <div className={`table-container flex flex-col ${className}`}>
+    <div className={`table-container relative isolate flex flex-col ${className}`}>
       {(enableColumnManagement || enableCsvExport || toolbarExtras || title) && (
         <div className="flex flex-col gap-3 border-b border-dark-700/50 bg-dark-900/40 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -386,9 +548,15 @@ export function DataTable<T extends object>({
                   ref={columnMenuButtonRef}
                   onClick={() => setIsColumnMenuOpen((open) => !open)}
                   aria-expanded={isColumnMenuOpen}
-                  className="btn-secondary text-sm"
+                  aria-haspopup="menu"
+                  className="btn-secondary text-sm inline-flex items-center gap-1.5 whitespace-nowrap"
                 >
+                  <Columns3 className="h-4 w-4" aria-hidden />
                   Kolonner
+                  <ChevronDown
+                    className={`h-3.5 w-3.5 opacity-60 transition-transform ${isColumnMenuOpen ? 'rotate-180' : ''}`}
+                    aria-hidden
+                  />
                 </button>
                 {isColumnMenuOpen && (
                   <div className="absolute right-0 z-20 mt-2 w-64 rounded-xl border border-dark-700 bg-dark-900 p-3 shadow-2xl">
@@ -409,20 +577,26 @@ export function DataTable<T extends object>({
                         .filter((column) => {
                           if (!columnSearch.trim()) return true;
                           const q = columnSearch.toLowerCase();
-                          return column.header.toLowerCase().includes(q);
+                          const columnKey = getColumnKey(column);
+                          return (
+                            column.header.toLowerCase().includes(q) ||
+                            (tableState.columnLabels[columnKey] ?? '').toLowerCase().includes(q)
+                          );
                         })
                         .map((column) => {
                         const columnKey = getColumnKey(column);
                         return (
-                          <label key={columnKey} className="flex items-center gap-2 text-sm text-dark-200">
-                            <input
-                              type="checkbox"
-                              checked={tableState.visibleColumnKeys.includes(columnKey)}
-                              onChange={() => toggleColumn(columnKey)}
-                              disabled={column.hideable === false}
-                            />
-                            <span>{column.header}</span>
-                          </label>
+                          <ColumnMenuRow
+                            key={columnKey}
+                            defaultHeader={column.header}
+                            displayLabel={headerLabel(column)}
+                            hasCustomLabel={Boolean(tableState.columnLabels[columnKey]?.trim())}
+                            checked={tableState.visibleColumnKeys.includes(columnKey)}
+                            hideableDisabled={column.hideable === false}
+                            canRename={enableColumnRenaming && column.renamable === true}
+                            onToggle={() => toggleColumn(columnKey)}
+                            onRename={(label) => renameColumn(columnKey, label)}
+                          />
                         );
                       })}
                     </div>
@@ -431,25 +605,44 @@ export function DataTable<T extends object>({
               </div>
             )}
             {enableColumnManagement && storageKey && (
-              <div className="flex rounded-lg border border-dark-700 overflow-hidden text-xs">
+              <div
+                role="group"
+                aria-label="Tabelltetthet"
+                className="btn-secondary !p-1 inline-flex items-center gap-1 text-sm"
+              >
                 <button
                   type="button"
+                  aria-pressed={density === 'comfortable'}
                   onClick={() => setDensityAndPersist('comfortable')}
-                  className={`px-2 py-1 ${density === 'comfortable' ? 'bg-primary-600/30 text-primary-300' : 'text-dark-400'}`}
+                  className={`rounded px-3 py-1.5 font-medium transition-colors ${
+                    density === 'comfortable'
+                      ? 'bg-primary-600/40 text-white shadow'
+                      : 'text-dark-300 hover:text-white hover:bg-white/5'
+                  }`}
                 >
                   Normal
                 </button>
                 <button
                   type="button"
+                  aria-pressed={density === 'compact'}
                   onClick={() => setDensityAndPersist('compact')}
-                  className={`px-2 py-1 ${density === 'compact' ? 'bg-primary-600/30 text-primary-300' : 'text-dark-400'}`}
+                  className={`rounded px-3 py-1.5 font-medium transition-colors ${
+                    density === 'compact'
+                      ? 'bg-primary-600/40 text-white shadow'
+                      : 'text-dark-300 hover:text-white hover:bg-white/5'
+                  }`}
                 >
                   Kompakt
                 </button>
               </div>
             )}
             {enableCsvExport && (
-              <button onClick={exportRows} className="btn-secondary text-sm" title={exportTitle}>
+              <button
+                onClick={exportRows}
+                className="btn-secondary text-sm inline-flex items-center gap-1.5 whitespace-nowrap"
+                title={exportTitle}
+              >
+                <Download className="h-4 w-4" aria-hidden />
                 {exportLabel}
               </button>
             )}
@@ -477,7 +670,7 @@ export function DataTable<T extends object>({
                           : 'none'
                         : undefined
                     }
-                    className={`${headerClass} whitespace-nowrap group ${getCellAlignment(column.align)} ${getStickyClasses(columnIndex)}`}
+                    className={`${headerClass} whitespace-nowrap group ${getCellAlignment(column.align)} ${getStickyClasses(columnIndex, true)}`}
                   >
                     {sortable ? (
                       <button
@@ -485,12 +678,12 @@ export function DataTable<T extends object>({
                         onClick={() => handleSort(String(column.key))}
                         className={`flex items-center gap-2 w-full bg-transparent p-0 font-inherit text-inherit cursor-pointer hover:bg-dark-700/60 hover:text-dark-200 transition-colors rounded ${column.align === 'right' ? 'justify-end' : column.align === 'center' ? 'justify-center' : 'justify-start'}`}
                       >
-                        <span className="group-hover:text-dark-200 transition-colors">{column.header}</span>
+                        <span className="group-hover:text-dark-200 transition-colors">{headerLabel(column)}</span>
                         <span className="text-xs transition-all duration-200 transform scale-75 group-hover:scale-100">{getSortIcon(String(column.key))}</span>
                       </button>
                     ) : (
                       <div className={`flex items-center gap-2 ${column.align === 'right' ? 'justify-end' : column.align === 'center' ? 'justify-center' : 'justify-start'}`}>
-                        <span className="group-hover:text-dark-200 transition-colors">{column.header}</span>
+                        <span className="group-hover:text-dark-200 transition-colors">{headerLabel(column)}</span>
                       </div>
                     )}
                   </th>

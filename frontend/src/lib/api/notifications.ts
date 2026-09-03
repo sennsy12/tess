@@ -3,7 +3,7 @@ import type { AppNotification } from '../../types/notification';
 import type { PaginatedResponse } from './types';
 
 export const notificationsApi = {
-  list: (params?: { page?: number; limit?: number; unreadOnly?: boolean }) =>
+  list: (params?: { page?: number; limit?: number; unreadOnly?: boolean; type?: string }) =>
     api.get<PaginatedResponse<AppNotification>>('/notifications', { params }),
 
   unreadCount: () => api.get<{ count: number }>('/notifications/unread-count'),

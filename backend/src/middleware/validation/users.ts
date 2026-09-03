@@ -22,3 +22,11 @@ export const updateUserSchema = z.object({
 export const deleteUserSchema = z.object({
   actionKey: z.string().min(1, 'Action key is required').max(200),
 });
+
+export const entraLinkSchema = z.object({
+  // Immutable Microsoft object ID (oid claim). UUID in practice, but accept
+  // any short opaque string so Azure AD B2C-style identifiers keep working.
+  entraOid: z.string().min(1).max(100),
+  entraUpn: z.string().min(1).max(320).optional(),
+  actionKey: z.string().min(1, 'Action key is required').max(200),
+});

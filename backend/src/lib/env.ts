@@ -35,6 +35,11 @@ const envSchema = z.object({
   ENABLE_DESTRUCTIVE_ETL: z.string().optional(),
   ENABLE_SCHEDULER_JOBS: z.string().optional(),
 
+  // Microsoft Entra ID hybrid sign-in (optional; all three required to enable)
+  ENABLE_ENTRA: z.string().optional(),
+  ENTRA_TENANT_ID: z.string().optional(),
+  ENTRA_CLIENT_ID: z.string().optional(),
+
   // CORS
   FRONTEND_URL: z.string().optional(),
 

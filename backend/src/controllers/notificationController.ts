@@ -15,10 +15,10 @@ export const notificationController = {
       return res.status(401).json({ error: 'Not authenticated' });
     }
 
-    const { page, limit, unreadOnly } = req.query as unknown as z.infer<typeof notificationQuerySchema>;
+    const { page, limit, unreadOnly, type } = req.query as unknown as z.infer<typeof notificationQuerySchema>;
     const offset = (page - 1) * limit;
 
-    const result = await notificationModel.findForUser(req.user, { limit, offset }, unreadOnly);
+    const result = await notificationModel.findForUser(req.user, { limit, offset }, unreadOnly, type);
 
     res.json(
       buildListResponse(result.data, { page, limit, total: result.total }),

@@ -55,6 +55,8 @@ export function AdminETL() {
   } | null>(null);
 
   const csvFileRef = useRef<HTMLInputElement>(null);
+  const xlsxFileRef = useRef<HTMLInputElement>(null);
+  const [xlsxSheet, setXlsxSheet] = useState('');
 
   const schedulerJobsQuery = useQuery({
     queryKey: schedulerKeys.jobs(),
@@ -167,6 +169,23 @@ export function AdminETL() {
     void runAction('Last opp CSV', () => etlApi.uploadCsv('', file));
   };
 
+  const handleXlsxUpload = () => {
+    const file = xlsxFileRef.current?.files?.[0];
+    if (!file) {
+      setResults((prev) =>
+        appendResult(prev, {
+          action: 'Last opp XLSX',
+          success: false,
+          error: 'Ingen fil valgt',
+          timestamp: new Date(),
+        }),
+      );
+      return;
+    }
+    const sheet = xlsxSheet.trim();
+    void runAction('Last opp XLSX', () => etlApi.uploadXlsx('', file, sheet || undefined));
+  };
+
   return (
     <Layout title="ETL / Database Management">
       <div className="space-y-6">
@@ -206,10 +225,14 @@ export function AdminETL() {
               isLoading={isLoading}
               loadingActionId={loadingActionId}
               csvFileRef={csvFileRef}
+              xlsxFileRef={xlsxFileRef}
+              xlsxSheet={xlsxSheet}
+              onXlsxSheetChange={setXlsxSheet}
               onGenerate={() => triggerBulkAction('generate')}
               onInsert={() => void runAction('Insert Bulk', etlApi.insertBulkData)}
               onPipeline={() => triggerBulkAction('pipeline')}
               onCsvUpload={handleCsvUpload}
+              onXlsxUpload={handleXlsxUpload}
             />
           </TabContent>
         )}

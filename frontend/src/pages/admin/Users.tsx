@@ -156,6 +156,7 @@ export function AdminUsers() {
     sortDirection: null,
     currentPage: 1,
     visibleColumnKeys: ['id', 'username', 'role', 'kundenr', 'created_at', 'actions'],
+    columnLabels: {},
   });
 
   // ── Queries ─────────────────────────────────────────────

@@ -3,6 +3,7 @@ import type { LucideIcon } from 'lucide-react';
 import {
   LayoutDashboard,
   BarChart3,
+  Bell,
   ClipboardCheck,
   ClipboardList,
   FlaskConical,
@@ -19,6 +20,7 @@ import {
   ShoppingCart,
 } from 'lucide-react';
 import { CartBadge } from '../components/CartBadge';
+import { NotificationNavBadge } from '../components/NotificationNavBadge';
 import { PendingApprovalsBadge } from '../components/admin/PendingApprovalsBadge';
 
 export interface NavItem {
@@ -39,6 +41,7 @@ export const kundeNavItems: NavItem[] = [
   { path: '/kunde/pricing', label: 'Mine priser', shortLabel: 'Priser', Icon: CircleDollarSign },
   { path: '/kunde/statistics', label: 'Statistikk', shortLabel: 'Statistikk', Icon: BarChart3 },
   { path: '/kunde/analytics', label: 'Avansert Analyse', shortLabel: 'Analyse', Icon: LineChart },
+  { path: '/kunde/varsler', label: 'Varsler', shortLabel: 'Varsler', Icon: Bell, Badge: NotificationNavBadge },
 ];
 
 /**
@@ -73,6 +76,7 @@ export const adminNavItems: NavItem[] = [
   { path: '/admin/status', label: 'Status', Icon: Activity },
   { path: '/admin/etl', label: 'ETL / Data', Icon: Database },
   { path: '/admin/audit', label: 'Endringslogg', Icon: ScrollText },
+  { path: '/admin/varsler', label: 'Varsler', Icon: Bell, Badge: NotificationNavBadge },
 ];
 
 /** Longest matching nav path wins (nested routes stay highlighted). */

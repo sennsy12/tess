@@ -11,6 +11,7 @@ import { useKeyboardShortcut } from '../hooks/useKeyboardShortcut';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { AssistantChat } from './assistant';
 import { NotificationBell } from './NotificationBell';
+import { NotificationWatcher } from './NotificationWatcher';
 import { useEtlJobToasts } from '../hooks/useEtlJobToasts';
 import { KundeMobileNav, AnalyseMobileNav } from './KundeMobileNav';
 import { KundeOnboardingModal, useKundeOnboarding } from './KundeOnboarding';
@@ -22,7 +23,6 @@ import {
   type NavItem,
 } from '../lib/navConfig';
 import { prefetchRoute } from '../lib/prefetch';
-import { supportMailto } from '../lib/appConfig';
 
 interface LayoutProps {
   children: ReactNode;
@@ -120,6 +120,7 @@ export function Layout({ children, title }: LayoutProps) {
       >
         Hopp til innhold
       </a>
+      {showNotifications && <NotificationWatcher />}
       <header className="lg:hidden bg-dark-900 border-b border-dark-800 px-4 py-3 flex items-center justify-between sticky top-0 z-50">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-md bg-dark-950 border border-gold-500/40 flex items-center justify-center">
@@ -227,10 +228,14 @@ export function Layout({ children, title }: LayoutProps) {
         <div className={`border-t border-dark-800 bg-dark-900 ${isSidebarCollapsed ? 'p-3' : 'p-5'}`}>
           {!isSidebarCollapsed && (
             <div className="space-y-2">
-              <a href={supportMailto} className="w-full btn-secondary text-sm py-2 flex items-center justify-center gap-2">
+              <Link
+                to="/hjelp"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="w-full btn-secondary text-sm py-2 flex items-center justify-center gap-2"
+              >
                 <HelpCircle className="h-4 w-4" aria-hidden />
-                Hjelp / Kontakt
-              </a>
+                Hjelp
+              </Link>
               <Link
                 to={settingsPath}
                 onClick={() => setIsMobileMenuOpen(false)}
@@ -255,14 +260,24 @@ export function Layout({ children, title }: LayoutProps) {
             </div>
           )}
           {isSidebarCollapsed && (
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="w-10 h-10 mx-auto flex items-center justify-center rounded-lg text-dark-400 hover:text-red-400"
-              aria-label="Logg ut"
-            >
-              <LogOut className="h-5 w-5" />
-            </button>
+            <div className="flex flex-col items-center gap-1">
+              <Link
+                to="/hjelp"
+                className="w-10 h-10 mx-auto flex items-center justify-center rounded-lg text-dark-400 hover:text-white hover:bg-dark-800 transition-colors"
+                aria-label="Hjelp"
+                title="Hjelp"
+              >
+                <HelpCircle className="h-5 w-5" />
+              </Link>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="w-10 h-10 mx-auto flex items-center justify-center rounded-lg text-dark-400 hover:text-red-400"
+                aria-label="Logg ut"
+              >
+                <LogOut className="h-5 w-5" />
+              </button>
+            </div>
           )}
         </div>
       </aside>
@@ -274,7 +289,7 @@ export function Layout({ children, title }: LayoutProps) {
         className={`flex-1 overflow-auto min-w-0 h-screen supports-[height:100dvh]:h-[100dvh] relative scroll-smooth focus:outline-none ${showBottomNav ? 'pb-16 lg:pb-0' : ''}`}
       >
         <EnvironmentBanner />
-        <header className="hidden lg:block bg-dark-950/90 backdrop-blur-sm border-b border-gold-500/15 sticky top-0 z-10">
+        <header className="hidden lg:block bg-dark-950/90 backdrop-blur-sm border-b border-gold-500/15 sticky top-0 z-30">
           <div className="px-8 py-5 flex items-center justify-between">
             <h2 className="text-xl font-light font-display text-white tracking-wide">{title}</h2>
             <div className="flex items-center gap-2">

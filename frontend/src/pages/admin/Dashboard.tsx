@@ -99,11 +99,11 @@ export function AdminDashboard() {
                 <p className="text-sm text-dark-400">{status?.status === 'healthy' ? 'Alt fungerer normalt' : 'Problemer oppdaget'}</p>
               </div>
             </div>
-            <div className="text-right">
-              <span className="text-sm text-dark-400">Database</span>
-              <p className="font-medium inline-flex items-center gap-1.5">
+            <div className="flex flex-col items-end gap-1.5 text-right">
+              <span className="text-xs font-medium uppercase tracking-wider text-dark-400">Database</span>
+              <p className="inline-flex items-center gap-2 text-sm font-semibold text-dark-100">
                 <span
-                  className={`h-2 w-2 rounded-full ${status?.database?.connected ? 'bg-emerald-400' : 'bg-red-400'}`}
+                  className={`h-2.5 w-2.5 shrink-0 rounded-full ${status?.database?.connected ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]' : 'bg-red-400 shadow-[0_0_8px_rgba(248,113,113,0.8)]'}`}
                   aria-hidden
                 />
                 {status?.database?.connected ? 'Tilkoblet' : 'Frakoblet'}

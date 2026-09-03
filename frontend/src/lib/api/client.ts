@@ -14,7 +14,7 @@ const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 /** Auth endpoints whose 401 responses are expected (bad credentials / no session)
  * and must NOT trigger the refresh-or-logout flow. */
-const AUTH_ROUTES = new Set(['/auth/login', '/auth/login-kunde', '/auth/verify', '/auth/refresh', '/auth/logout']);
+const AUTH_ROUTES = new Set(['/auth/login', '/auth/login-kunde', '/auth/verify', '/auth/refresh', '/auth/logout', '/auth/entra', '/auth/entra/config']);
 
 const api = axios.create({
   baseURL: API_URL,

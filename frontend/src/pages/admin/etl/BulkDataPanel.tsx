@@ -16,10 +16,14 @@ interface BulkDataPanelProps {
   isLoading: boolean;
   loadingActionId: string | null;
   csvFileRef: RefObject<HTMLInputElement>;
+  xlsxFileRef: RefObject<HTMLInputElement>;
+  xlsxSheet: string;
+  onXlsxSheetChange: (sheet: string) => void;
   onGenerate: () => void;
   onInsert: () => void;
   onPipeline: () => void;
   onCsvUpload: () => void;
+  onXlsxUpload: () => void;
 }
 
 export function BulkDataPanel({
@@ -30,10 +34,14 @@ export function BulkDataPanel({
   isLoading,
   loadingActionId,
   csvFileRef,
+  xlsxFileRef,
+  xlsxSheet,
+  onXlsxSheetChange,
   onGenerate,
   onInsert,
   onPipeline,
   onCsvUpload,
+  onXlsxUpload,
 }: BulkDataPanelProps) {
   return (
     <div className="space-y-6 animate-fade-in">
@@ -160,6 +168,59 @@ export function BulkDataPanel({
             className="btn-primary w-full md:w-auto"
           >
             {loadingActionId === 'Last opp CSV' ? 'Laster opp...' : 'Last Opp'}
+          </button>
+        </div>
+      </div>
+
+      <div className="card">
+        <h3 className="font-semibold mb-4">Last opp XLSX</h3>
+        <div className="space-y-4">
+          <div className="flex-1">
+            <label htmlFor="bulk-xlsx-file" className="label">
+              Velg XLSX Fil
+            </label>
+            <input
+              id="bulk-xlsx-file"
+              type="file"
+              accept=".xlsx,.xlsm"
+              ref={xlsxFileRef}
+              className="input"
+            />
+          </div>
+
+          <div className="flex-1">
+            <label htmlFor="bulk-xlsx-sheet" className="label">
+              Regneark (valgfritt – første ark brukes som standard)
+            </label>
+            <input
+              id="bulk-xlsx-sheet"
+              type="text"
+              maxLength={100}
+              value={xlsxSheet}
+              onChange={(e) => onXlsxSheetChange(e.target.value)}
+              placeholder="F.eks. Ordre"
+              className="input"
+            />
+          </div>
+
+          <div className="bg-blue-900/20 p-4 rounded-lg border border-blue-800/30">
+            <h4 className="text-sm font-semibold text-blue-400 mb-2">Instruksjoner:</h4>
+            <ul className="text-xs text-dark-300 space-y-1 list-disc pl-4">
+              <li>Filen må være en XLSX med header-rad (samme kolonner som CSV).</li>
+              <li>Store filer strømmes rad for rad – hele filen lastes aldri i minne.</li>
+              <li>Systemet vil automatisk gjenkjenne tabellen basert på kolonnenavnene.</li>
+              <li>Eksisterende rader (basert på primærnøkkel) vil bli hoppet over.</li>
+              <li>Støttede tabeller: Ordre, Ordrelinje, Kunde, Vare, Firma, Lager.</li>
+            </ul>
+          </div>
+
+          <button
+            type="button"
+            onClick={onXlsxUpload}
+            disabled={isLoading}
+            className="btn-primary w-full md:w-auto"
+          >
+            {loadingActionId === 'Last opp XLSX' ? 'Laster opp...' : 'Last Opp'}
           </button>
         </div>
       </div>

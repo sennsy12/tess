@@ -10,6 +10,7 @@ import {
   changePasswordSchema,
   refreshTokenSchema,
   revokeRefreshTokenSchema,
+  entraLoginSchema,
 } from '../middleware/validation.js';
 
 export const authRouter = Router();
@@ -45,6 +46,17 @@ authRouter.post(
 
 // Verify token
 authRouter.get('/verify', asyncHandler(authController.verify));
+
+// Public Microsoft sign-in configuration (client/tenant IDs only, no secrets)
+authRouter.get('/entra/config', asyncHandler(authController.entraConfig));
+
+// Hybrid Microsoft sign-in: MSAL ID token -> local token pair (rate limited)
+authRouter.post(
+  '/entra',
+  authLimiter,
+  validate(entraLoginSchema),
+  asyncHandler(authController.entraLogin)
+);
 
 // Change own password (authenticated)
 authRouter.post(

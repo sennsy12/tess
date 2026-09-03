@@ -1,6 +1,4 @@
-import { once } from 'events';
 import { getClient } from '../../../db/index.js';
-import { quoteIdentifier, assertSafeIdentifiers } from '../../../db/identifiers.js';
 import { getTableColumns } from '../../../db/copyLoaders.js';
 import { etlLogger } from '../../../lib/logger.js';
 import { scheduleStatisticsRefreshAfterEtl } from '../../../services/statsAggregateService.js';
@@ -11,6 +9,16 @@ import {
   normalizeRecord,
 } from '../transforms.js';
 import { mapRow } from './helpers.js';
+import {
+  beginStagingCopy,
+  drain,
+  makeTempTableName,
+  provisionDimensions,
+  rollbackQuietly,
+  waitForCopyFinish,
+  type CopyStream,
+  type CopyTarget,
+} from './combinedOrderStaging.js';
 
 export interface CombinedOrderCsvResult {
   ordreInserted: number;
@@ -18,105 +26,6 @@ export interface CombinedOrderCsvResult {
   attemptedRows: number;
   rejectedOrdreRows: number;
   rejectedOrdrelinjeRows: number;
-}
-
-/**
- * Provision missing dimension rows referenced by the staging table, mirroring
- * the behavior of copyFromLineStream's auto-provisioning step.
- */
-async function provisionDimensions(
-  client: Awaited<ReturnType<typeof getClient>>,
-  tempTable: string,
-  columns: string[]
-): Promise<void> {
-  if (columns.includes('kundenr')) {
-    await client.query(`
-      INSERT INTO public.kunde (kundenr, kundenavn)
-      SELECT DISTINCT kundenr, 'Auto-generert' FROM ${tempTable}
-      WHERE kundenr IS NOT NULL
-      ON CONFLICT (kundenr) DO NOTHING
-    `);
-  }
-  if (columns.includes('firmaid')) {
-    await client.query(`
-      INSERT INTO public.firma (firmaid, firmanavn)
-      SELECT DISTINCT firmaid, 'Firma ' || firmaid FROM ${tempTable}
-      WHERE firmaid IS NOT NULL
-      ON CONFLICT (firmaid) DO NOTHING
-    `);
-  }
-  if (columns.includes('valutaid')) {
-    await client.query(`
-      INSERT INTO public.valuta (valutaid)
-      SELECT DISTINCT valutaid FROM ${tempTable}
-      WHERE valutaid IS NOT NULL
-      ON CONFLICT (valutaid) DO NOTHING
-    `);
-  }
-  if (columns.includes('varekode')) {
-    await client.query(`
-      INSERT INTO public.vare (varekode, varenavn)
-      SELECT DISTINCT varekode, 'Produkt ' || varekode FROM ${tempTable}
-      WHERE varekode IS NOT NULL
-      ON CONFLICT (varekode) DO NOTHING
-    `);
-  }
-  if (columns.includes('lagernavn') && columns.includes('firmaid')) {
-    await client.query(`
-      INSERT INTO public.lager (lagernavn, firmaid)
-      SELECT DISTINCT lagernavn, firmaid FROM ${tempTable}
-      WHERE lagernavn IS NOT NULL AND firmaid IS NOT NULL
-      ON CONFLICT (lagernavn, firmaid) DO NOTHING
-    `);
-  }
-}
-
-interface CopyTarget {
-  tableName: string;
-  columns: string[];
-  tempTable: string;
-}
-
-type StagedClient = Awaited<ReturnType<typeof getClient>>;
-type CopyStream = NodeJS.WritableStream & { end(cb?: () => void): void };
-
-const drain = async (stream: CopyStream): Promise<void> => {
-  await once(stream as never, 'drain');
-};
-
-/**
- * Begin a transaction, create a constraint-free temp staging table and open a
- * COPY ... FROM STDIN stream on it. The transaction stays OPEN; the caller
- * feeds the returned stream and later merges + commits.
- */
-async function beginStagingCopy(
-  client: StagedClient,
-  target: CopyTarget
-): Promise<CopyStream> {
-  const { tableName, columns, tempTable } = target;
-  const copyStreams = await import('pg-copy-streams');
-
-  await client.query('BEGIN');
-  await client.query(`CREATE TEMP TABLE ${tempTable} (LIKE ${tableName} INCLUDING DEFAULTS) ON COMMIT DROP`);
-  const validColSet = await getTableColumns(tableName);
-  assertSafeIdentifiers(`combined-${tableName} columns`, columns, validColSet);
-  // Relax NOT NULL on columns the CSV does not provide so staging stays light.
-  for (const col of [...validColSet].filter((c) => !columns.includes(c))) {
-    await client.query(`ALTER TABLE ${tempTable} ALTER COLUMN ${quoteIdentifier(col)} DROP NOT NULL`);
-  }
-
-  const quotedColumns = columns.map(quoteIdentifier).join(', ');
-  return client.query(
-    copyStreams.from(`COPY ${tempTable} (${quotedColumns}) FROM STDIN WITH (FORMAT text, NULL '\\N')`)
-  );
-}
-
-/** Resolve when the COPY stream finishes (server consumed everything). */
-function waitForCopyFinish(stream: CopyStream): Promise<void> {
-  return new Promise((resolve, reject) => {
-    stream.once('error', reject);
-    stream.once('finish', () => resolve());
-  });
 }
 
 /**
@@ -183,8 +92,8 @@ export async function runCombinedOrderCsvEtl(config: {
     return [ordreLine, linjeLine];
   }
 
-  const ordreTemp = `temp_ordre_combined_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  const linjeTemp = `temp_ordrelinje_combined_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const ordreTemp = makeTempTableName('temp_ordre_combined');
+  const linjeTemp = makeTempTableName('temp_ordrelinje_combined');
 
   const ordreTarget: CopyTarget = {
     tableName: 'ordre',
@@ -199,14 +108,6 @@ export async function runCombinedOrderCsvEtl(config: {
 
   const clientOrdre = await getClient();
   const clientLinje = await getClient();
-
-  const rollbackQuietly = async (client: StagedClient): Promise<void> => {
-    try {
-      await client.query('ROLLBACK');
-    } catch {
-      /* connection already aborted */
-    }
-  };
 
   let copyOrdre!: CopyStream;
   let copyLinje!: CopyStream;

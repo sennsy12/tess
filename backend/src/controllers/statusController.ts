@@ -29,6 +29,14 @@ export const statusController = {
   getHealth: async (req: AuthRequest, res: Response) => {
     const health = await statusModel.getHealth();
     res.json(health);
+  },
+
+  getRecentActivity: async (req: AuthRequest, res: Response) => {
+    const days = Number(req.query.days ?? 7);
+    const activity = await statusModel.getRecentActivity(
+      Number.isFinite(days) && days > 0 ? Math.min(days, 90) : 7,
+    );
+    res.json(activity);
   }
 };
 

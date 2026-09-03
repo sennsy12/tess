@@ -59,6 +59,7 @@ export async function executeIngestJob(
     maxDeadLetters,
     maxHeapMb,
     csv: csvOpts,
+    xlsx: xlsxOpts,
     json: jsonOpts,
     api,
   } = body;
@@ -96,6 +97,13 @@ export async function executeIngestJob(
               filePath: uploadedFilePath,
               delimiter: csvOpts?.delimiter,
               compression: csvOpts?.compression ?? 'none',
+            }
+          : undefined,
+      xlsx:
+        sourceType === 'xlsx' && uploadedFilePath
+          ? {
+              filePath: uploadedFilePath,
+              sheet: xlsxOpts?.sheet,
             }
           : undefined,
       json:

@@ -55,6 +55,8 @@ export function AdminApprovals() {
   const [page, setPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [confirmTarget, setConfirmTarget] = useState<OrderWorkflowStatus | null>(null);
+  const [bulkComment, setBulkComment] = useState('');
+  const [bulkCommentError, setBulkCommentError] = useState('');
   const [runProgress, setRunProgress] = useState<{ done: number; total: number } | null>(null);
   const [lastFailures, setLastFailures] = useState<BulkRunResult['failed']>([]);
   // Row cache for cross-page selections, kept in state so render-time reads
@@ -80,6 +82,8 @@ export function AdminApprovals() {
     setPage(1);
     setSelectedIds(new Set());
     setSelectedRowCache(new Map());
+    setBulkComment('');
+    setBulkCommentError('');
   };
 
   const selectedRows = useMemo(
@@ -128,9 +132,23 @@ export function AdminApprovals() {
   const actionTargets = useMemo(() => getNextWorkflowStatuses(activeStatus), [activeStatus]);
   const isBusy = runProgress !== null;
 
+  /** Close the bulk-confirm modal and discard its comment draft + error. */
+  const closeConfirmModal = () => {
+    if (isBusy) return;
+    setConfirmTarget(null);
+    setBulkComment('');
+    setBulkCommentError('');
+  };
+
   const handleConfirmRun = () => {
     if (!confirmTarget) return;
     const target = confirmTarget;
+    const comment = bulkComment.trim();
+    if (target === 'rejected' && comment.length === 0) {
+      setBulkCommentError('Begrunnelse er påkrevd ved avvisning');
+      return;
+    }
+    setBulkCommentError('');
     const eligible = partitionByLegalTransition(selectedRows, target)
       .eligible.map((row) => row.ordrenr);
     setConfirmTarget(null);
@@ -146,7 +164,7 @@ export function AdminApprovals() {
 
     void executeBulkStatusUpdate(eligible, target, async (ordrenr, workflowStatus) => {
       try {
-        await ordersApi.updateStatus(ordrenr, workflowStatus);
+        await ordersApi.updateStatus(ordrenr, workflowStatus, comment || undefined);
       } finally {
         done += 1;
         setRunProgress({ done, total: eligible.length });
@@ -156,8 +174,12 @@ export function AdminApprovals() {
         await queryClient.invalidateQueries({ queryKey: orderKeys.root() });
         await queryClient.invalidateQueries({ queryKey: approvalsKeys.root() });
         await queryClient.invalidateQueries({ queryKey: approvalsKeys.countRoot() });
+        await queryClient.invalidateQueries({ queryKey: ['admin', 'order-history'] });
+        await queryClient.invalidateQueries({ queryKey: ['kunde', 'order-history'] });
 
         setRunProgress(null);
+        setBulkComment('');
+        setBulkCommentError('');
         setSelectedIds((previous) => {
           const next = new Set(previous);
           for (const ordrenr of result.succeeded) {
@@ -425,7 +447,7 @@ export function AdminApprovals() {
       {confirmTarget && pendingModal && (
         <div
           className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-          onClick={() => !isBusy && setConfirmTarget(null)}
+          onClick={() => closeConfirmModal()}
           role="presentation"
         >
           <div
@@ -455,12 +477,39 @@ export function AdminApprovals() {
               {pendingModal.remaining > 0 && ` +${pendingModal.remaining} flere`}
             </p>
 
+            <div>
+              <label className="label" htmlFor="bulkStatusComment">
+                Kommentar til beslutningen{' '}
+                {confirmTarget === 'rejected' ? (
+                  <span className="text-red-300">(påkrevd ved avvisning)</span>
+                ) : (
+                  <span className="text-dark-500">(valgfritt — vises i ordrehistorikken)</span>
+                )}
+              </label>
+              <textarea
+                id="bulkStatusComment"
+                className="input min-h-[4rem] w-full resize-y"
+                maxLength={500}
+                placeholder="F.eks. avvist pga. feil kvantum — kontakt selger for ny pris…"
+                value={bulkComment}
+                disabled={isBusy}
+                onChange={(e) => {
+                  setBulkComment(e.target.value);
+                  if (bulkCommentError) setBulkCommentError('');
+                }}
+              />
+              <div className="mt-1 flex items-center justify-between">
+                <span className="text-xs text-dark-500">{bulkComment.trim().length}/500</span>
+                {bulkCommentError && <span className="text-xs text-red-300">{bulkCommentError}</span>}
+              </div>
+            </div>
+
             <div className="flex justify-end gap-3 pt-2">
               <button
                 type="button"
                 className="btn-secondary"
                 disabled={isBusy}
-                onClick={() => setConfirmTarget(null)}
+                onClick={() => closeConfirmModal()}
               >
                 Avbryt
               </button>

@@ -28,7 +28,7 @@ export const bulkStreamingSchema = z.object({
 });
 
 export const etlIngestSchema = z.object({
-  sourceType: z.enum(['csv', 'json', 'api']),
+  sourceType: z.enum(['csv', 'json', 'api', 'xlsx']),
   table: z.enum(['ordre', 'ordrelinje', 'kunde', 'vare', 'firma', 'lager']),
   strictMode: z.boolean().default(false),
   onConflict: z.enum(['nothing', 'error', 'upsert']).default('upsert'),
@@ -56,6 +56,11 @@ export const etlIngestSchema = z.object({
     .object({
       delimiter: z.string().min(1).max(2).optional(),
       compression: z.enum(['none', 'gzip', 'brotli']).default('none'),
+    })
+    .optional(),
+  xlsx: z
+    .object({
+      sheet: z.string().min(1).max(100).optional(),
     })
     .optional(),
   json: z

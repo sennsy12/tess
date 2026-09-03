@@ -21,6 +21,7 @@ export async function publishOrderStatusChanged(input: {
   previousStatus: OrderWorkflowStatus;
   newStatus: OrderWorkflowStatus;
   changedBy?: string;
+  comment?: string | null;
   auditEntityName?: string;
 }): Promise<void> {
   if (input.req) {
@@ -31,7 +32,7 @@ export async function publishOrderStatusChanged(input: {
       entityId: input.ordrenr,
       entityName: input.auditEntityName ?? `Status ${input.previousStatus} → ${input.newStatus}`,
       oldData: { workflow_status: input.previousStatus },
-      newData: { workflow_status: input.newStatus },
+      newData: { workflow_status: input.newStatus, comment: input.comment ?? null },
     });
   }
   await notifyOrderStatusChange({
@@ -40,6 +41,7 @@ export async function publishOrderStatusChanged(input: {
     previousStatus: input.previousStatus,
     newStatus: input.newStatus,
     changedBy: input.changedBy,
+    comment: input.comment ?? null,
   });
 }
 

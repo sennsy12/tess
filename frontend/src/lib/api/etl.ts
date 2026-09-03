@@ -26,6 +26,17 @@ export const etlApi = {
       },
     });
   },
+  uploadXlsx: (table: string, file: File, sheet?: string) => {
+    const formData = new FormData();
+    formData.append('table', table);
+    if (sheet) formData.append('sheet', sheet);
+    formData.append('file', file);
+    return api.post('/etl/upload-xlsx', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
 
   listJobs: (limit = 50) =>
     api.get<EtlJobsListResponse>('/etl/jobs', { params: { limit } }),

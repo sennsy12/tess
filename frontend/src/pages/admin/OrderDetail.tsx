@@ -5,8 +5,10 @@ import { Repeat } from 'lucide-react';
 import { Layout } from '../../components/Layout';
 import { Breadcrumb } from '../../components/Breadcrumb';
 import { QueryErrorBanner } from '../../components/QueryErrorBanner';
+import { OrderTimeline } from '../../components/OrderTimeline';
 import { OrderWorkflowBadge } from '../../components/orders/OrderWorkflowBadge';
 import { ordersApi } from '../../lib/api';
+import { getApiError } from '../../lib/apiErrors';
 import { addOrderToCart } from '../../lib/reorder';
 import { downloadOrderPdf } from '../../lib/orderPdf';
 import { useCart } from '../../context/useCart';
@@ -21,7 +23,7 @@ import { OrderLineSummaryCard } from '../../components/orders/OrderLineSummaryCa
 import { Spinner } from '../../components/Spinner';
 import { formatCurrency, formatDateNb, formatDecimalNb } from '../../lib/formatters';
 
-import { OrderDetail } from '../../types/order';
+import { OrderDetail, type OrderStatusHistoryEntry } from '../../types/order';
 
 export function AdminOrderDetail() {
   const { ordrenr } = useParams<{ ordrenr: string }>();
@@ -32,6 +34,10 @@ export function AdminOrderDetail() {
   const [error, setError] = useState('');
   const [statusSaving, setStatusSaving] = useState(false);
   const [isPdfBusy, setIsPdfBusy] = useState(false);
+  const [history, setHistory] = useState<OrderStatusHistoryEntry[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [statusComment, setStatusComment] = useState('');
+  const [pendingStatus, setPendingStatus] = useState<OrderWorkflowStatus | ''>('');
 
   const handleDownloadPdf = async () => {
     if (!order || isPdfBusy) return;
@@ -46,11 +52,27 @@ export function AdminOrderDetail() {
   };
 
   const loadOrder = async (id: number) => {
+    // Reset unsaved decision draft — the component instance is reused when
+    // navigating order A → B, so a stale selection/comment must not leak
+    // into the newly opened order.
+    setPendingStatus('');
+    setStatusComment('');
     try {
       const response = await ordersApi.getOne(id);
       setOrder(response.data);
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Kunne ikke laste ordre');
+      // Timeline is auxiliary — a missing history table/endpoint must not
+      // break the order view (e.g. DBs that haven't migrated yet).
+      setHistoryLoading(true);
+      try {
+        const historyResponse = await ordersApi.getHistory(id);
+        setHistory(historyResponse.data?.data ?? []);
+      } catch {
+        setHistory([]);
+      } finally {
+        setHistoryLoading(false);
+      }
+    } catch (err: unknown) {
+      setError(getApiError(err, 'Kunne ikke laste ordre'));
     } finally {
       setIsLoading(false);
     }
@@ -58,9 +80,8 @@ export function AdminOrderDetail() {
 
   useEffect(() => {
     if (ordrenr) {
-      loadOrder(parseInt(ordrenr));
+      void loadOrder(parseInt(ordrenr));
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ordrenr]);
 
   const handleStatusChange = async (workflowStatus: OrderWorkflowStatus) => {
@@ -70,16 +91,26 @@ export function AdminOrderDetail() {
       toast.error('Ugyldig statusovergang');
       return;
     }
+    const comment = statusComment.trim();
+    if (workflowStatus === 'rejected' && comment.length === 0) {
+      toast.error('Begrunnelse er påkrevd ved avvisning');
+      return;
+    }
     setStatusSaving(true);
     try {
-      await ordersApi.updateStatus(order.ordrenr, workflowStatus);
+      await ordersApi.updateStatus(order.ordrenr, workflowStatus, comment || undefined);
       setOrder({ ...order, workflow_status: workflowStatus });
+      setStatusComment('');
+      setPendingStatus('');
+      try {
+        const historyResponse = await ordersApi.getHistory(order.ordrenr);
+        setHistory(historyResponse.data?.data ?? []);
+      } catch {
+        // Keep the updated status even if history refresh fails.
+      }
       toast.success('Ordrestatus oppdatert');
     } catch (err: unknown) {
-      const message =
-        (err as { response?: { data?: { error?: string } } })?.response?.data?.error ||
-        'Kunne ikke oppdatere status';
-      toast.error(message);
+      toast.error(getApiError(err, 'Kunne ikke oppdatere status'));
     } finally {
       setStatusSaving(false);
     }
@@ -211,9 +242,9 @@ export function AdminOrderDetail() {
               <select
                 id="workflowStatusSelect"
                 className="input min-w-[200px]"
-                value={order.workflow_status ?? 'new'}
+                value={pendingStatus || order.workflow_status}
                 disabled={statusSaving}
-                onChange={(e) => handleStatusChange(e.target.value as OrderWorkflowStatus)}
+                onChange={(e) => setPendingStatus(e.target.value as OrderWorkflowStatus)}
               >
                 {(ORDER_WORKFLOW_STATUSES.filter((value) => allowedStatuses.includes(value))).map(
                   (value) => (
@@ -224,8 +255,49 @@ export function AdminOrderDetail() {
                 )}
               </select>
             </div>
+            {(pendingStatus && pendingStatus !== currentStatus) && (
+              <button
+                type="button"
+                className="btn-primary"
+                disabled={statusSaving}
+                onClick={() => void handleStatusChange(pendingStatus as OrderWorkflowStatus)}
+              >
+                {statusSaving ? 'Lagrer…' : 'Lagre status'}
+              </button>
+            )}
           </div>
+          {(pendingStatus && pendingStatus !== currentStatus) && (
+            <div className="mt-4 max-w-xl">
+              <label className="label" htmlFor="workflowComment">
+                Kommentar til beslutningen{' '}
+                {pendingStatus === 'rejected' ? (
+                  <span className="text-red-300">(påkrevd ved avvisning)</span>
+                ) : (
+                  <span className="text-dark-500">(valgfritt)</span>
+                )}
+              </label>
+              <textarea
+                id="workflowComment"
+                className="input min-h-[4.5rem] w-full resize-y"
+                maxLength={500}
+                placeholder={
+                  pendingStatus === 'rejected'
+                    ? 'F.eks. feil pris, manglende referanse, kontakt selger…'
+                    : 'F.eks. godkjent etter avtale på e-post…'
+                }
+                value={statusComment}
+                disabled={statusSaving}
+                onChange={(e) => setStatusComment(e.target.value)}
+              />
+              <p className="mt-1 text-xs text-dark-500">{statusComment.trim().length}/500</p>
+            </div>
+          )}
           {order.lineSummary && <OrderLineSummaryCard summary={order.lineSummary} />}
+        </div>
+
+        <div className="card">
+          <h3 className="text-lg font-semibold mb-4">Status og hendelser</h3>
+          <OrderTimeline order={order} history={history} historyLoading={historyLoading} />
         </div>
 
         {/* Order lines */}

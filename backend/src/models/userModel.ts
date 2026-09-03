@@ -28,6 +28,9 @@ export interface UserPublic {
   role: string;
   kundenr?: string;
   created_at?: string;
+  entra_oid?: string | null;
+  entra_upn?: string | null;
+  entra_linked_at?: string | null;
 }
 
 export const userModel = {
@@ -56,6 +59,20 @@ export const userModel = {
     const result = await query(
       'SELECT id, username, password_hash, role, kundenr, token_version FROM users WHERE kundenr = $1',
       [kundenr]
+    );
+    return result.rows[0] || null;
+  },
+
+  /**
+   * Look up a user by their linked Microsoft Entra object ID.
+   *
+   * @param entraOid - Immutable Entra `oid` claim
+   * @returns The matching user (incl. token_version for auth) or `null`
+   */
+  findByEntraOid: async (entraOid: string): Promise<User | null> => {
+    const result = await query(
+      'SELECT id, username, password_hash, role, kundenr, token_version FROM users WHERE entra_oid = $1',
+      [entraOid]
     );
     return result.rows[0] || null;
   },
@@ -92,7 +109,7 @@ export const userModel = {
    */
   findById: async (id: number): Promise<UserPublic | null> => {
     const result = await query(
-      'SELECT id, username, role, kundenr, created_at FROM users WHERE id = $1',
+      'SELECT id, username, role, kundenr, created_at, entra_oid, entra_upn, entra_linked_at FROM users WHERE id = $1',
       [id]
     );
     return result.rows[0] || null;
@@ -116,7 +133,7 @@ export const userModel = {
    */
   search: async (search: string, limit: number): Promise<UserPublic[]> => {
     const result = await query(
-      `SELECT id, username, role, kundenr, created_at
+      `SELECT id, username, role, kundenr, created_at, entra_oid, entra_upn, entra_linked_at
        FROM users
        WHERE username ILIKE $1
        ORDER BY username
@@ -129,7 +146,7 @@ export const userModel = {
   getAll: async (page: number = 1, limit: number = 20): Promise<{ data: UserPublic[]; total: number }> => {
     const offset = (page - 1) * limit;
     const result = await query(
-      `SELECT id, username, role, kundenr, created_at,
+      `SELECT id, username, role, kundenr, created_at, entra_oid, entra_upn, entra_linked_at,
               COUNT(*) OVER()::int AS _total_count
        FROM users
        ORDER BY id ASC
@@ -209,5 +226,42 @@ export const userModel = {
   delete: async (id: number): Promise<boolean> => {
     const result = await query('DELETE FROM users WHERE id = $1', [id]);
     return (result.rowCount ?? 0) > 0;
+  },
+
+  /**
+   * Link a Microsoft Entra account to a local user (admin-only operation).
+   * The `entra_oid` UNIQUE constraint guarantees one Microsoft account maps
+   * to at most one local user — a duplicate raises PG 23505 (→ HTTP 409).
+   *
+   * @param id       - Local user ID
+   * @param entraOid - Immutable Entra `oid` claim
+   * @param entraUpn - Human identifier (preferred_username/email/upn) for display
+   * @returns The updated user record, or `null` if not found
+   */
+  linkEntra: async (id: number, entraOid: string, entraUpn?: string): Promise<UserPublic | null> => {
+    const result = await query(
+      `UPDATE users
+       SET entra_oid = $2, entra_upn = $3, entra_linked_at = NOW()
+       WHERE id = $1
+       RETURNING id, username, role, kundenr, created_at, entra_oid, entra_upn, entra_linked_at`,
+      [id, entraOid, entraUpn ?? null]
+    );
+    return result.rows[0] || null;
+  },
+
+  /**
+   * Remove the Microsoft Entra link from a local user. Local password login
+   * is unaffected; previously issued tokens stay valid until they expire or
+   * the token version is bumped.
+   */
+  unlinkEntra: async (id: number): Promise<UserPublic | null> => {
+    const result = await query(
+      `UPDATE users
+       SET entra_oid = NULL, entra_upn = NULL, entra_linked_at = NULL
+       WHERE id = $1
+       RETURNING id, username, role, kundenr, created_at, entra_oid, entra_upn, entra_linked_at`,
+      [id]
+    );
+    return result.rows[0] || null;
   },
 };

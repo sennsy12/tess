@@ -48,5 +48,8 @@ ordersRouter.patch(
   asyncHandler(orderController.updateStatus),
 );
 
+// Get workflow history (timeline: who/when/from→to/comment), kunde-scoped
+ordersRouter.get('/:ordrenr/history', authMiddleware, asyncHandler(orderController.getHistory));
+
 // Get a single order with lines
 ordersRouter.get('/:ordrenr', authMiddleware, asyncHandler(orderController.getOne));

@@ -17,6 +17,8 @@ export const notificationQuerySchema = paginationSchema.extend({
     .string()
     .optional()
     .transform((v) => v === 'true' || v === '1'),
+  /** Optional notification type filter (exact match, e.g. `order_status`). */
+  type: z.string().max(50).optional().transform(emptyToUndefined),
 });
 
 export const markNotificationsReadSchema = z.object({

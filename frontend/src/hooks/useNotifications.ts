@@ -38,3 +38,25 @@ export function useMarkAllNotificationsRead() {
     },
   });
 }
+
+export interface NotificationsPageFilters {
+  page: number;
+  limit: number;
+  unreadOnly: boolean;
+  /** Notification type filter (`''` = all types). */
+  type: string;
+}
+
+/** Paginated, filterable query backing the notification center page. */
+export function useNotificationsPage(filters: NotificationsPageFilters) {
+  const { page, limit, unreadOnly, type } = filters;
+  return useQuery({
+    queryKey: [...NOTIFICATIONS_QUERY_KEY, 'center', page, limit, unreadOnly, type],
+    queryFn: () =>
+      notificationsApi
+        .list({ page, limit, unreadOnly: unreadOnly || undefined, type: type || undefined })
+        .then((res) => res.data),
+    placeholderData: (prev) => prev,
+    refetchInterval: 30_000,
+  });
+}

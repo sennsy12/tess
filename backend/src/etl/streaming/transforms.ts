@@ -74,7 +74,37 @@ export function parseDateLike(value: string): string | null {
     const [dd, mm, yyyy] = v.split('.');
     return `${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`;
   }
-  return null;
+  // Excel serial dates (e.g. "46036.95" from .xlsx cells with date
+  // formatting — the streaming reader yields the raw serial number).
+  // Only pure-numeric input in a plausible serial range qualifies, and this
+  // function is only ever applied to `dato` columns, so ordinary id/text
+  // columns can never be misinterpreted here.
+  return parseExcelSerialDate(v);
+}
+
+/**
+ * Convert an Excel date serial number to `yyyy-mm-dd`.
+ *
+ * Excel counts days from 1899-12-30 (the 1900 leap-year bug is baked into
+ * the serial scheme); 25569 is the serial of the Unix epoch 1970-01-01.
+ * The fractional part is time-of-day and is dropped (`dato` is date-only).
+ * UTC getters avoid local-timezone day shifts.
+ *
+ * Returns null unless the input is a bare number inside the plausible
+ * serial window for 1954–2173 (20000–100000).
+ */
+export function parseExcelSerialDate(value: string): string | null {
+  const v = (value || '').trim();
+  if (!/^\d+(\.\d+)?$/.test(v)) return null;
+  const serial = Number(v);
+  if (!Number.isFinite(serial) || serial < 20000 || serial > 100000) return null;
+  const ms = Math.round((Math.floor(serial) - 25569) * 86400 * 1000);
+  const d = new Date(ms);
+  const yyyy = d.getUTCFullYear();
+  if (yyyy < 1954 || yyyy > 2173) return null;
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(d.getUTCDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
 }
 
 export function parseStatusToInt(value: string): number {

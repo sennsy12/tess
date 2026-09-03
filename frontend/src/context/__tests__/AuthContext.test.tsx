@@ -22,6 +22,7 @@ vi.mock('../../lib/api', () => ({
   authApi: {
     login: vi.fn(),
     loginKunde: vi.fn(),
+    entraLogin: vi.fn(),
     verify: vi.fn(),
     refresh: vi.fn(),
     logout: vi.fn().mockResolvedValue({ data: { success: true } }),
@@ -32,13 +33,14 @@ import { authApi } from '../../lib/api';
 
 const mockLogin = authApi.login as ReturnType<typeof vi.fn>;
 const mockLoginKunde = authApi.loginKunde as ReturnType<typeof vi.fn>;
+const mockLoginEntra = authApi.entraLogin as ReturnType<typeof vi.fn>;
 const mockVerify = authApi.verify as ReturnType<typeof vi.fn>;
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
 /** A minimal component that exposes AuthContext values for testing. */
 function TestConsumer() {
-  const { user, token, login, loginKunde, logout, isLoading } = useAuth();
+  const { user, token, login, loginKunde, loginEntra, logout, isLoading } = useAuth();
 
   return (
     <div>
@@ -47,6 +49,7 @@ function TestConsumer() {
       <div data-testid="token">{token ?? 'null'}</div>
       <button onClick={() => login('admin', 'pass')}>Login</button>
       <button onClick={() => loginKunde('K000001', 'pass')}>LoginKunde</button>
+      <button onClick={() => loginEntra('test-id-token')}>LoginEntra</button>
       <button onClick={() => logout()}>Logout</button>
     </div>
   );
@@ -140,6 +143,25 @@ describe('AuthContext', () => {
       expect(screen.getByTestId('token').textContent).toBe('kunde-jwt');
     });
     expect(JSON.parse(screen.getByTestId('user').textContent!)).toEqual(newUser);
+  });
+
+  it('loginEntra() exchanges the ID token and stores the local session', async () => {
+    const newUser = { id: 3, username: 'ada', role: 'analyse' };
+    mockLoginEntra.mockResolvedValueOnce({
+      data: { token: 'entra-jwt', refreshToken: 'entra-refresh', user: newUser },
+    });
+
+    renderWithProviders();
+    const user = userEvent.setup();
+
+    await user.click(screen.getByText('LoginEntra'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('token').textContent).toBe('entra-jwt');
+    });
+    expect(JSON.parse(screen.getByTestId('user').textContent!)).toEqual(newUser);
+    expect(mockLoginEntra).toHaveBeenCalledWith('test-id-token');
+    expect(sessionStorage.getItem('token')).toBe('entra-jwt');
   });
 
   it('logout() clears token, refresh token and user from context and sessionStorage', async () => {

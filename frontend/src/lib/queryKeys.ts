@@ -30,6 +30,10 @@ export const orderKeys = {
     sortKey: string | null,
     sortDirection: SortDirection,
   ) => [scope, 'orders', page, filters, sortKey, sortDirection] as const,
+  detail: (scope: 'admin' | 'kunde', ordrenr: number) => [scope, 'order', ordrenr] as const,
+  /** Workflow timeline for one order. */
+  history: (scope: 'admin' | 'kunde', ordrenr: number) =>
+    [scope, 'order-history', ordrenr] as const,
 };
 
 export const productKeys = {
@@ -107,6 +111,7 @@ export const statusKeys = {
   health: () => ['admin', 'health'] as const,
   apiMetrics: () => ['admin', 'api-metrics'] as const,
   etlMetrics: () => ['admin', 'etl-metrics'] as const,
+  recentActivity: (days = 7) => ['admin', 'recent-activity', days] as const,
 };
 
 /** Approval queue queries (dashboard widget + /admin/approvals page). */
@@ -157,6 +162,7 @@ export const kundeKeys = {
   catalogRoot: () => ['kunde', 'catalog'] as const,
   ordersRoot: () => ['kunde', 'orders'] as const,
   order: (ordrenr: number) => ['kunde', 'order', ordrenr] as const,
+  orderHistory: (ordrenr: number) => ['kunde', 'order-history', ordrenr] as const,
 };
 
 export const pricingKeys = {

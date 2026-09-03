@@ -7,4 +7,5 @@ export const statusApi = {
   getHealth: () => api.get('/status/health'),
   getApiMetrics: () => api.get('/status/api-metrics'),
   getEtlMetrics: () => api.get('/status/etl-metrics'),
+  getRecentActivity: (days = 7) => api.get('/status/recent-activity', { params: { days } }),
 };

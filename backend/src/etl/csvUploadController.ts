@@ -5,7 +5,7 @@ import { runCombinedOrderCsvEtl } from './streaming/pipeline/combinedOrderCsv.js
 import { EtlTableName } from './streaming/types.js';
 import { normalizeHeader } from './streaming/transforms.js';
 
-const SUPPORTED_TABLES: EtlTableName[] = ['ordre', 'ordrelinje', 'kunde', 'vare', 'firma', 'lager'];
+export const SUPPORTED_TABLES: EtlTableName[] = ['ordre', 'ordrelinje', 'kunde', 'vare', 'firma', 'lager'];
 
 async function detectSeparatorAndHeaders(filePath: string): Promise<{ separator: string; headers: string[] }> {
   const fileStream = fs.createReadStream(filePath);
@@ -30,7 +30,7 @@ async function detectSeparatorAndHeaders(filePath: string): Promise<{ separator:
   return { separator, headers };
 }
 
-function detectTargetTable(headers: string[]): EtlTableName {
+export function detectTargetTable(headers: string[]): EtlTableName {
   if (headers.includes('ordrenr') && headers.includes('linjenr')) return 'ordrelinje';
 
   const candidates: Record<EtlTableName, string[]> = {

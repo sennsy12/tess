@@ -12,5 +12,6 @@ export interface AuthContextType {
   isAuthenticated: boolean;
   login: (username: string, password: string) => Promise<User>;
   loginKunde: (kundenr: string, password: string) => Promise<User>;
+  loginEntra: (idToken: string) => Promise<User>;
   logout: () => void;
 }

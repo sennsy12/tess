@@ -70,14 +70,20 @@ export const orderController = {
 
   updateStatus: async (req: AuthRequest, res: Response) => {
     const { ordrenr } = req.params;
-    const { workflowStatus } = req.body as z.infer<typeof updateOrderStatusSchema>;
+    const { workflowStatus, comment } = req.body as z.infer<typeof updateOrderStatusSchema>;
 
     const result = await orderWorkflowService.updateStatus(
       Number(ordrenr),
       workflowStatus,
-      req.user?.username,
+      { comment: comment ?? null, req, user: req.user },
     );
     res.json(result);
+  },
+
+  getHistory: async (req: AuthRequest, res: Response) => {
+    const { ordrenr } = req.params;
+    const history = await orderWorkflowService.history(Number(ordrenr), req.user);
+    res.json({ data: history });
   },
 
   listStatuses: async (_req: AuthRequest, res: Response) => {

@@ -14,6 +14,7 @@ import {
   setSessionUser,
 } from '../lib/auth/tokenStore';
 import { onAuthUnauthorized } from '../lib/auth/authEvents';
+import { logoutMicrosoft } from '../lib/auth/msalClient';
 import { AuthContext } from './authContextInstance';
 import type { User } from './authTypes';
 
@@ -33,6 +34,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (refreshToken) {
       void authApi.logout(refreshToken).catch(() => undefined);
     }
+    // Best-effort Microsoft sign-out (hybrid auth); never blocks local logout.
+    void logoutMicrosoft();
     clearAuthToken();
     clearRefreshToken();
     clearSessionUser();
@@ -134,6 +137,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [authenticate]
   );
 
+  const loginEntra = useCallback(
+    (idToken: string) => authenticate(() => authApi.entraLogin(idToken)),
+    [authenticate]
+  );
+
   const isAuthenticated = Boolean(token && user);
 
   const value = useMemo(
@@ -144,9 +152,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isAuthenticated,
       login,
       loginKunde,
+      loginEntra,
       logout,
     }),
-    [user, token, isLoading, isAuthenticated, login, loginKunde, logout]
+    [user, token, isLoading, isAuthenticated, login, loginKunde, loginEntra, logout]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

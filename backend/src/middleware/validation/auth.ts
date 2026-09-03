@@ -26,3 +26,8 @@ export const refreshTokenSchema = z.object({
 export const revokeRefreshTokenSchema = z.object({
   refreshToken: z.string().min(32).max(200),
 });
+
+export const entraLoginSchema = z.object({
+  // Entra ID tokens are ~1–2 KB JWTs; cap well above that, far below body limits.
+  idToken: z.string().min(100).max(8000),
+});

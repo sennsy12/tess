@@ -60,6 +60,7 @@ export const notificationModel = {
     user: NotificationUserContext,
     pagination: { limit: number; offset: number },
     unreadOnly = false,
+    type?: string,
   ): Promise<{ data: NotificationRow[]; total: number }> => {
     const { sql: audienceSql, params: audienceParams } = audienceClause(user, 1);
     const params: unknown[] = [...audienceParams, user.id];
@@ -71,6 +72,15 @@ export const notificationModel = {
       unreadFilter = ' AND nr.notification_id IS NULL';
     }
 
+    // Exact-match type filter (parameterised — no injection surface).
+    let typeFilter = '';
+    const cleanType = typeof type === 'string' ? type.trim() : '';
+    if (cleanType) {
+      paramIndex += 1;
+      typeFilter = ` AND n.type = $${paramIndex}`;
+      params.push(cleanType);
+    }
+
     paramIndex += 1;
     params.push(pagination.limit, pagination.offset);
 
@@ -79,7 +89,7 @@ export const notificationModel = {
               COUNT(*) OVER()::int AS _total_count
        FROM notifications n
        ${readJoin}
-       WHERE ${audienceSql}${unreadFilter}
+       WHERE ${audienceSql}${unreadFilter}${typeFilter}
        ORDER BY n.created_at DESC
        LIMIT $${paramIndex++} OFFSET $${paramIndex}`,
       params,

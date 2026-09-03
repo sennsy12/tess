@@ -1,6 +1,6 @@
 export type EtlTableName = 'ordre' | 'ordrelinje' | 'kunde' | 'vare' | 'firma' | 'lager';
 
-export type EtlSourceType = 'csv' | 'json' | 'api' | 'generator';
+export type EtlSourceType = 'csv' | 'json' | 'api' | 'generator' | 'xlsx';
 
 export type JsonInputMode = 'ndjson' | 'array';
 
@@ -37,6 +37,12 @@ export interface CsvSourceConfig {
   compression?: CompressionType;
 }
 
+export interface XlsxSourceConfig {
+  filePath: string;
+  /** Worksheet name. Defaults to the first worksheet when omitted. */
+  sheet?: string;
+}
+
 export interface GeneratorSourceConfig {
   count: number;
   customers?: number;
@@ -50,6 +56,7 @@ export interface StreamingEtlRequest {
   strictMode?: boolean;
   sourceMapping?: Record<string, string>;
   csv?: CsvSourceConfig;
+  xlsx?: XlsxSourceConfig;
   json?: JsonSourceConfig;
   api?: ApiSourceConfig;
   generator?: GeneratorSourceConfig;

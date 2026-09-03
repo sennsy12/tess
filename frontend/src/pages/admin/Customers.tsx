@@ -255,6 +255,7 @@ export function AdminCustomers() {
     sortDirection: 'asc',
     currentPage: 1,
     visibleColumnKeys: ['kundenr', 'kundenavn', 'group', 'orders'],
+    columnLabels: {},
   });
 
   useEffect(() => {

@@ -3,9 +3,23 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Layout } from '../../components/Layout';
 import { DataTable, type DataTableState } from '../../components/DataTable';
 import { QueryErrorBanner } from '../../components/QueryErrorBanner';
+import { QueryRefetchBar } from '../../components/QueryRefetchBar';
+import { SystemStatusStrip } from '../../components/status/SystemStatusStrip';
+import { aggregateSystemStatus } from '../../lib/aggregateSystemStatus';
 import { statusApi } from '../../lib/api';
 import { statusKeys } from '../../lib/queryKeys';
-import { ApiEndpointMetric, ApiMetricsData } from '../../types/status';
+import { ApiEndpointMetric, ApiMetricsData, RecentActivityData } from '../../types/status';
+
+/** Auto-refresh for alle statuskilder. Ferskhet > sparte requests på admin-side. */
+const STATUS_REFETCH_MS = 30_000;
+/**
+ * staleTime styrer IKKE intervallet – det gjør refetchInterval over.
+ * 20s (< 30s) finnes kun for at bakgrunnsrefetch skal slå inn og vise
+ * QueryRefetchBar i stedet for å gjenbruke fersk cache stille.
+ */
+const STATUS_STALE_MS = 20_000;
+/** Når samlet status regnes som utdatert (1,5 × intervall). */
+const STATUS_STALE_AFTER_MS = 45_000;
 
 function StatusCard({
   title,
@@ -43,7 +57,7 @@ function StatusCard({
     );
   }
 
-  const ok = status === 'ok' || status === 'healthy';
+  const ok = status === 'ok' || status === 'healthy' || status === 'fresh';
 
   return (
     <div className={`card ${ok ? 'border-green-700/50' : 'border-red-700/50'}`}>
@@ -70,36 +84,70 @@ export function AdminStatus() {
     sortDirection: null,
     currentPage: 1,
     visibleColumnKeys: ['method', 'path', 'avgMs', 'minMs', 'maxMs', 'count', 'slowCount'],
+    columnLabels: {},
   });
 
   const systemQuery = useQuery({
     queryKey: statusKeys.system(),
     queryFn: () => statusApi.getStatus().then((res) => res.data),
+    refetchInterval: STATUS_REFETCH_MS,
+    refetchIntervalInBackground: false,
+    staleTime: STATUS_STALE_MS,
+    placeholderData: (prev) => prev,
   });
 
   const importQuery = useQuery({
     queryKey: statusKeys.import(),
     queryFn: () => statusApi.getImportStatus().then((res) => res.data),
+    refetchInterval: STATUS_REFETCH_MS,
+    refetchIntervalInBackground: false,
+    staleTime: STATUS_STALE_MS,
+    placeholderData: (prev) => prev,
   });
 
   const extractionQuery = useQuery({
     queryKey: statusKeys.extraction(),
     queryFn: () => statusApi.getExtractionStatus().then((res) => res.data),
+    refetchInterval: STATUS_REFETCH_MS,
+    refetchIntervalInBackground: false,
+    staleTime: STATUS_STALE_MS,
+    placeholderData: (prev) => prev,
   });
 
   const healthQuery = useQuery({
     queryKey: statusKeys.health(),
     queryFn: () => statusApi.getHealth().then((res) => res.data),
+    refetchInterval: STATUS_REFETCH_MS,
+    refetchIntervalInBackground: false,
+    staleTime: STATUS_STALE_MS,
+    placeholderData: (prev) => prev,
   });
 
   const apiMetricsQuery = useQuery<ApiMetricsData>({
     queryKey: statusKeys.apiMetrics(),
     queryFn: () => statusApi.getApiMetrics().then((res) => res.data),
+    refetchInterval: STATUS_REFETCH_MS,
+    refetchIntervalInBackground: false,
+    staleTime: STATUS_STALE_MS,
+    placeholderData: (prev) => prev,
   });
 
   const etlMetricsQuery = useQuery({
     queryKey: statusKeys.etlMetrics(),
     queryFn: () => statusApi.getEtlMetrics().then((res) => res.data),
+    refetchInterval: STATUS_REFETCH_MS,
+    refetchIntervalInBackground: false,
+    staleTime: STATUS_STALE_MS,
+    placeholderData: (prev) => prev,
+  });
+
+  const recentActivityQuery = useQuery<RecentActivityData>({
+    queryKey: statusKeys.recentActivity(),
+    queryFn: () => statusApi.getRecentActivity().then((res) => res.data),
+    refetchInterval: STATUS_REFETCH_MS,
+    refetchIntervalInBackground: false,
+    staleTime: STATUS_STALE_MS,
+    placeholderData: (prev) => prev,
   });
 
   const loadAllStatus = () => {
@@ -109,6 +157,7 @@ export function AdminStatus() {
     void queryClient.invalidateQueries({ queryKey: statusKeys.health() });
     void queryClient.invalidateQueries({ queryKey: statusKeys.apiMetrics() });
     void queryClient.invalidateQueries({ queryKey: statusKeys.etlMetrics() });
+    void queryClient.invalidateQueries({ queryKey: statusKeys.recentActivity() });
   };
 
   const systemStatus = systemQuery.data;
@@ -117,6 +166,76 @@ export function AdminStatus() {
   const healthStatus = healthQuery.data;
   const apiMetrics = apiMetricsQuery.data;
   const etlMetrics = etlMetricsQuery.data;
+  const recentActivity = recentActivityQuery.data;
+
+  const hasAnyData = Boolean(
+    systemStatus ??
+      importStatus ??
+      extractionStatus ??
+      healthStatus ??
+      apiMetrics ??
+      etlMetrics ??
+      recentActivity,
+  );
+  const isAnyLoading =
+    systemQuery.isLoading ||
+    importQuery.isLoading ||
+    extractionQuery.isLoading ||
+    healthQuery.isLoading ||
+    apiMetricsQuery.isLoading ||
+    etlMetricsQuery.isLoading ||
+    recentActivityQuery.isLoading;
+  const isFetchingAny =
+    systemQuery.isFetching ||
+    importQuery.isFetching ||
+    extractionQuery.isFetching ||
+    healthQuery.isFetching ||
+    apiMetricsQuery.isFetching ||
+    etlMetricsQuery.isFetching ||
+    recentActivityQuery.isFetching;
+
+  const aggregated = aggregateSystemStatus({
+    systemStatus,
+    healthStatus,
+    importStatus,
+    extractionStatus,
+    apiMetrics,
+    etlMetrics,
+    recentActivity,
+    errors: {
+      system: systemQuery.isError,
+      health: healthQuery.isError,
+      import: importQuery.isError,
+      extraction: extractionQuery.isError,
+      apiMetrics: apiMetricsQuery.isError,
+      etlMetrics: etlMetricsQuery.isError,
+      recentActivity: recentActivityQuery.isError,
+    },
+    hasAnyData,
+    isAnyLoading,
+  });
+
+  // Samlet timestamp = eldste kilde (ærlighet > kosmetikk). 0/manglende
+  // dataUpdatedAt betyr initial/partial – ikke stale – og gir undefined.
+  const updatedAtValues = [
+    systemQuery.dataUpdatedAt,
+    importQuery.dataUpdatedAt,
+    extractionQuery.dataUpdatedAt,
+    healthQuery.dataUpdatedAt,
+    apiMetricsQuery.dataUpdatedAt,
+    etlMetricsQuery.dataUpdatedAt,
+    recentActivityQuery.dataUpdatedAt,
+  ].filter((value): value is number => value > 0);
+  const lastUpdated = updatedAtValues.length === 7 ? Math.min(...updatedAtValues) : undefined;
+
+  // DB-detaljer: backend returnerer full version()-streng og servertid.
+  // Kortform vises, full streng i tooltip. Drift = avvik app-klokke vs DB.
+  const dbVersionShort = systemStatus?.database?.version?.split(',')[0]?.trim();
+  const dbServerTime = systemStatus?.database?.serverTime;
+  const dbClockDriftSecs =
+    dbServerTime && systemStatus?.timestamp
+      ? Math.round((new Date(systemStatus.timestamp).getTime() - new Date(dbServerTime).getTime()) / 1000)
+      : null;
 
   const endpointColumns = [
     {
@@ -149,11 +268,15 @@ export function AdminStatus() {
   return (
     <Layout title="System Status">
       <div className="space-y-6">
-        <div className="flex justify-end">
-          <button type="button" onClick={loadAllStatus} className="btn-secondary">
-            Oppdater status
-          </button>
-        </div>
+        <SystemStatusStrip
+          level={aggregated.level}
+          reasons={aggregated.reasons}
+          lastUpdated={lastUpdated}
+          staleAfterMs={STATUS_STALE_AFTER_MS}
+          isRefreshing={isFetchingAny}
+          onRefresh={loadAllStatus}
+        />
+        <QueryRefetchBar active={isFetchingAny && hasAnyData} />
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <StatusCard
@@ -176,14 +299,37 @@ export function AdminStatus() {
                   <span>{new Date(systemStatus.timestamp).toLocaleString('nb-NO')}</span>
                 </div>
               )}
+              {dbVersionShort && (
+                <div className="flex justify-between gap-4">
+                  <span className="text-dark-400 shrink-0">Postgres</span>
+                  <span className="font-mono text-right truncate" title={systemStatus?.database?.version}>
+                    {dbVersionShort}
+                  </span>
+                </div>
+              )}
+              {dbServerTime && (
+                <div className="flex justify-between gap-4">
+                  <span className="text-dark-400 shrink-0">DB-servertid</span>
+                  <span className="tabular-nums text-right">
+                    {new Date(dbServerTime).toLocaleString('nb-NO')}
+                    {dbClockDriftSecs !== null && Math.abs(dbClockDriftSecs) >= 2 && (
+                      <span className="ml-2 text-xs text-amber-400" title="Avvik mellom app- og DB-klokke">
+                        ({dbClockDriftSecs > 0 ? '+' : ''}{dbClockDriftSecs}s drift)
+                      </span>
+                    )}
+                  </span>
+                </div>
+              )}
               {systemStatus?.tables && (
                 <div className="pt-3 border-t border-dark-800">
-                  <span className="text-sm text-dark-400">Tabeller i database:</span>
+                  <span className="text-sm text-dark-400" title="Estimert antall rader (pg_class)">
+                    Tabeller i database (estimert):
+                  </span>
                   <div className="grid grid-cols-2 gap-2 mt-2">
                     {Object.entries(systemStatus.tables).map(([key, value]) => (
                       <div key={key} className="flex justify-between bg-dark-800/50 p-2 rounded">
                         <span className="text-dark-300 capitalize">{key}</span>
-                        <span className="font-mono">{String(value)}</span>
+                        <span className="font-mono" title="Estimert antall (pg_class)">~{String(value)}</span>
                       </div>
                     ))}
                   </div>
@@ -251,6 +397,46 @@ export function AdminStatus() {
             <div className="space-y-3">
               {extractionStatus?.message && (
                 <p className="text-sm text-dark-400">{extractionStatus.message}</p>
+              )}
+            </div>
+          </StatusCard>
+
+          <StatusCard
+            title="Dataferskhet"
+            status={recentActivity?.status === 'stale' ? 'stale' : recentActivity ? 'fresh' : undefined}
+            isLoading={recentActivityQuery.isLoading}
+            isError={recentActivityQuery.isError}
+            onRetry={() => recentActivityQuery.refetch()}
+          >
+            <div className="space-y-3">
+              <div className="flex justify-between">
+                <span className="text-dark-400">Siste ordre</span>
+                <span>
+                  {recentActivity?.dataFreshness.lastOrderDate
+                    ? new Date(recentActivity.dataFreshness.lastOrderDate).toLocaleDateString('nb-NO')
+                    : '-'}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-dark-400">Dager siden siste ordre</span>
+                <span className="font-mono">
+                  {recentActivity?.dataFreshness.daysSinceLastOrder ?? '-'}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-dark-400">Kunder</span>
+                <span className="font-mono">
+                  {recentActivity ? `~${recentActivity.dataFreshness.totalCustomers}` : '-'}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-dark-400">Produkter</span>
+                <span className="font-mono">
+                  {recentActivity ? `~${recentActivity.dataFreshness.totalProducts}` : '-'}
+                </span>
+              </div>
+              {recentActivity?.message && (
+                <p className="text-sm text-dark-400 pt-3 border-t border-dark-800">{recentActivity.message}</p>
               )}
             </div>
           </StatusCard>

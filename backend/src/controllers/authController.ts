@@ -5,9 +5,11 @@ import {
   refreshTokenModel,
   REFRESH_TOKEN_TTL_MS,
 } from '../models/refreshTokenModel.js';
-import { ValidationError, UnauthorizedError } from '../middleware/errorHandler.js';
+import { ValidationError, UnauthorizedError, ForbiddenError, ServiceUnavailableError } from '../middleware/errorHandler.js';
 import { jwtPayloadSchema, invalidateTokenVersionCache, type AuthRequest } from '../middleware/auth.js';
 import { getJwtSecret, JWT_ALGORITHMS } from '../lib/jwt.js';
+import { getEntraConfig } from '../lib/entra.js';
+import { verifyEntraIdToken, EntraVerificationError } from '../lib/entraVerify.js';
 import { hashPassword, verifyPassword } from '../lib/password.js';
 
 /** Access tokens are short-lived; refresh tokens extend the session. */
@@ -228,5 +230,54 @@ export const authController = {
     }
 
     res.json({ valid: true, user: parsed.data });
+  },
+
+  /**
+   * Public SPA configuration for Microsoft sign-in. Only the tenant/client
+   * IDs are exposed (public by design for a SPA); no secrets involved.
+   */
+  entraConfig: async (_req: Request, res: Response) => {
+    const config = getEntraConfig();
+    if (!config) {
+      res.json({ enabled: false });
+      return;
+    }
+    res.json({ enabled: true, clientId: config.clientId, tenantId: config.tenantId });
+  },
+
+  /**
+   * Hybrid Microsoft sign-in: verify the MSAL ID token against the tenant
+   * JWKS, require an admin-linked local user, then issue the SAME access +
+   * refresh pair as a password login (identical session semantics, role
+   * guards, and token_version revocation).
+   */
+  entraLogin: async (req: Request, res: Response) => {
+    if (!getEntraConfig()) {
+      throw new ServiceUnavailableError('Microsoft sign-in is not enabled');
+    }
+    const { idToken } = req.body as { idToken?: string };
+    if (!idToken) {
+      throw new ValidationError('ID token is required');
+    }
+
+    let oid: string;
+    try {
+      ({ oid } = await verifyEntraIdToken(idToken));
+    } catch (err) {
+      if (err instanceof EntraVerificationError) {
+        throw new UnauthorizedError('Invalid Microsoft sign-in token');
+      }
+      throw err;
+    }
+
+    const user = await userModel.findByEntraOid(oid);
+    if (!user) {
+      // No JIT provisioning: unknown Microsoft accounts must be linked by
+      // an admin first. 403 (not 401) so clients can show "contact admin".
+      throw new ForbiddenError('Microsoft account is not linked to a user. Contact an administrator.');
+    }
+
+    const { token, refreshToken } = await issueTokenPair(user);
+    res.json({ token, refreshToken, user: publicUserFromRecord(user) });
   },
 };

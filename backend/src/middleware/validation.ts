@@ -24,6 +24,7 @@ export {
   changePasswordSchema,
   refreshTokenSchema,
   revokeRefreshTokenSchema,
+  entraLoginSchema,
 } from './validation/auth.js';
 
 export {
@@ -62,6 +63,7 @@ export {
   createUserSchema,
   updateUserSchema,
   deleteUserSchema,
+  entraLinkSchema,
 } from './validation/users.js';
 
 export {
@@ -72,3 +74,11 @@ export {
   userSearchQuerySchema,
   auditQuerySchema,
 } from './validation/search.js';
+
+export {
+  tableKeyParamSchema,
+  tablePreferencesBodySchema,
+  MAX_COLUMN_LABEL_LENGTH,
+} from './validation/tablePreferences.js';
+
+export type { TablePreferencesBody } from './validation/tablePreferences.js';

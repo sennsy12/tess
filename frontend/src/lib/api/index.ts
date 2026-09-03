@@ -20,6 +20,7 @@ export type { CreateOrderPayload, CreateOrderItemPayload, CreateOrderResponse } 
 export { etlApi } from './etl';
 export { statusApi } from './status';
 export { reportsApi } from './reports';
+export { tablePreferencesApi } from './tablePreferences';
 export { schedulerApi } from './scheduler';
 export { suggestionsApi } from './suggestions';
 export { dashboardApi } from './dashboard';

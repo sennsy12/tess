@@ -6,8 +6,20 @@ import { PasswordInput } from '../components/PasswordInput';
 import { Spinner } from '../components/Spinner';
 import { supportMailto } from '../lib/appConfig';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { authApi } from '../lib/api';
+import {
+  loginWithMicrosoft,
+  isPopupCancelled,
+  type EntraPublicConfig,
+} from '../lib/auth/msalClient';
 
 type LoginMode = 'standard' | 'kunde';
+
+function navigateByRole(navigate: ReturnType<typeof useNavigate>, role: string) {
+  if (role === 'admin') navigate('/admin', { replace: true });
+  else if (role === 'analyse') navigate('/analyse', { replace: true });
+  else navigate('/kunde', { replace: true });
+}
 
 export function Login() {
   const [mode, setMode] = useState<LoginMode>('standard');
@@ -16,12 +28,32 @@ export function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isMicrosoftLoading, setIsMicrosoftLoading] = useState(false);
+  const [entraConfig, setEntraConfig] = useState<EntraPublicConfig | null>(null);
   const [mounted, setMounted] = useState(false);
 
   useDocumentTitle('Innlogging');
 
-  const { login, loginKunde, user, isLoading: authLoading } = useAuth();
+  const { login, loginKunde, loginEntra, user, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
+
+  // Microsoft sign-in availability must never break local login: any failure
+  // here (backend down, Entra disabled) simply hides the Microsoft button.
+  useEffect(() => {
+    let cancelled = false;
+    authApi
+      .entraConfig()
+      .then((res) => {
+        const data = res.data;
+        if (!cancelled && data?.enabled && data.clientId && data.tenantId) {
+          setEntraConfig({ clientId: data.clientId, tenantId: data.tenantId });
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     setMounted(true);
@@ -29,9 +61,7 @@ export function Login() {
 
   useEffect(() => {
     if (authLoading || !user) return;
-    if (user.role === 'admin') navigate('/admin', { replace: true });
-    else if (user.role === 'analyse') navigate('/analyse', { replace: true });
-    else navigate('/kunde', { replace: true });
+    navigateByRole(navigate, user.role);
   }, [user, authLoading, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -44,20 +74,41 @@ export function Login() {
         await loginKunde(kundenr, password);
         navigate('/kunde');
       } else {
-        const user = await login(username, password);
+        const loggedInUser = await login(username, password);
         // Redirect based on role
-        if (user.role === 'admin') {
-          navigate('/admin');
-        } else if (user.role === 'analyse') {
-          navigate('/analyse');
-        } else {
-          navigate('/kunde');
-        }
+        navigateByRole(navigate, loggedInUser.role);
       }
     } catch (err: any) {
       setError(err.response?.data?.error || 'Innlogging feilet. Sjekk brukernavn og passord.');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleMicrosoftLogin = async () => {
+    if (!entraConfig || isMicrosoftLoading) return;
+    setError('');
+    setIsMicrosoftLoading(true);
+    try {
+      const idToken = await loginWithMicrosoft(entraConfig);
+      const entraUser = await loginEntra(idToken);
+      navigateByRole(navigate, entraUser.role);
+    } catch (err: any) {
+      // Popup aborted by the user — stay silent, keep the form as-is.
+      if (isPopupCancelled(err)) {
+        setIsMicrosoftLoading(false);
+        return;
+      }
+      const status = err.response?.status;
+      if (status === 403) {
+        setError('Microsoft-kontoen er ikke koblet til en bruker. Kontakt administrator.');
+      } else if (status === 503) {
+        setError('Microsoft-innlogging er ikke tilgjengelig for øyeblikket.');
+      } else {
+        setError(err.response?.data?.error || 'Microsoft-innlogging feilet. Prøv igjen.');
+      }
+    } finally {
+      setIsMicrosoftLoading(false);
     }
   };
 
@@ -240,6 +291,37 @@ export function Login() {
                 Kontakt support for hjelp med innlogging.
               </p>
             </form>
+
+            {entraConfig && (
+              <div className="mt-6">
+                <div className="flex items-center gap-3 mb-4" aria-hidden>
+                  <div className="flex-1 h-px bg-dark-800" />
+                  <span className="text-xs text-dark-500 uppercase tracking-wider">eller</span>
+                  <div className="flex-1 h-px bg-dark-800" />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleMicrosoftLogin}
+                  disabled={isLoading || isMicrosoftLoading}
+                  className="w-full btn-secondary py-3 text-sm font-semibold tracking-wide relative"
+                >
+                  <span className={`flex items-center justify-center gap-2 ${isMicrosoftLoading ? 'opacity-0' : 'opacity-100'} transition-opacity`}>
+                    <svg className="h-4 w-4" viewBox="0 0 23 23" aria-hidden>
+                      <path fill="#f35325" d="M1 1h10v10H1z" />
+                      <path fill="#81bc06" d="M12 1h10v10H12z" />
+                      <path fill="#05a6f0" d="M1 12h10v10H1z" />
+                      <path fill="#ffba08" d="M12 12h10v10H12z" />
+                    </svg>
+                    Logg inn med Microsoft
+                  </span>
+                  {isMicrosoftLoading && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <Spinner size="sm" />
+                    </div>
+                  )}
+                </button>
+              </div>
+            )}
 
             {import.meta.env.DEV && (
             <div className="mt-8 pt-6 border-t border-dark-800">

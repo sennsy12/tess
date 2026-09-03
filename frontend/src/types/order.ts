@@ -47,6 +47,19 @@ export interface OrderLineSummary {
   weightedAvgPrice: number;
 }
 
+/** One row of the order workflow timeline (GET /orders/:ordrenr/history). */
+export interface OrderStatusHistoryEntry {
+  id: number;
+  ordrenr: number;
+  previous_status: OrderWorkflowStatus | null;
+  new_status: OrderWorkflowStatus;
+  changed_by_id: number | null;
+  changed_by_username: string;
+  changed_by_role: string;
+  comment: string | null;
+  created_at: string;
+}
+
 export interface Suggestion {
   suggestion: string;
   type: string;

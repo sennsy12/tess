@@ -15,11 +15,12 @@ export const etlRouter = Router();
 const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
 fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
-const ALLOWED_UPLOAD_EXTENSIONS = /\.(csv|txt)$/i;
+const ALLOWED_UPLOAD_EXTENSIONS = /\.(csv|txt|xlsx|xlsm)$/i;
 const ALLOWED_UPLOAD_MIMES = new Set([
   'text/csv',
   'text/plain',
   'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   'application/octet-stream', // common on Windows for .csv
 ]);
 
@@ -30,12 +31,12 @@ const upload = multer({
     fileSize: 50 * 1024 * 1024, // 50MB max file size
     files: 1, // Single file only
   },
-  // Only accept CSV uploads — reject anything else before it hits disk.
+  // Only accept CSV/XLSX uploads — reject anything else before it hits disk.
   fileFilter: (_req, file, cb) => {
     const extOk = ALLOWED_UPLOAD_EXTENSIONS.test(file.originalname);
     const mimeOk = ALLOWED_UPLOAD_MIMES.has(file.mimetype);
     if (!extOk || !mimeOk) {
-      cb(new AppError('Only CSV files are accepted', 400));
+      cb(new AppError('Only CSV or XLSX files are accepted', 400));
       return;
     }
     cb(null, true);
@@ -80,6 +81,9 @@ etlRouter.post('/runBulkLoadFast', destructive, validate(bulkStreamingSchema), a
 
 // Upload CSV directly to database (Streaming COPY)
 etlRouter.post('/upload-csv', upload.single('file'), asyncHandler(etlController.uploadCsv));
+
+// Upload XLSX worksheet directly to database (Streaming COPY, O(1) memory)
+etlRouter.post('/upload-xlsx', upload.single('file'), asyncHandler(etlController.uploadXlsx));
 
 // Unified source ingest endpoint (csv/json/api)
 etlRouter.post('/ingest', upload.single('file'), validate(etlIngestSchema), asyncHandler(etlController.ingestStream));

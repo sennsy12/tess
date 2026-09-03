@@ -12,6 +12,7 @@
     "lint:fix": "eslint src --fix"
   },
   "dependencies": {
+    "@azure/msal-browser": "^4.30.0",
     "@tanstack/react-query": "^5.90.20",
     "axios": "^1.6.2",
     "framer-motion": "^12.34.3",

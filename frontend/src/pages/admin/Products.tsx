@@ -53,6 +53,7 @@ export function AdminProducts() {
     sortDirection: 'asc',
     currentPage: 1,
     visibleColumnKeys: ['varekode', 'varenavn', 'varegruppe', 'base_price'],
+    columnLabels: {},
   });
 
   useEffect(() => {

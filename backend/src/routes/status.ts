@@ -19,6 +19,9 @@ statusRouter.get('/extraction', authMiddleware, roleGuard('admin'), asyncHandler
 // Get frontend/backend health (admin only)
 statusRouter.get('/health', authMiddleware, roleGuard('admin'), asyncHandler(statusController.getHealth));
 
+// Get data freshness: last order date, days since, totals (admin only)
+statusRouter.get('/recent-activity', authMiddleware, roleGuard('admin'), asyncHandler(statusController.getRecentActivity));
+
 // Get API performance metrics (admin only)
 statusRouter.get('/api-metrics', authMiddleware, roleGuard('admin'), asyncHandler(async (req: Request, res: Response) => {
   res.json({

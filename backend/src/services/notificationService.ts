@@ -23,16 +23,20 @@ export async function notifyOrderStatusChange(input: {
   previousStatus: OrderWorkflowStatus;
   newStatus: OrderWorkflowStatus;
   changedBy?: string;
+  comment?: string | null;
 }): Promise<void> {
   const label = ORDER_WORKFLOW_LABELS[input.newStatus];
   const title = `Ordre #${input.ordrenr} oppdatert`;
-  const message = `Status endret til «${label}».`;
+  const commentSuffix =
+    input.comment && input.comment.trim().length > 0 ? ` Begrunnelse: ${input.comment.trim()}` : '';
+  const message = `Status endret til «${label}».${commentSuffix}`;
   const metadata = {
     ordrenr: input.ordrenr,
     kundenr: input.kundenr,
     previousStatus: input.previousStatus,
     newStatus: input.newStatus,
     changedBy: input.changedBy,
+    comment: input.comment ?? null,
   };
 
   await notificationModel.create({

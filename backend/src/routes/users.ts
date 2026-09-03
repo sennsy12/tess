@@ -7,6 +7,7 @@ import {
   createUserSchema,
   updateUserSchema,
   deleteUserSchema,
+  entraLinkSchema,
   userListQuerySchema,
   userSearchQuerySchema,
 } from '../middleware/validation.js';
@@ -27,3 +28,7 @@ usersRouter.post('/', validate(createUserSchema), asyncHandler(userController.cr
 usersRouter.put('/:id', validate(updateUserSchema), asyncHandler(userController.update));
 
 usersRouter.delete('/:id', validate(deleteUserSchema), asyncHandler(userController.delete));
+
+usersRouter.post('/:id/entra-link', validate(entraLinkSchema), asyncHandler(userController.linkEntra));
+
+usersRouter.delete('/:id/entra-link', validate(deleteUserSchema), asyncHandler(userController.unlinkEntra));

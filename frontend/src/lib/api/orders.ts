@@ -9,8 +9,10 @@ export const ordersApi = {
     api.get<OrdersListResponse>('/orders', { params }),
   getOne: (ordrenr: number) => api.get(`/orders/${ordrenr}`),
   searchByReferences: (q: string) => api.get('/orders/search/references', { params: { q } }),
-  updateStatus: (ordrenr: number, workflowStatus: string) =>
-    api.patch(`/orders/${ordrenr}/status`, { workflowStatus }),
+  updateStatus: (ordrenr: number, workflowStatus: string, comment?: string) =>
+    api.patch(`/orders/${ordrenr}/status`, comment ? { workflowStatus, comment } : { workflowStatus }),
+  /** Workflow timeline: who/when/from→to/comment (kunde-scoped on the server). */
+  getHistory: (ordrenr: number) => api.get<{ data: import('../../types/order').OrderStatusHistoryEntry[] }>(`/orders/${ordrenr}/history`),
   listStatuses: () => api.get<{ value: string; label: string }[]>('/orders/statuses'),
   /** Place a customer order from the cart. Server re-prices all items. */
   create: (data: CreateOrderPayload) => api.post<CreateOrderResponse>('/orders', data),
