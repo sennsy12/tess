@@ -80,6 +80,9 @@ jobs:
           --health-interval 5s
           --health-timeout 3s
           --health-retries 10
+    permissions:
+      contents: read
+      security-events: write
     steps:
       - uses: actions/checkout@v4
       # Belt-and-braces after two close calls with committed coverage:
@@ -107,8 +110,10 @@ jobs:
       - name: Build
         run: npm run build
       - name: Migration smoke test
-        # Proves tracked migrations apply cleanly against a real database.
+        # Mirrors production boot (DEPLOY.md): init.sql creates the base
+        # schema once, then tracked migrations apply on top of it.
         run: |
+          psql postgresql://postgres:postgres@localhost:5432/postgres -v ON_ERROR_STOP=1 -f ../init.sql
           DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres npm run migrate
       - name: Audit dependencies
         run: npm audit --omit=dev --audit-level=high
@@ -120,10 +125,10 @@ jobs:
         with:
           image-ref: tess-backend-prod:ci
           format: sarif
-          output: trivy-results.sarif
+          output: ${{ github.workspace }}/trivy-results.sarif
           severity: HIGH,CRITICAL
       - name: Upload Trivy results
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
-          sarif_file: trivy-results.sarif
+          sarif_file: ${{ github.workspace }}/trivy-results.sarif
