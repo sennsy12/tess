@@ -14,7 +14,7 @@ export async function runAssistantChat(params: {
   const messages = sanitizeMessageHistory(params.body.messages);
   const lastUser = messages[messages.length - 1]!;
 
-  const chunks = retrieveKnowledge(lastUser.content, params.role);
+  const chunks = retrieveKnowledge(lastUser.content, params.role, params.body.pathname);
   const knowledgeContext = formatKnowledgeContext(chunks);
   const systemPrompt = buildSystemPrompt({
     role: params.role,

@@ -4,8 +4,11 @@ import type { AssistantChatResponse, AssistantMessage, AssistantStatusResponse }
 export const assistantApi = {
   getStatus: () => api.get<AssistantStatusResponse>('/assistant/status'),
 
-  sendMessage: (payload: {
-    messages: Pick<AssistantMessage, 'role' | 'content'>[];
-    pathname?: string;
-  }) => api.post<AssistantChatResponse>('/assistant/chat', payload),
+  sendMessage: (
+    payload: {
+      messages: Pick<AssistantMessage, 'role' | 'content'>[];
+      pathname?: string;
+    },
+    signal?: AbortSignal
+  ) => api.post<AssistantChatResponse>('/assistant/chat', payload, { signal }),
 };

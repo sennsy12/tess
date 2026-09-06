@@ -16,6 +16,7 @@ const assistantEnvSchema = z.object({
     .string()
     .optional()
     .transform((v) => Math.min(800, Math.max(100, parseInt(v ?? '500', 10) || 500))),
+  ASSISTANT_TIMEOUT_MS: z.string().optional(),
   /** @deprecated Use ASSISTANT_MAX_OUTPUT_TOKENS */
   OPENAI_MAX_OUTPUT_TOKENS: z.string().optional(),
 });
@@ -26,6 +27,7 @@ export interface AssistantConfig {
   apiKey: string | undefined;
   model: string;
   maxOutputTokens: number;
+  timeoutMs: number;
 }
 
 let cached: AssistantConfig | null = null;
@@ -59,12 +61,17 @@ export function getAssistantConfig(): AssistantConfig {
     ? Math.min(800, Math.max(100, parseInt(String(tokenRaw), 10) || 500))
     : 500;
 
+  const timeoutRaw = Number(env.ASSISTANT_TIMEOUT_MS);
+  const timeoutMs =
+    Number.isFinite(timeoutRaw) && timeoutRaw > 0 ? Math.floor(timeoutRaw) : 30000;
+
   cached = {
     enabled: flagOn && Boolean(apiKey),
     provider,
     apiKey,
     model,
     maxOutputTokens,
+    timeoutMs,
   };
 
   return cached;

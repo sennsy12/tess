@@ -1,3 +1,4 @@
+import { logger } from '../../lib/logger.js';
 import { ValidationError } from '../../middleware/errorHandler.js';
 
 const MAX_MESSAGE_LENGTH = 2000;
@@ -30,12 +31,20 @@ export function sanitizeUserText(raw: string): string {
 export function assertSafeUserMessage(content: string): void {
   for (const pattern of BLOCKED_PATTERNS) {
     if (pattern.test(content)) {
+      logger.warn(
+        { pattern: pattern.source, content: content.slice(0, 120) },
+        'Blocked message content detected'
+      );
       throw new ValidationError(
         'Meldingen inneholder ikke tillatt innhold. Spør om hvordan TESS fungerer, ikke om hemmeligheter eller datauttrekk.'
       );
     }
   }
   if (EMAIL_LIKE.test(content) && content.length > 80) {
+    logger.warn(
+      { content: content.slice(0, 120) },
+      'Blocked message content detected'
+    );
     throw new ValidationError('Ikke lim inn e-post eller store tekstblokker med persondata.');
   }
 }
@@ -54,9 +63,9 @@ export function sanitizeMessageHistory(
       throw new ValidationError('Ugyldig meldingsrolle.');
     }
     const content = sanitizeUserText(msg.content);
-    if (msg.role === 'user') {
-      assertSafeUserMessage(content);
-    }
+    // P0-1: forged assistant history must not bypass checks. The model
+    // never legitimately outputs blocked patterns, so safe replies pass.
+    assertSafeUserMessage(content);
     normalized.push({ role: msg.role, content });
   }
 

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'framer-motion';
-import { MessageCircle, X, Trash2 } from 'lucide-react';
+import { MessageCircle, Square, X, Trash2 } from 'lucide-react';
 import { assistantApi } from '../../lib/api/assistant';
 import { queryKeys } from '../../lib/queryKeys';
 import { useAssistantChat } from '../../hooks/useAssistantChat';
@@ -28,7 +28,7 @@ export function AssistantChat({ elevatedBottom = false }: AssistantChatProps) {
     staleTime: 60_000,
   });
 
-  const { messages, isLoading, error, send, clear, suggestedQuestions } = useAssistantChat();
+  const { messages, isLoading, error, send, retry, abort, clear, suggestedQuestions } = useAssistantChat();
 
   useEffect(() => {
     if (open && scrollRef.current) {
@@ -36,7 +36,19 @@ export function AssistantChat({ elevatedBottom = false }: AssistantChatProps) {
     }
   }, [open, messages, isLoading]);
 
-  if (statusLoading || !status?.enabled) {
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (isLoading) abort();
+        setOpen(false);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [open, isLoading, abort]);
+
+  if (!statusLoading && !status?.enabled) {
     return null;
   }
 
@@ -45,7 +57,8 @@ export function AssistantChat({ elevatedBottom = false }: AssistantChatProps) {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className={`fixed ${fabBottom} right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-primary-600 text-white shadow-lg hover:bg-primary-500 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-400 focus:ring-offset-2 focus:ring-offset-dark-950`}
+        disabled={statusLoading}
+        className={`fixed ${fabBottom} right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-primary-600 text-white shadow-lg hover:bg-primary-500 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-400 focus:ring-offset-2 focus:ring-offset-dark-950 disabled:opacity-60`}
         aria-expanded={open}
         aria-controls="assistant-panel"
         aria-label={open ? 'Lukk TESS-assistent' : 'Åpne TESS-assistent'}
@@ -54,7 +67,7 @@ export function AssistantChat({ elevatedBottom = false }: AssistantChatProps) {
       </button>
 
       <AnimatePresence>
-        {open && (
+        {open && status?.enabled !== false && (
           <motion.div
             id="assistant-panel"
             role="dialog"
@@ -72,24 +85,47 @@ export function AssistantChat({ elevatedBottom = false }: AssistantChatProps) {
                 </h2>
                 <p className="text-xs text-dark-500">Kun hjelp om systemet</p>
               </div>
-              <button
-                type="button"
-                onClick={clear}
-                disabled={messages.length === 0 || isLoading}
-                className="p-2 rounded-lg text-dark-400 hover:text-dark-200 hover:bg-dark-800 disabled:opacity-40"
-                aria-label="Tøm samtale"
-                title="Tøm samtale"
-              >
-                <Trash2 className="h-4 w-4" aria-hidden />
-              </button>
+              <div className="flex items-center gap-1">
+                {isLoading && (
+                  <button
+                    type="button"
+                    onClick={abort}
+                    className="p-2 rounded-lg text-dark-400 hover:text-dark-200 hover:bg-dark-800"
+                    aria-label="Avbryt"
+                    title="Avbryt"
+                  >
+                    <Square className="h-4 w-4" aria-hidden />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (messages.length === 0 || isLoading) return;
+                    if (window.confirm('Tøm samtalen?')) clear();
+                  }}
+                  disabled={messages.length === 0 || isLoading}
+                  className="p-2 rounded-lg text-dark-400 hover:text-dark-200 hover:bg-dark-800 disabled:opacity-40"
+                  aria-label="Tøm samtale"
+                  title="Tøm samtale"
+                >
+                  <Trash2 className="h-4 w-4" aria-hidden />
+                </button>
+              </div>
             </header>
 
             <div ref={scrollRef} className="flex-1 max-h-72 overflow-y-auto p-4 space-y-3">
               <AssistantMessageList messages={messages} isLoading={isLoading} />
               {error && (
-                <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-2 py-1.5">
-                  {error}
-                </p>
+                <div className="flex items-center justify-between gap-2 text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-2 py-1.5">
+                  <p>{error}</p>
+                  <button
+                    type="button"
+                    onClick={retry}
+                    className="shrink-0 rounded-md px-2 py-1 font-medium text-red-300 hover:bg-red-500/20 hover:text-red-200 transition-colors"
+                  >
+                    Prøv igjen
+                  </button>
+                </div>
               )}
               {messages.length === 0 && !isLoading && (
                 <div className="flex flex-wrap gap-2">
@@ -107,7 +143,7 @@ export function AssistantChat({ elevatedBottom = false }: AssistantChatProps) {
               )}
             </div>
 
-            <AssistantInput onSend={send} disabled={isLoading} />
+            <AssistantInput onSend={send} disabled={isLoading} autoFocus={open} />
           </motion.div>
         )}
       </AnimatePresence>

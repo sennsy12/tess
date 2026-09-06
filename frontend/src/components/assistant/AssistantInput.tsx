@@ -1,13 +1,21 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import { Send } from 'lucide-react';
 
 interface AssistantInputProps {
   onSend: (text: string) => void;
   disabled: boolean;
+  autoFocus?: boolean;
 }
 
-export function AssistantInput({ onSend, disabled }: AssistantInputProps) {
+export function AssistantInput({ onSend, disabled, autoFocus = false }: AssistantInputProps) {
   const [draft, setDraft] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (autoFocus) {
+      inputRef.current?.focus();
+    }
+  }, [autoFocus]);
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -23,12 +31,14 @@ export function AssistantInput({ onSend, disabled }: AssistantInputProps) {
         Skriv melding til assistenten
       </label>
       <input
+        ref={inputRef}
         id="assistant-input"
         type="text"
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         maxLength={2000}
         disabled={disabled}
+        autoFocus={autoFocus}
         placeholder="Spør om TESS…"
         className="flex-1 min-w-0 rounded-lg bg-dark-800 border border-dark-600 px-3 py-2 text-sm text-dark-50 placeholder:text-dark-500 focus:outline-none focus:ring-2 focus:ring-primary-500/50 disabled:opacity-50"
         autoComplete="off"
