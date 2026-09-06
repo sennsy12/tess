@@ -84,7 +84,7 @@ jobs:
       - uses: actions/checkout@v4
       # Belt-and-braces after two close calls with committed coverage:
       # fail fast if generated artifacts ever get tracked again.
-      - name: Guard: no generated artifacts tracked
+      - name: "Guard: no generated artifacts tracked"
         run: |
           TRACKED=$(git ls-files | grep -E '(^|/)coverage/|\.lcov$|\.tsbuildinfo$' || true)
           if [ -n "$TRACKED" ]; then
