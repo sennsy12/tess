@@ -19,7 +19,10 @@ export const priceRulesHandlers = {
    * Get all rules for a price list
    */
   getRules: async (req: AuthRequest, res: Response) => {
-    const listId = parseInt(req.params.id);
+    const listId = Number(req.params.id);
+    if (!Number.isInteger(listId) || listId < 1) {
+      throw new ValidationError('Invalid ID');
+    }
     const rules = await priceRuleModel.findByListId(listId);
     res.json(rules);
   },
@@ -29,7 +32,10 @@ export const priceRulesHandlers = {
    * Get a single rule
    */
   getRule: async (req: AuthRequest, res: Response) => {
-    const id = parseInt(req.params.id);
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id < 1) {
+      throw new ValidationError('Invalid ID');
+    }
     const rule = await priceRuleModel.findById(id);
 
     if (!rule) {
@@ -73,7 +79,10 @@ export const priceRulesHandlers = {
    * Update a price rule
    */
   updateRule: async (req: AuthRequest, res: Response) => {
-    const id = parseInt(req.params.id);
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id < 1) {
+      throw new ValidationError('Invalid ID');
+    }
     const data: UpdatePriceRuleInput = req.body;
 
     if (data.discount_percent !== undefined && data.fixed_price !== undefined
@@ -84,6 +93,16 @@ export const priceRulesHandlers = {
     const existing = await priceRuleModel.findById(id);
     if (!existing) {
       throw new NotFoundError('Price rule not found');
+    }
+
+    // Merge-validate against stored row: final state must have exactly one mechanism.
+    // Prevents DB chk_discount_type 500 -> return 400 instead.
+    const mergedDiscount =
+      data.discount_percent !== undefined ? data.discount_percent : existing.discount_percent;
+    const mergedFixed =
+      data.fixed_price !== undefined ? data.fixed_price : existing.fixed_price;
+    if ((mergedDiscount != null) === (mergedFixed != null)) {
+      throw new ValidationError('Exactly one of discount_percent or fixed_price must be set');
     }
 
     const rule = await priceRuleModel.update(id, data);
@@ -105,7 +124,10 @@ export const priceRulesHandlers = {
    * Delete a price rule
    */
   deleteRule: async (req: AuthRequest, res: Response) => {
-    const id = parseInt(req.params.id);
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id < 1) {
+      throw new ValidationError('Invalid ID');
+    }
 
     const oldRule = await priceRuleModel.findById(id);
     const deleted = await priceRuleModel.delete(id);
@@ -131,7 +153,15 @@ export const priceRulesHandlers = {
    * Check for conflicting rules before saving
    */
   checkRuleConflicts: async (req: AuthRequest, res: Response) => {
-    const { price_list_id, varekode, varegruppe, kundenr, customer_group_id, min_quantity, exclude_rule_id } = req.body;
+    const { price_list_id, varekode, varegruppe, kundenr, customer_group_id, min_quantity, exclude_rule_id } = req.body as {
+      price_list_id: number;
+      varekode?: string | null;
+      varegruppe?: string | null;
+      kundenr?: string | null;
+      customer_group_id?: number | null;
+      min_quantity?: number;
+      exclude_rule_id?: number;
+    };
 
     if (!price_list_id) {
       throw new ValidationError('price_list_id is required');
@@ -139,7 +169,7 @@ export const priceRulesHandlers = {
 
     const conflicts = await detectConflicts(
       { price_list_id, varekode, varegruppe, kundenr, customer_group_id, min_quantity },
-      exclude_rule_id ? parseInt(exclude_rule_id) : undefined
+      exclude_rule_id ?? undefined
     );
 
     res.json(conflicts);

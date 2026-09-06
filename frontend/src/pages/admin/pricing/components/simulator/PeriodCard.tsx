@@ -21,6 +21,9 @@ export function PeriodCard({
   onReset,
   error,
 }: PeriodCardProps) {
+  const start = (form.start_date ?? '').trim();
+  const end = (form.end_date ?? '').trim();
+  const isDateInverted = Boolean(start && end && start > end);
   return (
     <div className="card space-y-4">
       <h3 className="text-lg font-semibold">Tidsperiode</h3>
@@ -42,6 +45,9 @@ export function PeriodCard({
           onChange={(e) => update('end_date', e.target.value)}
           className="input w-full"
         />
+        {isDateInverted && (
+          <p className="mt-1 text-xs text-red-400">Fra-dato må være før til-dato</p>
+        )}
       </div>
       <div>
         <label className="label">Antall ordrelinjer (maks)</label>
@@ -61,7 +67,7 @@ export function PeriodCard({
       <div className="flex gap-3 pt-2">
         <button
           onClick={onRun}
-          disabled={!canRun || isRunning}
+          disabled={!canRun || isRunning || isDateInverted}
           className="btn-primary flex-1"
         >
           {isRunning ? (

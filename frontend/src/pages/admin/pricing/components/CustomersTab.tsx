@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import toast from 'react-hot-toast';
 import { pricingApi } from '../../../../lib/api';
 import { CustomerWithGroup, CustomersTabProps } from '../../../../types/pricing';
 import { Pagination } from '../../../../components/admin';
@@ -68,8 +69,12 @@ export function CustomersTab({
 
   // After assigning, refetch current page to reflect the change
   const handleAssign = async (kundenr: string, groupId: number | null) => {
-    await handleAssignCustomer(kundenr, groupId);
-    fetchCustomers(pagination.page);
+    try {
+      await handleAssignCustomer(kundenr, groupId);
+      toast.success(groupId ? 'Kunde tildelt gruppe' : 'Kunde fjernet fra gruppe');
+    } finally {
+      void fetchCustomers(pagination.page);
+    }
   };
 
   // Stats summary (from current pagination total + groups)

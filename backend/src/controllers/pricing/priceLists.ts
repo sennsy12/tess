@@ -30,7 +30,10 @@ export const priceListsHandlers = {
    * Get a single price list
    */
   getList: async (req: AuthRequest, res: Response) => {
-    const id = parseInt(req.params.id);
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id < 1) {
+      throw new ValidationError('Invalid ID');
+    }
     const list = await priceListModel.findById(id);
 
     if (!list) {
@@ -66,7 +69,10 @@ export const priceListsHandlers = {
    * Update a price list
    */
   updateList: async (req: AuthRequest, res: Response) => {
-    const id = parseInt(req.params.id);
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id < 1) {
+      throw new ValidationError('Invalid ID');
+    }
     const data: UpdatePriceListInput = req.body;
 
     const oldList = await priceListModel.findById(id);
@@ -93,7 +99,10 @@ export const priceListsHandlers = {
    * Delete a price list
    */
   deleteList: async (req: AuthRequest, res: Response) => {
-    const id = parseInt(req.params.id);
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id < 1) {
+      throw new ValidationError('Invalid ID');
+    }
 
     const oldList = await priceListModel.findById(id);
     const deleted = await priceListModel.delete(id);

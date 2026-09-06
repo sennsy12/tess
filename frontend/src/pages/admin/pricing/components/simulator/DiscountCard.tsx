@@ -8,6 +8,31 @@ interface DiscountCardProps {
 
 /** Centre config panel: discount type/value and a plain-text rule summary. */
 export function DiscountCard({ form, update, groups }: DiscountCardProps) {
+  const percentRaw = (form.discount_percent ?? '').trim();
+  const percentNum = percentRaw === '' ? NaN : Number(percentRaw);
+  const percentError =
+    form.discount_type !== 'percent'
+      ? null
+      : percentRaw === ''
+        ? 'Rabatt (%) er påkrevd.'
+        : !Number.isFinite(percentNum)
+          ? 'Rabatt (%) må være et tall.'
+          : percentNum < 0 || percentNum > 100
+            ? 'Rabatt (%) må være mellom 0 og 100.'
+            : null;
+
+  const fixedRaw = (form.fixed_price ?? '').trim();
+  const fixedNum = fixedRaw === '' ? NaN : Number(fixedRaw);
+  const fixedError =
+    form.discount_type !== 'fixed'
+      ? null
+      : fixedRaw === ''
+        ? 'Fast pris er påkrevd.'
+        : !Number.isFinite(fixedNum)
+          ? 'Fast pris må være et tall.'
+          : fixedNum < 0
+            ? 'Fast pris kan ikke være negativ.'
+            : null;
   return (
     <div className="card space-y-4">
       <h3 className="text-lg font-semibold">Rabatt / pris</h3>
@@ -53,6 +78,7 @@ export function DiscountCard({ form, update, groups }: DiscountCardProps) {
             className="input w-full"
             placeholder="f.eks. 15"
           />
+          {percentError && <p className="text-xs text-red-400 mt-1">{percentError}</p>}
         </div>
       ) : (
         <div>
@@ -66,6 +92,7 @@ export function DiscountCard({ form, update, groups }: DiscountCardProps) {
             className="input w-full"
             placeholder="f.eks. 249.00"
           />
+          {fixedError && <p className="text-xs text-red-400 mt-1">{fixedError}</p>}
         </div>
       )}
 

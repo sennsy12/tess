@@ -10,33 +10,56 @@ import {
 /** Payload accepted by POST /api/pricing/simulate (kept in sync with pricingApi). */
 type SimulatePayload = Parameters<typeof pricingApi.simulate>[0];
 
+/** Trims and parses a string field; null when empty or not finite (never NaN). */
+function parseFiniteNumber(raw: string): number | null {
+  const trimmed = (raw ?? '').trim();
+  if (trimmed === '') return null;
+  const n = Number(trimmed);
+  return Number.isFinite(n) ? n : null;
+}
+
 /** Maps the UI form onto the payload the simulation endpoint expects. */
 function buildSimulatePayload(form: SimulatorForm): SimulatePayload {
+  const priceListId = parseFiniteNumber(form.price_list_id ?? '');
   const proposed_rule: SimulatePayload['proposed_rule'] = {
-    price_list_id: Number(form.price_list_id),
-    min_quantity: form.min_quantity,
+    price_list_id: priceListId ?? 0,
+    min_quantity: Number.isFinite(form.min_quantity) ? form.min_quantity : 0,
   };
 
-  // Scope
-  if (form.scope === 'product') proposed_rule.varekode = form.varekode || null;
-  else if (form.scope === 'category') proposed_rule.varegruppe = form.varegruppe || null;
+  // Scope (trimmed; empty -> null)
+  const varekode = (form.varekode ?? '').trim();
+  const varegruppe = (form.varegruppe ?? '').trim();
+  if (form.scope === 'product') proposed_rule.varekode = varekode || null;
+  else if (form.scope === 'category') proposed_rule.varegruppe = varegruppe || null;
 
-  // Target
-  if (form.target === 'customer') proposed_rule.kundenr = form.kundenr || null;
-  else if (form.target === 'group') proposed_rule.customer_group_id = Number(form.customer_group_id) || null;
+  // Target (trimmed; empty -> null)
+  const kundenr = (form.kundenr ?? '').trim();
+  const groupRaw = (form.customer_group_id ?? '').trim();
+  if (form.target === 'customer') proposed_rule.kundenr = kundenr || null;
+  else if (form.target === 'group') {
+    if (groupRaw === '') {
+      proposed_rule.customer_group_id = null;
+    } else {
+      const g = Number(groupRaw);
+      proposed_rule.customer_group_id = Number.isFinite(g) ? g : null;
+    }
+  }
 
-  // Discount
+  // Discount (XOR by construction; empty/non-finite -> null so canRun blocks, never NaN)
   if (form.discount_type === 'percent') {
-    proposed_rule.discount_percent = Number(form.discount_percent);
+    proposed_rule.discount_percent = parseFiniteNumber(form.discount_percent ?? '');
     proposed_rule.fixed_price = null;
   } else {
-    proposed_rule.fixed_price = Number(form.fixed_price);
+    proposed_rule.fixed_price = parseFiniteNumber(form.fixed_price ?? '');
     proposed_rule.discount_percent = null;
   }
 
-  const payload: SimulatePayload = { proposed_rule, sample_size: form.sample_size };
-  if (form.start_date) payload.start_date = form.start_date;
-  if (form.end_date) payload.end_date = form.end_date;
+  const payload: SimulatePayload = { proposed_rule };
+  if (Number.isFinite(form.sample_size)) payload.sample_size = form.sample_size;
+  const start = (form.start_date ?? '').trim();
+  const end = (form.end_date ?? '').trim();
+  if (start) payload.start_date = start;
+  if (end) payload.end_date = end;
   return payload;
 }
 
@@ -64,13 +87,54 @@ export function usePriceSimulator() {
 
   /** True when the form holds everything the simulation needs. */
   const canRun = useMemo(() => {
-    if (!form.price_list_id) return false;
-    if (form.discount_type === 'percent' && !form.discount_percent) return false;
-    if (form.discount_type === 'fixed' && !form.fixed_price) return false;
-    if (form.scope === 'product' && !form.varekode) return false;
-    if (form.scope === 'category' && !form.varegruppe) return false;
-    if (form.target === 'customer' && !form.kundenr) return false;
-    if (form.target === 'group' && !form.customer_group_id) return false;
+    if (!(form.price_list_id ?? '').trim()) return false;
+
+    // Discount: finite + range. Explicit empty-string check so '0' stays valid.
+    if (form.discount_type === 'percent') {
+      const raw = (form.discount_percent ?? '').trim();
+      if (raw === '') return false;
+      const n = Number(raw);
+      if (!Number.isFinite(n)) return false;
+      if (n < 0 || n > 100) return false;
+    } else {
+      const raw = (form.fixed_price ?? '').trim();
+      if (raw === '') return false;
+      const n = Number(raw);
+      if (!Number.isFinite(n)) return false;
+      if (n < 0) return false;
+    }
+
+    if (!Number.isInteger(form.min_quantity) || form.min_quantity < 0) return false;
+
+    if (form.scope === 'product') {
+      const v = (form.varekode ?? '').trim();
+      if (!v || v.length > 50) return false;
+    }
+    if (form.scope === 'category') {
+      const v = (form.varegruppe ?? '').trim();
+      if (!v || v.length > 50) return false;
+    }
+    if (form.target === 'customer') {
+      const v = (form.kundenr ?? '').trim();
+      if (!v || v.length > 50) return false;
+    }
+    const groupRaw = (form.customer_group_id ?? '').trim();
+    if (form.target === 'group') {
+      if (!groupRaw) return false;
+      const g = Number(groupRaw);
+      if (!Number.isInteger(g) || g <= 0) return false;
+    } else if (groupRaw) {
+      const g = Number(groupRaw);
+      if (!Number.isInteger(g) || g <= 0) return false;
+    }
+
+    const start = (form.start_date ?? '').trim();
+    const end = (form.end_date ?? '').trim();
+    if (start && end && start > end) return false;
+
+    if (!Number.isInteger(form.sample_size) || form.sample_size < 1 || form.sample_size > 5000)
+      return false;
+
     return true;
   }, [form]);
 

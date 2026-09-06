@@ -1,6 +1,27 @@
 import api from './client';
 import type { CustomerPricingOverview } from '../../types/pricing';
 
+/** Partial update body for PUT /pricing/lists/:id. All fields optional. */
+export interface UpdatePriceListInput {
+  name?: string;
+  description?: string | null;
+  valid_from?: string | null;
+  valid_to?: string | null;
+  priority?: number;
+  is_active?: boolean;
+}
+
+/** Partial update body for PUT /pricing/rules/:id. All fields optional. */
+export interface UpdatePriceRuleInput {
+  varekode?: string | null;
+  varegruppe?: string | null;
+  kundenr?: string | null;
+  customer_group_id?: number | null;
+  min_quantity?: number;
+  discount_percent?: number | null;
+  fixed_price?: number | null;
+}
+
 export const pricingApi = {
   // Customer Groups
   getGroups: () => api.get('/pricing/groups'),
@@ -35,7 +56,7 @@ export const pricingApi = {
     priority?: number;
     is_active?: boolean;
   }) => api.post('/pricing/lists', data),
-  updateList: (id: number, data: Record<string, any>) =>
+  updateList: (id: number, data: UpdatePriceListInput) =>
     api.put(`/pricing/lists/${id}`, data),
   deleteList: (id: number) => api.delete(`/pricing/lists/${id}`),
 
@@ -52,7 +73,7 @@ export const pricingApi = {
     discount_percent?: number;
     fixed_price?: number;
   }) => api.post('/pricing/rules', data),
-  updateRule: (id: number, data: Record<string, any>) =>
+  updateRule: (id: number, data: UpdatePriceRuleInput) =>
     api.put(`/pricing/rules/${id}`, data),
   deleteRule: (id: number) => api.delete(`/pricing/rules/${id}`),
 
@@ -83,9 +104,11 @@ export const pricingApi = {
     api.get<CustomerPricingOverview>(`/pricing/customer/${kundenr}/rules`),
 
   // Pricing Simulation
+  // NOTE: the backend schema still accepts an optional `rule_id` inside
+  // proposed_rule, but the simulator ignores it — so it is intentionally
+  // omitted here and never sent.
   simulate: (data: {
     proposed_rule: {
-      rule_id?: number | null;
       price_list_id: number;
       varekode?: string | null;
       varegruppe?: string | null;

@@ -1,4 +1,10 @@
 import type { ProposedRule, RevenueBucket, SimulationResult } from '../../types/simulation.js';
+import { round2 } from '../../lib/round.js';
+
+// Re-eksportert for bakoverkompatibilitet: eksisterende importører
+// (`pricingSimulatorService`, `aggregations`) importerer `round2` herfra.
+// Kanonisk implementasjon bor i `lib/round.ts` (samme Math.round(x*100)/100).
+export { round2 };
 
 // ────────────────────────────────────────────────────────────
 // Helpers
@@ -56,29 +62,25 @@ export function applyProposedRule(
   quantity: number,
 ): number {
   if (rule.fixed_price != null) {
-    return Math.round(Number(rule.fixed_price) * quantity * 100) / 100;
+    return round2(Number(rule.fixed_price) * quantity);
   }
   if (rule.discount_percent != null) {
     const multiplier = 1 - Number(rule.discount_percent) / 100;
-    return Math.round(unitPrice * multiplier * quantity * 100) / 100;
+    return round2(unitPrice * multiplier * quantity);
   }
   // No discount → unchanged
-  return Math.round(unitPrice * quantity * 100) / 100;
+  return round2(unitPrice * quantity);
 }
 
 /** Compute percentage change, safe against division by zero. */
 export function pctChange(current: number, simulated: number): number {
   if (current === 0) return simulated === 0 ? 0 : 100;
-  return Math.round(((simulated - current) / Math.abs(current)) * 10000) / 100;
+  return round2(((simulated - current) / Math.abs(current)) * 100);
 }
 
 // ────────────────────────────────────────────────────────────
 // Internal helpers
 // ────────────────────────────────────────────────────────────
-
-export function round2(n: number): number {
-  return Math.round(n * 100) / 100;
-}
 
 export function createBucket(): RevenueBucket {
   return { total_revenue: 0, total_discount: 0, affected_orders: 0, affected_lines: 0 };

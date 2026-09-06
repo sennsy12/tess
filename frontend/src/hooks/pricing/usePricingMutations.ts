@@ -2,8 +2,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { pricingApi } from '../../lib/api';
 import { getApiError } from '../../lib/apiErrors';
-import { parsePositiveNumber } from '../../lib/formatters';
-import { pricingKeys } from '../../lib/queryKeys';
+import { pricingKeys, kundeKeys } from '../../lib/queryKeys';
+import { parseNonNegativeNumber } from '../../lib/formatters';
 import type { GroupFormData, ListFormData, RuleFormData } from '../../types/pricing';
 
 function buildRulePayload(selectedListId: number, ruleForm: RuleFormData) {
@@ -17,12 +17,12 @@ function buildRulePayload(selectedListId: number, ruleForm: RuleFormData) {
   if (ruleForm.kundenr) data.kundenr = ruleForm.kundenr;
   if (ruleForm.customer_group_id) data.customer_group_id = parseInt(ruleForm.customer_group_id, 10);
 
-  if (ruleForm.discount_type === 'percent' && ruleForm.discount_percent) {
-    const discount = parsePositiveNumber(ruleForm.discount_percent);
-    if (discount != null) data.discount_percent = discount;
-  } else if (ruleForm.discount_type === 'fixed' && ruleForm.fixed_price) {
-    const fixed = parsePositiveNumber(ruleForm.fixed_price);
-    if (fixed != null) data.fixed_price = fixed;
+  if (ruleForm.discount_type === 'percent' && ruleForm.discount_percent !== '') {
+    const discount = parseNonNegativeNumber(ruleForm.discount_percent);
+    if (discount != null && discount <= 100) data.discount_percent = discount;
+  } else if (ruleForm.discount_type === 'fixed' && ruleForm.fixed_price !== '') {
+    const fixed = parseNonNegativeNumber(ruleForm.fixed_price);
+    if (fixed != null && fixed >= 0) data.fixed_price = fixed;
   }
 
   return data;
@@ -36,6 +36,9 @@ export function usePricingMutations(selectedListId: number | null) {
     void queryClient.invalidateQueries({ queryKey: pricingKeys.groups() });
     void queryClient.invalidateQueries({ queryKey: pricingKeys.lists() });
     void queryClient.invalidateQueries({ queryKey: pricingKeys.customersWithGroups() });
+    // Pricing changes affect customer effective prices -> drop stale catalog + Mine priser.
+    void queryClient.invalidateQueries({ queryKey: kundeKeys.catalogRoot() });
+    void queryClient.invalidateQueries({ queryKey: ['kunde', 'pricing'] });
   };
 
   const invalidateRules = () => {
@@ -124,6 +127,7 @@ export function usePricingMutations(selectedListId: number | null) {
     onSuccess: () => {
       toast.success('Regel opprettet');
       invalidateRules();
+      invalidateCatalog();
     },
     onError: (err) => toast.error(getApiError(err, 'Kunne ikke opprette regel')),
   });
@@ -138,14 +142,18 @@ export function usePricingMutations(selectedListId: number | null) {
         customer_group_id: ruleForm.customer_group_id ? parseInt(ruleForm.customer_group_id, 10) : null,
       };
 
-      if (ruleForm.discount_type === 'percent' && ruleForm.discount_percent) {
-        const discount = parsePositiveNumber(ruleForm.discount_percent);
-        data.discount_percent = discount;
-        data.fixed_price = null;
-      } else if (ruleForm.discount_type === 'fixed' && ruleForm.fixed_price) {
-        const fixed = parsePositiveNumber(ruleForm.fixed_price);
-        data.fixed_price = fixed;
-        data.discount_percent = null;
+      if (ruleForm.discount_type === 'percent' && ruleForm.discount_percent !== '') {
+        const discount = parseNonNegativeNumber(ruleForm.discount_percent);
+        if (discount != null && discount <= 100) {
+          data.discount_percent = discount;
+          data.fixed_price = null;
+        }
+      } else if (ruleForm.discount_type === 'fixed' && ruleForm.fixed_price !== '') {
+        const fixed = parseNonNegativeNumber(ruleForm.fixed_price);
+        if (fixed != null && fixed >= 0) {
+          data.fixed_price = fixed;
+          data.discount_percent = null;
+        }
       }
 
       return pricingApi.updateRule(id, data);
@@ -153,6 +161,7 @@ export function usePricingMutations(selectedListId: number | null) {
     onSuccess: () => {
       toast.success('Regel oppdatert');
       invalidateRules();
+      invalidateCatalog();
     },
     onError: (err) => toast.error(getApiError(err, 'Kunne ikke oppdatere regel')),
   });
@@ -162,6 +171,7 @@ export function usePricingMutations(selectedListId: number | null) {
     onSuccess: () => {
       toast.success('Regel slettet');
       invalidateRules();
+      invalidateCatalog();
     },
     onError: (err) => toast.error(getApiError(err, 'Kunne ikke slette regel')),
   });

@@ -67,28 +67,39 @@ export const priceListModel = {
 
   /**
    * Update a price list
+   * Dynamic SET to allow explicit null clearing (valid_from/to, description).
    */
   update: async (id: number, data: UpdatePriceListInput): Promise<PriceList | null> => {
+    const setClauses: string[] = [];
+    const values: unknown[] = [id];
+    let paramIndex = 2;
+
+    const fields: Array<{ key: keyof UpdatePriceListInput; column: string }> = [
+      { key: 'name', column: 'name' },
+      { key: 'description', column: 'description' },
+      { key: 'valid_from', column: 'valid_from' },
+      { key: 'valid_to', column: 'valid_to' },
+      { key: 'priority', column: 'priority' },
+      { key: 'is_active', column: 'is_active' },
+    ];
+
+    for (const field of fields) {
+      if (field.key in data) {
+        setClauses.push(`${field.column} = $${paramIndex}`);
+        values.push((data as Record<string, unknown>)[field.key] ?? null);
+        paramIndex++;
+      }
+    }
+
+    if (setClauses.length === 0) {
+      const existing = await query('SELECT * FROM price_list WHERE id = $1', [id]);
+      return existing.rows[0] || null;
+    }
+
+    setClauses.push(`updated_at = NOW()`);
     const result = await query(
-      `UPDATE price_list
-       SET name = COALESCE($2, name),
-           description = COALESCE($3, description),
-           valid_from = COALESCE($4, valid_from),
-           valid_to = COALESCE($5, valid_to),
-           priority = COALESCE($6, priority),
-           is_active = COALESCE($7, is_active),
-           updated_at = NOW()
-       WHERE id = $1
-       RETURNING *`,
-      [
-        id,
-        data.name,
-        data.description,
-        data.valid_from,
-        data.valid_to,
-        data.priority,
-        data.is_active
-      ]
+      `UPDATE price_list SET ${setClauses.join(', ')} WHERE id = $1 RETURNING *`,
+      values
     );
     return result.rows[0] || null;
   },

@@ -44,7 +44,15 @@ export const pricingSimulatorService = {
   simulate: async (request: SimulationRequest): Promise<SimulationResult> => {
     const start = Date.now();
     const { proposed_rule, start_date, end_date } = request;
-    const sampleSize = Math.min(request.sample_size ?? 1000, 5000);
+    // Default (1000) and cap (5000) are intentionally unchanged (UX
+    // contract). Non-positive sizes short-circuit to an empty result
+    // without a wasted DB round-trip (reachable via direct service calls;
+    // HTTP validation already enforces min 1).
+    const rawSampleSize = request.sample_size ?? 1000;
+    if (!Number.isFinite(rawSampleSize) || rawSampleSize <= 0) {
+      return emptyResult(Date.now() - start);
+    }
+    const sampleSize = Math.min(Math.floor(rawSampleSize), 5000);
 
     // ── 1. Fetch sample order lines ────────────────────────
     const lines = await fetchSampleLines(start_date, end_date, sampleSize);

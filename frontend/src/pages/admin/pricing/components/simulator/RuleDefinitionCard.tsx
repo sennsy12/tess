@@ -44,17 +44,19 @@ export function RuleDefinitionCard({ form, update, activeLists, groups }: RuleDe
       {form.scope === 'product' && (
         <input
           value={form.varekode}
-          onChange={(e) => update('varekode', e.target.value)}
+          onChange={(e) => update('varekode', e.target.value.trim())}
           className="input w-full"
           placeholder="Varekode (f.eks. V001)"
+          maxLength={50}
         />
       )}
       {form.scope === 'category' && (
         <input
           value={form.varegruppe}
-          onChange={(e) => update('varegruppe', e.target.value)}
+          onChange={(e) => update('varegruppe', e.target.value.trim())}
           className="input w-full"
           placeholder="Varegruppe"
+          maxLength={50}
         />
       )}
 
@@ -74,9 +76,10 @@ export function RuleDefinitionCard({ form, update, activeLists, groups }: RuleDe
       {form.target === 'customer' && (
         <input
           value={form.kundenr}
-          onChange={(e) => update('kundenr', e.target.value)}
+          onChange={(e) => update('kundenr', e.target.value.trim())}
           className="input w-full"
           placeholder="Kundenr"
+          maxLength={50}
         />
       )}
       {form.target === 'group' && (
@@ -98,10 +101,16 @@ export function RuleDefinitionCard({ form, update, activeLists, groups }: RuleDe
         <input
           type="number"
           min={0}
+          step={1}
           value={form.min_quantity}
           onChange={(e) => update('min_quantity', Number(e.target.value))}
           className="input w-full"
         />
+        {(!Number.isInteger(form.min_quantity) || form.min_quantity < 0) && (
+          <p className="mt-1 text-xs text-red-400">
+            Min. antall må være et helt tall som er 0 eller høyere.
+          </p>
+        )}
       </div>
     </div>
   );

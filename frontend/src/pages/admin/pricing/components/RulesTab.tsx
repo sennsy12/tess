@@ -1,6 +1,52 @@
 import { useState } from 'react';
+import toast from 'react-hot-toast';
 import { pricingApi } from '../../../../lib/api';
-import { PriceRule, RuleConflict, INITIAL_RULE_FORM, RulesTabProps } from '../../../../types/pricing';
+import { PriceRule, RuleConflict, INITIAL_RULE_FORM, RulesTabProps, RuleFormData } from '../../../../types/pricing';
+
+export function validateRuleForm(ruleForm: RuleFormData): string | null {
+  if (!Number.isInteger(ruleForm.min_quantity) || ruleForm.min_quantity < 0) {
+    return 'Min. antall må være et helt tall som er 0 eller høyere.';
+  }
+  if (ruleForm.varekode && ruleForm.varekode.length > 50) {
+    return 'Varekode kan være maks 50 tegn.';
+  }
+  if (ruleForm.varegruppe && ruleForm.varegruppe.length > 50) {
+    return 'Varegruppe kan være maks 50 tegn.';
+  }
+  if (ruleForm.kundenr && ruleForm.kundenr.length > 50) {
+    return 'Kundenr kan være maks 50 tegn.';
+  }
+  if (ruleForm.customer_group_id) {
+    const id = Number(ruleForm.customer_group_id);
+    if (!Number.isInteger(id) || id <= 0) {
+      return 'Ugyldig kundegruppe.';
+    }
+  }
+  if (ruleForm.discount_type === 'percent') {
+    if (ruleForm.discount_percent === '' || ruleForm.discount_percent == null) {
+      return 'Rabatt (%) er påkrevd.';
+    }
+    const n = Number(ruleForm.discount_percent);
+    if (!Number.isFinite(n)) {
+      return 'Rabatt (%) må være et tall.';
+    }
+    if (n < 0 || n > 100) {
+      return 'Rabatt (%) må være mellom 0 og 100.';
+    }
+  } else {
+    if (ruleForm.fixed_price === '' || ruleForm.fixed_price == null) {
+      return 'Fast pris er påkrevd.';
+    }
+    const n = Number(ruleForm.fixed_price);
+    if (!Number.isFinite(n)) {
+      return 'Fast pris må være et tall.';
+    }
+    if (n < 0) {
+      return 'Fast pris kan ikke være negativ.';
+    }
+  }
+  return null;
+}
 
 export function RulesTab({
   rules,
@@ -35,7 +81,7 @@ export function RulesTab({
       kundenr: rule.kundenr || '',
       customer_group_id: rule.customer_group_id?.toString() || '',
       min_quantity: rule.min_quantity,
-      discount_type: rule.discount_percent !== null ? 'percent' : 'fixed',
+      discount_type: rule.discount_percent !== null ? 'percent' : rule.fixed_price !== null ? 'fixed' : 'percent',
       discount_percent: rule.discount_percent?.toString() || '',
       fixed_price: rule.fixed_price?.toString() || '',
     });
@@ -53,6 +99,12 @@ export function RulesTab({
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedListId) return;
+
+    const validationError = validateRuleForm(ruleForm);
+    if (validationError) {
+      toast.error(validationError);
+      return;
+    }
 
     setIsCheckingConflicts(true);
     try {
@@ -148,6 +200,7 @@ export function RulesTab({
                 onChange={(e) => setRuleForm({ ...ruleForm, varekode: e.target.value })}
                 className="input w-full"
                 placeholder="Spesifikk vare"
+                maxLength={50}
               />
             </div>
             <div>
@@ -164,12 +217,27 @@ export function RulesTab({
               </select>
             </div>
             <div>
+              <label className="block text-sm font-medium text-dark-300 mb-1">Kundenr (valgfri)</label>
+              <input
+                type="text"
+                value={ruleForm.kundenr}
+                onChange={(e) => setRuleForm({ ...ruleForm, kundenr: e.target.value })}
+                className="input w-full"
+                placeholder="Spesifikk kunde"
+                maxLength={50}
+              />
+            </div>
+            <div>
               <label className="block text-sm font-medium text-dark-300 mb-1">Min. antall</label>
               <input
                 type="number"
-                min="1"
+                min="0"
+                step="1"
                 value={ruleForm.min_quantity}
-                onChange={(e) => setRuleForm({ ...ruleForm, min_quantity: parseInt(e.target.value) || 1 })}
+                onChange={(e) => {
+                  const n = parseInt(e.target.value, 10);
+                  setRuleForm({ ...ruleForm, min_quantity: Number.isNaN(n) ? 0 : Math.max(0, Math.trunc(n)) });
+                }}
                 className="input w-full"
               />
             </div>
@@ -204,6 +272,8 @@ export function RulesTab({
               <input
                 type="number"
                 step="0.01"
+                min="0"
+                max={ruleForm.discount_type === 'percent' ? 100 : undefined}
                 value={ruleForm.discount_type === 'percent' ? ruleForm.discount_percent : ruleForm.fixed_price}
                 onChange={(e) => {
                   if (ruleForm.discount_type === 'percent') {
@@ -297,7 +367,7 @@ export function RulesTab({
                     </td>
                     <td className="py-3 px-4">{rule.min_quantity}</td>
                     <td className="py-3 px-4 font-medium text-green-400">
-                      {rule.discount_percent !== null ? `-${rule.discount_percent}%` : `${rule.fixed_price} NOK`}
+                      {rule.discount_percent !== null ? `-${rule.discount_percent}%` : rule.fixed_price !== null ? `${rule.fixed_price} NOK` : 'Ugyldig'}
                     </td>
                     <td className="py-3 px-4 text-right">
                       <div className="flex justify-end gap-3">

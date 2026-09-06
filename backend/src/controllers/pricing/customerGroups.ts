@@ -51,7 +51,11 @@ export const customerGroupsHandlers = {
    * Update a customer group
    */
   updateGroup: async (req: AuthRequest, res: Response) => {
-    const id = parseInt(req.params.id);
+    // NaN-guard (route also validates idParamSchema): same ValidationError 400 format.
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id < 1) {
+      throw new ValidationError('Invalid ID');
+    }
     const data: Partial<CreateCustomerGroupInput> = req.body;
 
     const oldGroup = await customerGroupModel.findById(id);
@@ -78,7 +82,10 @@ export const customerGroupsHandlers = {
    * Delete a customer group
    */
   deleteGroup: async (req: AuthRequest, res: Response) => {
-    const id = parseInt(req.params.id);
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id < 1) {
+      throw new ValidationError('Invalid ID');
+    }
 
     const oldGroup = await customerGroupModel.findById(id);
     const deleted = await customerGroupModel.delete(id);
@@ -100,7 +107,10 @@ export const customerGroupsHandlers = {
    * Assign a customer to a group
    */
   assignCustomerToGroup: async (req: AuthRequest, res: Response) => {
-    const groupId = parseInt(req.params.id);
+    const groupId = Number(req.params.id);
+    if (!Number.isInteger(groupId) || groupId < 1) {
+      throw new ValidationError('Invalid ID');
+    }
     const { kundenr } = req.params;
 
     // Verify group exists
@@ -113,6 +123,12 @@ export const customerGroupsHandlers = {
     if (!updated) {
       throw new NotFoundError('Customer not found');
     }
+
+    await auditService.logFromRequest({
+      req, action: 'UPDATE', entityType: 'customer_group_member',
+      entityId: groupId, entityName: `${kundenr} -> ${group.name}`,
+      newData: { kundenr, customer_group_id: groupId } as any,
+    });
 
     res.json({ message: 'Customer assigned to group successfully' });
   },
@@ -128,6 +144,12 @@ export const customerGroupsHandlers = {
     if (!updated) {
       throw new NotFoundError('Customer not found');
     }
+
+    await auditService.logFromRequest({
+      req, action: 'UPDATE', entityType: 'customer_group_member',
+      entityId: kundenr, entityName: `${kundenr} -> unassigned`,
+      newData: { kundenr, customer_group_id: null } as any,
+    });
 
     res.json({ message: 'Customer removed from group successfully' });
   },

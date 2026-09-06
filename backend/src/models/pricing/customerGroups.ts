@@ -1,4 +1,5 @@
-import { query } from '../../db/index.js';
+import { query, transaction } from '../../db/index.js';
+import type { SqlParams } from '../../db/index.js';
 import { extractWindowCountPage } from '../../lib/paginatedQuery.js';
 import { buildOrderByClause } from '../../lib/sqlSort.js';
 import { toIlikeContains } from '../../lib/sqlSearch.js';
@@ -48,28 +49,47 @@ export const customerGroupModel = {
   },
 
   /**
-   * Update a customer group
+   * Update a customer group (dynamic SET to allow explicit null clearing).
    */
   update: async (id: number, data: Partial<CreateCustomerGroupInput>): Promise<CustomerGroup | null> => {
+    const setClauses: string[] = [];
+    const values: SqlParams = [id];
+    let paramIndex = 2;
+
+    if ('name' in data) {
+      setClauses.push(`name = $${paramIndex}`);
+      values.push(data.name ?? null);
+      paramIndex++;
+    }
+    if ('description' in data) {
+      setClauses.push(`description = $${paramIndex}`);
+      values.push(data.description ?? null);
+      paramIndex++;
+    }
+
+    if (setClauses.length === 0) {
+      const existing = await query('SELECT * FROM customer_group WHERE id = $1', [id]);
+      return existing.rows[0] || null;
+    }
+
     const result = await query(
-      `UPDATE customer_group
-       SET name = COALESCE($2, name),
-           description = COALESCE($3, description)
-       WHERE id = $1
-       RETURNING *`,
-      [id, data.name, data.description]
+      `UPDATE customer_group SET ${setClauses.join(', ')} WHERE id = $1 RETURNING *`,
+      values
     );
     return result.rows[0] || null;
   },
 
   /**
-   * Delete a customer group
+   * Delete a customer group (transactional: null out refs first).
    */
   delete: async (id: number): Promise<boolean> => {
-    // First, remove group from customers
-    await query('UPDATE kunde SET customer_group_id = NULL WHERE customer_group_id = $1', [id]);
-    const result = await query('DELETE FROM customer_group WHERE id = $1', [id]);
-    return (result.rowCount ?? 0) > 0;
+    return transaction(async (client) => {
+      // Null out member refs + rule refs (rules become wildcard for group scope)
+      await client.query('UPDATE kunde SET customer_group_id = NULL WHERE customer_group_id = $1', [id]);
+      await client.query('UPDATE price_rule SET customer_group_id = NULL WHERE customer_group_id = $1', [id]);
+      const result = await client.query('DELETE FROM customer_group WHERE id = $1', [id]);
+      return (result.rowCount ?? 0) > 0;
+    });
   },
 
   /**
@@ -108,7 +128,7 @@ export const customerGroupModel = {
     sortDir?: 'asc' | 'desc';
   }): Promise<{ data: CustomerWithGroup[]; total: number }> => {
     const conditions: string[] = [];
-    const values: any[] = [];
+    const values: SqlParams = [];
     let paramIdx = 1;
 
     if (params.search?.trim()) {

@@ -1,4 +1,5 @@
 import { query } from '../../db/index.js';
+import type { SqlParams } from '../../db/index.js';
 import {
   PriceRule,
   CreatePriceRuleInput,
@@ -55,10 +56,10 @@ export const priceRuleModel = {
         data.varekode || null,
         data.varegruppe || null,
         data.kundenr || null,
-        data.customer_group_id || null,
+        data.customer_group_id ?? null,
         data.min_quantity ?? 1,
-        data.discount_percent || null,
-        data.fixed_price || null
+        data.discount_percent ?? null,
+        data.fixed_price ?? null
       ]
     );
     return result.rows[0];
@@ -70,7 +71,7 @@ export const priceRuleModel = {
    */
   update: async (id: number, data: UpdatePriceRuleInput): Promise<PriceRule | null> => {
     const setClauses: string[] = [];
-    const values: any[] = [id];
+    const values: SqlParams = [id];
     let paramIndex = 2;
 
     const fields: Array<{ key: keyof UpdatePriceRuleInput; column: string }> = [
@@ -143,9 +144,10 @@ export const priceRuleModel = {
          CASE WHEN pr.varekode IS NOT NULL THEN 0 WHEN pr.varegruppe IS NOT NULL THEN 1 ELSE 2 END,
          -- Prefer specific customer over group over all
          CASE WHEN pr.kundenr IS NOT NULL THEN 0 WHEN pr.customer_group_id IS NOT NULL THEN 1 ELSE 2 END,
-         -- Prefer higher quantity threshold
-         pr.min_quantity DESC`,
-      [params.varekode, params.varegruppe || null, params.kundenr, params.customerGroupId || null, params.quantity]
+          -- Prefer higher quantity threshold
+          pr.min_quantity DESC,
+          pr.id ASC`,
+      [params.varekode, params.varegruppe || null, params.kundenr, params.customerGroupId ?? null, params.quantity]
     );
     return result.rows;
   },
@@ -185,12 +187,13 @@ export const priceRuleModel = {
          AND (
            (pr.kundenr = $3 OR pr.customer_group_id = $4 OR (pr.kundenr IS NULL AND pr.customer_group_id IS NULL))
          )
-       ORDER BY
-         pl.priority DESC,
-         CASE WHEN pr.varekode IS NOT NULL THEN 0 WHEN pr.varegruppe IS NOT NULL THEN 1 ELSE 2 END,
-         CASE WHEN pr.kundenr IS NOT NULL THEN 0 WHEN pr.customer_group_id IS NOT NULL THEN 1 ELSE 2 END,
-         pr.min_quantity DESC`,
-      [varekoder, varegrupper, params.kundenr, params.customerGroupId || null, params.maxQuantity]
+        ORDER BY
+          pl.priority DESC,
+          CASE WHEN pr.varekode IS NOT NULL THEN 0 WHEN pr.varegruppe IS NOT NULL THEN 1 ELSE 2 END,
+          CASE WHEN pr.kundenr IS NOT NULL THEN 0 WHEN pr.customer_group_id IS NOT NULL THEN 1 ELSE 2 END,
+          pr.min_quantity DESC,
+          pr.id ASC`,
+      [varekoder, varegrupper, params.kundenr, params.customerGroupId ?? null, params.maxQuantity]
     );
     return result.rows;
   },

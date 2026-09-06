@@ -57,5 +57,12 @@ describe('pricingMath', () => {
       expect(result.unit_price).toBe(75);
       expect(result.final_price).toBe(75);
     });
+
+    it('returns discount 0 (not NaN) for fixed price when base price is 0', () => {
+      const result = applyBestRule(0, 2, [{ ...baseRule, discount_percent: null, fixed_price: 75 }]);
+      expect(result.unit_price).toBe(75);
+      expect(result.final_price).toBe(150);
+      expect(result.discount_percent).toBe(0);
+    });
   });
 });

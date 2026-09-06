@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import toast from 'react-hot-toast';
 import {
   CustomerGroup,
   PriceList,
@@ -19,6 +20,7 @@ import {
   usePricingProductGroups,
   usePricingRules,
 } from '../../../hooks/pricing/usePricingQueries';
+import { validateRuleForm } from './components/RulesTab';
 
 export function usePricingData() {
   const [selectedListId, setSelectedListId] = useState<number | null>(null);
@@ -53,7 +55,11 @@ export function usePricingData() {
 
   const handleCreateGroup = async (e: React.FormEvent) => {
     e.preventDefault();
-    await mutations.createGroup.mutateAsync(groupForm);
+    try {
+      await mutations.createGroup.mutateAsync(groupForm);
+    } catch {
+      return; // onError toast already handles
+    }
     setShowGroupForm(false);
     setGroupForm(INITIAL_GROUP_FORM);
   };
@@ -61,19 +67,47 @@ export function usePricingData() {
   const handleUpdateGroup = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingGroup) return;
-    await mutations.updateGroup.mutateAsync({ id: editingGroup.id, data: groupForm });
+    try {
+      await mutations.updateGroup.mutateAsync({ id: editingGroup.id, data: groupForm });
+    } catch {
+      return; // onError toast already handles
+    }
     setEditingGroup(null);
     setGroupForm(INITIAL_GROUP_FORM);
   };
 
   const handleDeleteGroup = async (id: number) => {
     if (!confirm('Er du sikker på at du vil slette denne gruppen?')) return;
-    await mutations.deleteGroup.mutateAsync(id);
+    try {
+      await mutations.deleteGroup.mutateAsync(id);
+    } catch {
+      return; // onError toast already handles
+    }
   };
 
   const handleCreateList = async (e: React.FormEvent) => {
     e.preventDefault();
-    await mutations.createList.mutateAsync(listForm);
+    if (listForm.valid_from && listForm.valid_to && listForm.valid_from > listForm.valid_to) {
+      toast.error('Fra-dato må være før til-dato');
+      return;
+    }
+    if (!Number.isInteger(listForm.priority) || listForm.priority < 0 || listForm.priority > 1000) {
+      toast.error('Prioritet må være mellom 0 og 1000');
+      return;
+    }
+    if (listForm.name.length > 100) {
+      toast.error('Navn kan ikke være lenger enn 100 tegn');
+      return;
+    }
+    if ((listForm.description?.length ?? 0) > 500) {
+      toast.error('Beskrivelse kan ikke være lenger enn 500 tegn');
+      return;
+    }
+    try {
+      await mutations.createList.mutateAsync(listForm);
+    } catch {
+      return; // onError toast already handles
+    }
     setShowListForm(false);
     setListForm(INITIAL_LIST_FORM);
   };
@@ -81,27 +115,64 @@ export function usePricingData() {
   const handleUpdateList = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingList) return;
-    await mutations.updateList.mutateAsync({ id: editingList.id, data: listForm });
+    if (listForm.valid_from && listForm.valid_to && listForm.valid_from > listForm.valid_to) {
+      toast.error('Fra-dato må være før til-dato');
+      return;
+    }
+    if (!Number.isInteger(listForm.priority) || listForm.priority < 0 || listForm.priority > 1000) {
+      toast.error('Prioritet må være mellom 0 og 1000');
+      return;
+    }
+    if (listForm.name.length > 100) {
+      toast.error('Navn kan ikke være lenger enn 100 tegn');
+      return;
+    }
+    if ((listForm.description?.length ?? 0) > 500) {
+      toast.error('Beskrivelse kan ikke være lenger enn 500 tegn');
+      return;
+    }
+    try {
+      await mutations.updateList.mutateAsync({ id: editingList.id, data: listForm });
+    } catch {
+      return; // onError toast already handles
+    }
     setEditingList(null);
     setListForm(INITIAL_LIST_FORM);
   };
 
   const handleDeleteList = async (id: number) => {
     if (!confirm('Er du sikker på at du vil slette denne prislisten? Alle regler vil også bli slettet.')) return;
-    await mutations.deleteList.mutateAsync(id);
+    try {
+      await mutations.deleteList.mutateAsync(id);
+    } catch {
+      return; // onError toast already handles
+    }
     if (selectedListId === id) {
       setSelectedListId(null);
     }
   };
 
   const handleToggleListActive = async (list: PriceList) => {
-    await mutations.toggleListActive.mutateAsync({ id: list.id, isActive: !list.is_active });
+    try {
+      await mutations.toggleListActive.mutateAsync({ id: list.id, isActive: !list.is_active });
+    } catch {
+      return; // onError toast already handles
+    }
   };
 
   const handleCreateRule = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedListId) return;
-    await mutations.createRule.mutateAsync({ listId: selectedListId, ruleForm });
+    const validationError = validateRuleForm(ruleForm);
+    if (validationError) {
+      toast.error(validationError);
+      return;
+    }
+    try {
+      await mutations.createRule.mutateAsync({ listId: selectedListId, ruleForm });
+    } catch {
+      return; // onError toast already handles
+    }
     setShowRuleForm(false);
     setRuleForm(INITIAL_RULE_FORM);
   };
@@ -109,7 +180,16 @@ export function usePricingData() {
   const handleUpdateRule = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingRule || !selectedListId) return;
-    await mutations.updateRule.mutateAsync({ id: editingRule.id, ruleForm });
+    const validationError = validateRuleForm(ruleForm);
+    if (validationError) {
+      toast.error(validationError);
+      return;
+    }
+    try {
+      await mutations.updateRule.mutateAsync({ id: editingRule.id, ruleForm });
+    } catch {
+      return; // onError toast already handles
+    }
     setShowRuleForm(false);
     setEditingRule(null);
     setRuleForm(INITIAL_RULE_FORM);
@@ -117,11 +197,19 @@ export function usePricingData() {
 
   const handleDeleteRule = async (id: number) => {
     if (!confirm('Er du sikker på at du vil slette denne regelen?')) return;
-    await mutations.deleteRule.mutateAsync(id);
+    try {
+      await mutations.deleteRule.mutateAsync(id);
+    } catch {
+      return; // onError toast already handles
+    }
   };
 
   const handleAssignCustomer = async (kundenr: string, groupId: number | null) => {
-    await mutations.assignCustomer.mutateAsync({ kundenr, groupId });
+    try {
+      await mutations.assignCustomer.mutateAsync({ kundenr, groupId });
+    } catch {
+      return; // onError toast already handles
+    }
   };
 
   return {

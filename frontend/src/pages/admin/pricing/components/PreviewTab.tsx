@@ -33,19 +33,27 @@ export function PreviewTab({ customersWithGroups }: PreviewTabProps) {
 
   const parsedBasePrice = (() => {
     const n = parseNorwegianNumber(basePrice);
-    return n !== null && n > 0 ? n : null;
+    return n !== null && n >= 0 ? n : null;
   })();
-  const canSubmit = Boolean(kundenr && varekode.trim() && parsedBasePrice);
+  const trimmedKundenr = kundenr.trim();
+  const trimmedVarekode = varekode.trim();
+  const basePriceTooHigh = parsedBasePrice !== null && parsedBasePrice > 10000000;
+  const kundenrValid = trimmedKundenr.length >= 1 && trimmedKundenr.length <= 50;
+  const varekodeValid = trimmedVarekode.length >= 1 && trimmedVarekode.length <= 50;
+  const quantityValid =
+    Number.isInteger(quantity) && quantity >= 1 && quantity <= 1000000;
+  const canSubmit =
+    kundenrValid && varekodeValid && parsedBasePrice !== null && !basePriceTooHigh && quantityValid;
 
   const handleCalculate = (e: FormEvent) => {
     e.preventDefault();
-    if (!canSubmit || !parsedBasePrice) {
+    if (!canSubmit || parsedBasePrice === null) {
       setError('Fyll inn alle feltene med gyldige verdier');
       return;
     }
     calc.mutate({
-      varekode: varekode.trim(),
-      kundenr,
+      varekode: trimmedVarekode,
+      kundenr: trimmedKundenr,
       quantity,
       base_price: parsedBasePrice,
     });
@@ -84,12 +92,16 @@ export function PreviewTab({ customersWithGroups }: PreviewTabProps) {
                 id="preview-kundenr"
                 value={kundenr}
                 onChange={(val) => {
-                  setKundenr(val.split(' - ')[0]?.trim() ?? val);
+                  setKundenr((val.split(' - ')[0]?.trim() ?? val).slice(0, 50));
+                  setResult(null);
                   setError('');
                 }}
                 fetchSuggestions={fetchCustomerSuggestions}
                 onSelect={(suggestion) => {
-                  setKundenr(suggestion.suggestion.split(' - ')[0]?.trim() ?? '');
+                  setKundenr(
+                    (suggestion.suggestion.split(' - ')[0]?.trim() ?? '').slice(0, 50),
+                  );
+                  setResult(null);
                   setError('');
                 }}
                 placeholder="Søk kundenr eller navn..."
@@ -112,9 +124,11 @@ export function PreviewTab({ customersWithGroups }: PreviewTabProps) {
                 value={varekode}
                 onChange={(e) => {
                   setVarekode(e.target.value);
+                  setResult(null);
                   setError('');
                 }}
                 placeholder="f.eks. ABC123"
+                maxLength={50}
                 className="input w-full"
               />
             </div>
@@ -125,17 +139,20 @@ export function PreviewTab({ customersWithGroups }: PreviewTabProps) {
               </label>
               <input
                 id="preview-base-price"
-                type="number"
+                type="text"
+                inputMode="decimal"
                 value={basePrice}
                 onChange={(e) => {
                   setBasePrice(e.target.value);
+                  setResult(null);
                   setError('');
                 }}
                 placeholder="100"
-                min="0"
-                step="0.01"
                 className="input w-full"
               />
+              {basePriceTooHigh && (
+                <p className="text-xs text-red-400 mt-1">Maks 10 000 000 kr</p>
+              )}
             </div>
 
             <div>
@@ -145,12 +162,40 @@ export function PreviewTab({ customersWithGroups }: PreviewTabProps) {
               <input
                 id="preview-quantity"
                 type="range"
-                value={quantity}
-                onChange={(e) => setQuantity(parseInt(e.target.value, 10))}
+                value={Math.min(quantity, 100)}
+                onChange={(e) => {
+                  setQuantity(parseInt(e.target.value, 10));
+                  setResult(null);
+                }}
                 min="1"
                 max="100"
                 className="w-full h-2 bg-dark-700 rounded-lg appearance-none cursor-pointer"
               />
+              <input
+                id="preview-quantity-number"
+                type="number"
+                min={1}
+                max={1000000}
+                step={1}
+                value={quantity}
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  if (raw === '') return;
+                  const v = Number(raw);
+                  if (Number.isInteger(v)) {
+                    setQuantity(v);
+                    setResult(null);
+                  }
+                }}
+                aria-label="Antall (tall)"
+                className="input w-full mt-2"
+              />
+              <p className="text-xs text-dark-500 mt-1">1–1 000 000, slider opp til 100</p>
+              {!quantityValid && (
+                <p className="text-xs text-red-400 mt-1">
+                  Antall må være et helt tall mellom 1 og 1 000 000
+                </p>
+              )}
             </div>
           </div>
 
@@ -170,7 +215,7 @@ export function PreviewTab({ customersWithGroups }: PreviewTabProps) {
         </form>
       </div>
 
-      {result && parsedBasePrice && (
+      {result && parsedBasePrice !== null && (
         <div className="card">
           <h3 className="text-lg font-semibold mb-4">Resultat</h3>
 
@@ -210,12 +255,23 @@ export function PreviewTab({ customersWithGroups }: PreviewTabProps) {
             <div className="bg-dark-800 rounded-lg p-4 text-center">
               <p className="text-sm text-dark-400 mb-1">Rabatt</p>
               {result.discount_applied ? (
-                <>
-                  <p className="text-2xl font-bold text-yellow-400">-{result.discount_percent}%</p>
-                  <p className="text-xs text-yellow-400/70 mt-1">
-                    Du sparer {result.discount_amount.toFixed(2)} kr
-                  </p>
-                </>
+                result.discount_percent != null &&
+                !result.applied_rule_name?.startsWith('Fast pris') ? (
+                  <>
+                    <p className="text-2xl font-bold text-yellow-400">-{result.discount_percent}%</p>
+                    <p className="text-xs text-yellow-400/70 mt-1">
+                      Du sparer {result.discount_amount.toFixed(2)} kr
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-2xl font-bold text-yellow-400">Fast pris</p>
+                    <p className="text-xs text-yellow-400/70 mt-1">
+                      {result.unit_price.toFixed(2)} kr/stk – du sparer{' '}
+                      {result.discount_amount.toFixed(2)} kr
+                    </p>
+                  </>
+                )
               ) : (
                 <p className="text-2xl font-bold text-dark-500">Ingen</p>
               )}

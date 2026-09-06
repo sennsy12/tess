@@ -1,3 +1,4 @@
+import { FormEvent } from 'react';
 import { INITIAL_LIST_FORM, ListsTabProps } from '../../../../types/pricing';
 import { EmptyState } from '../../../../components/EmptyState';
 import { formatDateNb } from '../../../../lib/formatters';
@@ -18,6 +19,25 @@ export function ListsTab({
   loadRules,
   setActiveTab,
 }: ListsTabProps) {
+  const isDateInverted = Boolean(
+    listForm.valid_from && listForm.valid_to && listForm.valid_from > listForm.valid_to
+  );
+  const isPriorityInvalid =
+    !Number.isInteger(listForm.priority) || listForm.priority < 0 || listForm.priority > 1000;
+
+  const handleSubmit = (e: FormEvent) => {
+    // JS length guard (mirrors backend: name 1..100, description max 500)
+    if (listForm.name.length > 100 || (listForm.description?.length ?? 0) > 500) {
+      e.preventDefault();
+      return;
+    }
+    if (isDateInverted || isPriorityInvalid) {
+      e.preventDefault();
+      return;
+    }
+    return editingList ? handleUpdateList(e) : handleCreateList(e);
+  };
+
   return (
     <div className="card">
       <div className="flex justify-between items-center mb-4">
@@ -37,7 +57,7 @@ export function ListsTab({
       {/* List Form */}
       {(showListForm || editingList) && (
         <form
-          onSubmit={editingList ? handleUpdateList : handleCreateList}
+          onSubmit={handleSubmit}
           className="bg-dark-800 p-4 rounded-lg mb-4 space-y-4"
         >
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -49,6 +69,7 @@ export function ListsTab({
                 onChange={(e) => setListForm({ ...listForm, name: e.target.value })}
                 className="input w-full"
                 required
+                maxLength={100}
               />
             </div>
             <div>
@@ -58,6 +79,7 @@ export function ListsTab({
                 value={listForm.description}
                 onChange={(e) => setListForm({ ...listForm, description: e.target.value })}
                 className="input w-full"
+                maxLength={500}
               />
             </div>
             <div>
@@ -65,10 +87,22 @@ export function ListsTab({
               <input
                 type="number"
                 value={listForm.priority}
-                onChange={(e) => setListForm({ ...listForm, priority: parseInt(e.target.value) || 0 })}
+                onChange={(e) => {
+                  const parsed = parseInt(e.target.value, 10);
+                  const normalized = Number.isNaN(parsed)
+                    ? 0
+                    : Math.min(1000, Math.max(0, Math.trunc(parsed)));
+                  setListForm({ ...listForm, priority: normalized });
+                }}
                 className="input w-full"
+                min={0}
+                max={1000}
+                step={1}
               />
               <p className="mt-1 text-xs text-dark-500">Høyere tall = brukes først når flere lister overlapper</p>
+              {isPriorityInvalid && (
+                <p className="mt-1 text-xs text-red-400">Prioritet må være mellom 0 og 1000</p>
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium text-dark-300 mb-1">Gyldig fra</label>
@@ -87,6 +121,9 @@ export function ListsTab({
                 onChange={(e) => setListForm({ ...listForm, valid_to: e.target.value })}
                 className="input w-full"
               />
+              {isDateInverted && (
+                <p className="mt-1 text-xs text-red-400">Fra-dato må være før til-dato</p>
+              )}
             </div>
             <div className="flex items-center gap-2 pt-6">
               <input
@@ -100,7 +137,7 @@ export function ListsTab({
             </div>
           </div>
           <div className="flex gap-2">
-            <button type="submit" className="btn-primary">
+            <button type="submit" className="btn-primary" disabled={isDateInverted}>
               {editingList ? 'Oppdater' : 'Opprett'}
             </button>
             <button
@@ -196,8 +233,16 @@ export function ListsTab({
                       setListForm({
                         name: list.name,
                         description: list.description || '',
-                        valid_from: list.valid_from ? list.valid_from.split('T')[0] : '',
-                        valid_to: list.valid_to ? list.valid_to.split('T')[0] : '',
+                        valid_from: list.valid_from
+                          ? list.valid_from.includes('T')
+                            ? list.valid_from.split('T')[0]
+                            : list.valid_from
+                          : '',
+                        valid_to: list.valid_to
+                          ? list.valid_to.includes('T')
+                            ? list.valid_to.split('T')[0]
+                            : list.valid_to
+                          : '',
                         priority: list.priority,
                         is_active: list.is_active,
                       });

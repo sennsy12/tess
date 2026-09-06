@@ -10,6 +10,7 @@ export interface PriceList {
   id: number;
   name: string;
   description: string | null;
+  // ISO datetime on the wire (e.g. "2025-01-01T00:00:00Z"); forms use YYYY-MM-DD.
   valid_from: string | null;
   valid_to: string | null;
   priority: number;
@@ -138,6 +139,7 @@ export interface GroupFormData {
 export interface ListFormData {
   name: string;
   description: string;
+  // YYYY-MM-DD (HTML date inputs); converted to ISO datetimes at the API boundary.
   valid_from: string;
   valid_to: string;
   priority: number;

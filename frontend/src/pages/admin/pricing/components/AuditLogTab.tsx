@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Pagination } from '../../../../components/admin';
 import { Spinner } from '../../../../components/Spinner';
 import { auditApi } from '../../../../lib/api';
+import { formatMoneyNok } from '../../../../lib/formatters';
 import { pricingKeys } from '../../../../lib/queryKeys';
 import { AuditEntry } from '../../../../types/pricing';
 
@@ -18,8 +19,10 @@ const ACTION_LABELS: Record<string, { label: string; className: string }> = {
 
 const ENTITY_LABELS: Record<string, string> = {
   customer_group: 'Kundegruppe',
+  customer_group_member: 'Gruppemedlem',
   price_list: 'Prisliste',
   price_rule: 'Prisregel',
+  vare: 'Vare',
 };
 
 const FIELD_LABELS: Record<string, string> = {
@@ -32,6 +35,7 @@ const FIELD_LABELS: Record<string, string> = {
   min_quantity: 'Min. antall',
   discount_percent: 'Rabatt (%)',
   fixed_price: 'Fast pris (NOK)',
+  base_price: 'Basispris (NOK)',
   valid_from: 'Gyldig fra',
   valid_to: 'Gyldig til',
   priority: 'Prioritet',
@@ -52,9 +56,19 @@ const SNAPSHOT_EXCLUDE = new Set([
 // Helpers
 // ────────────────────────────────────────────────────────────
 
-function formatValue(value: any): string {
+function formatValue(value: any, field?: string): string {
   if (value === null || value === undefined) return '(tom)';
   if (typeof value === 'boolean') return value ? 'Ja' : 'Nei';
+  if (field === 'base_price') {
+    const num = typeof value === 'number' ? value : Number(value);
+    if (Number.isFinite(num)) {
+      try {
+        return formatMoneyNok(num);
+      } catch {
+        // fall through to plain formatting
+      }
+    }
+  }
   return String(value);
 }
 
@@ -76,8 +90,10 @@ function formatTimestamp(ts: string): string {
 const TYPE_OPTIONS = [
   { value: '', label: 'Alle typer' },
   { value: 'customer_group', label: 'Kundegrupper' },
+  { value: 'customer_group_member', label: 'Gruppemedlem' },
   { value: 'price_list', label: 'Prislister' },
   { value: 'price_rule', label: 'Prisregler' },
+  { value: 'vare', label: 'Vare' },
 ];
 
 const ACTION_OPTIONS = [
@@ -104,9 +120,111 @@ function UpdateDetails({ changes }: { changes: Record<string, { old: any; new: a
             <span className="text-dark-400 min-w-[120px] flex-shrink-0">
               {FIELD_LABELS[field] || field}:
             </span>
-            <span className="text-red-400 line-through">{formatValue(oldVal)}</span>
+            <span className="text-red-400 line-through">{formatValue(oldVal, field)}</span>
             <span className="text-dark-500">&rarr;</span>
-            <span className="text-green-400">{formatValue(newVal)}</span>
+            <span className="text-green-400">{formatValue(newVal, field)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Safely extract assign/remove details for customer_group_member audits.
+ * Backend stores UPDATE with only newData (no old) so `changes` is null and
+ * `metadata` may hold newData/snapshot/direct fields (or a top-level newData
+ * if the API ever returns it). Always returns null instead of crashing. */
+function getMemberDetails(entry: AuditEntry): Record<string, any> | null {
+  try {
+    const meta = entry?.metadata as Record<string, any> | null | undefined;
+    if (meta && typeof meta === 'object' && !Array.isArray(meta)) {
+      const nested = (meta as Record<string, any>).newData;
+      if (nested && typeof nested === 'object' && !Array.isArray(nested) && Object.keys(nested).length > 0) {
+        return nested as Record<string, any>;
+      }
+      const snap = (meta as Record<string, any>).snapshot;
+      if (
+        entry?.entity_type === 'customer_group_member' &&
+        snap &&
+        typeof snap === 'object' &&
+        !Array.isArray(snap) &&
+        Object.keys(snap).length > 0
+      ) {
+        return snap as Record<string, any>;
+      }
+      const direct: Record<string, any> = {};
+      if ('kundenr' in meta) direct.kundenr = (meta as Record<string, any>).kundenr;
+      if ('customer_group_id' in meta) direct.customer_group_id = (meta as Record<string, any>).customer_group_id;
+      if (Object.keys(direct).length > 0) return direct;
+    }
+    const rawNew = (entry as unknown as Record<string, any> | null | undefined)?.newData;
+    if (rawNew && typeof rawNew === 'object' && !Array.isArray(rawNew) && Object.keys(rawNew).length > 0) {
+      return rawNew as Record<string, any>;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+/** Generic fallback for UPDATE metadata without `changes` (scalar fields only,
+ * never crashes on null/nested objects). */
+function getExtraMetadata(entry: AuditEntry): Record<string, any> | null {
+  try {
+    const meta = entry?.metadata as Record<string, any> | null | undefined;
+    if (!meta || typeof meta !== 'object' || Array.isArray(meta)) return null;
+    const { snapshot, newData, ...rest } = meta as Record<string, any>;
+    void snapshot;
+    void newData;
+    const scalars = Object.entries(rest).filter(([, v]) => v === null || v === undefined || typeof v !== 'object');
+    if (scalars.length > 0) return Object.fromEntries(scalars);
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+/** Expanded detail pane for customer_group_member assign/remove audits. */
+function MemberDetails({ details }: { details: Record<string, any> }) {
+  const rows = Object.entries(details ?? {});
+  return (
+    <div className="px-4 pb-3 border-t border-dark-700 pt-3">
+      <div className="text-xs font-medium text-dark-400 mb-2 uppercase tracking-wide">
+        Medlem
+      </div>
+      <div className="space-y-1">
+        {rows.length === 0 ? (
+          <div className="text-sm text-dark-400">(ingen flere detaljer)</div>
+        ) : (
+          rows.map(([field, value]) => (
+            <div key={field} className="flex items-start gap-2 text-sm">
+              <span className="text-dark-400 min-w-[120px] flex-shrink-0">
+                {FIELD_LABELS[field] || field}:
+              </span>
+              <span className="text-dark-200">{formatValue(value, field)}</span>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Generic expanded pane for metadata without diffs. */
+function MetadataDetails({ data }: { data: Record<string, any> }) {
+  const rows = Object.entries(data ?? {});
+  return (
+    <div className="px-4 pb-3 border-t border-dark-700 pt-3">
+      <div className="text-xs font-medium text-dark-400 mb-2 uppercase tracking-wide">
+        Detaljer
+      </div>
+      <div className="space-y-1">
+        {rows.map(([field, value]) => (
+          <div key={field} className="flex items-start gap-2 text-sm">
+            <span className="text-dark-400 min-w-[120px] flex-shrink-0">
+              {FIELD_LABELS[field] || field}:
+            </span>
+            <span className="text-dark-200">{formatValue(value, field)}</span>
           </div>
         ))}
       </div>
@@ -132,7 +250,7 @@ function DeleteDetails({ snapshot }: { snapshot: Record<string, any> }) {
             <span className="text-dark-400 min-w-[120px] flex-shrink-0">
               {FIELD_LABELS[field] || field}:
             </span>
-            <span className="text-dark-200">{formatValue(value)}</span>
+            <span className="text-dark-200">{formatValue(value, field)}</span>
           </div>
         ))}
       </div>
@@ -251,9 +369,21 @@ export function AuditLogTab() {
               };
               const entityLabel = ENTITY_LABELS[entry.entity_type] || entry.entity_type;
               const isExpanded = expandedId === entry.id;
+              const changesCount = entry?.changes ? Object.keys(entry.changes).length : 0;
+              const hasChanges = changesCount > 0;
+              const deleteSnapshot =
+                entry?.action === 'DELETE'
+                  ? (entry?.metadata as Record<string, any> | null | undefined)?.snapshot
+                  : undefined;
+              const hasDeleteSnapshot =
+                !!deleteSnapshot && typeof deleteSnapshot === 'object' && !Array.isArray(deleteSnapshot);
+              // Assign/remove audits are UPDATE with only newData (no old) so
+              // changes is null; entity_name already shows "kundenr -> group".
+              // Expand when structured metadata/newData is present (safe on null).
+              const memberDetails = getMemberDetails(entry);
+              const extraMetadata = !hasChanges && !hasDeleteSnapshot ? getExtraMetadata(entry) : null;
               const hasDetails =
-                (entry.changes && Object.keys(entry.changes).length > 0) ||
-                (entry.action === 'DELETE' && entry.metadata?.snapshot);
+                hasChanges || hasDeleteSnapshot || memberDetails !== null || extraMetadata !== null;
 
               return (
                 <div
@@ -287,18 +417,26 @@ export function AuditLogTab() {
                   </div>
 
                   {/* Expanded details */}
-                  {isExpanded && entry.action === 'UPDATE' && entry.changes && (
+                  {isExpanded && hasChanges && entry.changes && (
                     <UpdateDetails changes={entry.changes} />
                   )}
-                  {isExpanded &&
-                    entry.action === 'DELETE' &&
-                    entry.metadata?.snapshot && (
-                      <DeleteDetails snapshot={entry.metadata.snapshot} />
-                    )}
+                  {isExpanded && !hasChanges && memberDetails && (
+                    <MemberDetails details={memberDetails} />
+                  )}
+                  {isExpanded && !hasChanges && !memberDetails && extraMetadata && (
+                    <MetadataDetails data={extraMetadata} />
+                  )}
+                  {isExpanded && hasDeleteSnapshot && (
+                    <DeleteDetails snapshot={deleteSnapshot as Record<string, any>} />
+                  )}
                 </div>
               );
             })}
           </div>
+
+          <p className="text-xs text-dark-500 mt-3">
+            Sletting av gruppe nullstiller gruppens regler til Alle kunder.
+          </p>
 
           {/* Pagination */}
           <Pagination
