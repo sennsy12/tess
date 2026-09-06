@@ -9,13 +9,15 @@ interface ProductCardProps {
   product: CatalogProduct;
   /** Units of this product already in the cart. */
   inCart: number;
-  onAdd: () => void;
+  onAdd: (qty: number) => void;
 }
 
 /** A single product tile in the catalog grid, with quantity stepper. */
 export function ProductCard({ product, inCart, onAdd }: ProductCardProps) {
   const [qty, setQty] = useState(1);
   const hasDiscount = product.discount_applied && product.discount_percent != null;
+  // Fixed-price rules also surface via discount_percent, but must not render as -%.
+  const isFixedPrice = product.applied_rule_name?.startsWith('Fast pris') ?? false;
 
   return (
     <div className="card p-4 flex flex-col gap-3 relative">
@@ -42,12 +44,21 @@ export function ProductCard({ product, inCart, onAdd }: ProductCardProps) {
           {hasDiscount && (
             <>
               <span className="text-sm text-dark-500 line-through">{formatMoneyNok(product.base_price)}</span>
-              <span
-                className="flex items-center gap-1 px-1.5 py-0.5 bg-green-600/20 text-green-300 rounded text-xs font-medium"
-                title={product.applied_rule_name ?? undefined}
-              >
-                <BadgePercent className="h-3 w-3" aria-hidden />-{product.discount_percent}%
-              </span>
+              {isFixedPrice ? (
+                <span
+                  className="flex items-center gap-1 px-1.5 py-0.5 bg-green-600/20 text-green-300 rounded text-xs font-medium"
+                  title={product.applied_rule_name ?? undefined}
+                >
+                  Fast pris {formatMoneyNok(product.unit_price)}
+                </span>
+              ) : (
+                <span
+                  className="flex items-center gap-1 px-1.5 py-0.5 bg-green-600/20 text-green-300 rounded text-xs font-medium"
+                  title={product.applied_rule_name ?? undefined}
+                >
+                  <BadgePercent className="h-3 w-3" aria-hidden />-{product.discount_percent}%
+                </span>
+              )}
             </>
           )}
         </div>
@@ -85,7 +96,7 @@ export function ProductCard({ product, inCart, onAdd }: ProductCardProps) {
               <Plus className="h-3.5 w-3.5" aria-hidden />
             </button>
           </div>
-          <button type="button" className="btn-primary flex-1 flex items-center justify-center gap-1.5" onClick={onAdd}>
+          <button type="button" className="btn-primary flex-1 flex items-center justify-center gap-1.5" onClick={() => onAdd(qty)}>
             <ShoppingCart className="h-4 w-4" aria-hidden />
             Legg i kurv
           </button>

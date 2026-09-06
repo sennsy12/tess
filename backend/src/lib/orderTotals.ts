@@ -1,3 +1,5 @@
+import { round2 } from './round.js';
+
 export interface OrderLineTotalInput {
   antall: number;
   nettpris: number;
@@ -43,8 +45,4 @@ export function summarizeOrderLines(
     brutto: round2(brutto),
     weightedAvgPrice: round2(weightedAvgPrice),
   };
-}
-
-function round2(value: number): number {
-  return Math.round(value * 100) / 100;
 }

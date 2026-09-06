@@ -4,8 +4,13 @@ import type { StatsFilters, PaginatedResult } from './types.js';
 
 /** Extract and normalise pagination params from a filters object. */
 export const getPagination = (filters: StatsFilters) => {
-  const page = filters.page || 1;
-  const limit = filters.limit || 25;
+  const page = Math.max(1, Math.floor(filters.page || 1));
+  // Hard cap blocks runaway grouped scans; the statistics controller already
+  // clamps to 100, so API behaviour is unchanged — only direct model callers
+  // with huge limits are reined in.
+  const STATS_LIMIT_MAX = 200;
+  const requested = Number.isFinite(filters.limit) ? Math.floor(filters.limit as number) : 25;
+  const limit = Math.min(Math.max(1, requested || 25), STATS_LIMIT_MAX);
   const offset = (page - 1) * limit;
   return { page, limit, offset };
 };

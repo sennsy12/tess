@@ -59,6 +59,11 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     () => ({
       items: state.items,
       count: state.items.reduce((acc, i) => acc + i.antall, 0),
+      // Banner-first (no bulk reprice): cart totals are frontend unit_price*qty
+      // snapshots and can go stale. Backend single-rounds the order total, so
+      // it may differ by 1-2 øre from summed frontend lines. Totals math is
+      // intentionally unchanged here — the UI labels prices as provisional
+      // ("Foreløpig pris – re-prises ved bekreftelse") instead of re-pricing.
       total: Math.round(state.items.reduce((acc, i) => acc + i.unit_price * i.antall, 0) * 100) / 100,
       addItem,
       setQuantity: (varekode: string, antall: number) => dispatch({ type: 'setQuantity', varekode, antall }),

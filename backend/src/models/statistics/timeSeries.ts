@@ -1,6 +1,14 @@
 import { query } from '../../db/index.js';
 import type { StatsFilters } from './types.js';
 
+// MV OPPORTUNITY: getTimeSeries / getSummary scan `ordre` (+ `ordrelinje`)
+// per request. No LIMIT cap is applied here on purpose — capping would change
+// default results for long date ranges (breaking). If these endpoints show up
+// as slow, the fix is a time-bucketed MV (e.g. mv_stats_daily: day, kundenr,
+// order_count, total_sum, refreshed hourly like the 005 MVs) with a
+// filtered-fallback to these base-table queries. SQL semantics below are
+// intentionally unchanged.
+
 export const timeSeriesStatsModel = {
   getTimeSeries: async (
     filters: StatsFilters,

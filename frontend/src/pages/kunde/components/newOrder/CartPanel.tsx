@@ -27,6 +27,7 @@ export function CartPanel({ onCheckout }: CartPanelProps) {
           </button>
         )}
       </div>
+      <p className="text-xs text-dark-500 mb-3">Foreløpig pris – re-prises ved bekreftelse</p>
 
       {cart.items.length === 0 ? (
         <div className="text-center py-8">

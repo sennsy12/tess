@@ -2,6 +2,15 @@ import { query } from '../../db/index.js';
 import { toIlikeContains } from '../../lib/sqlSearch.js';
 import type { StatsFilters } from './types.js';
 
+/** Default row cap for custom stats (historic behaviour); hard max 200. */
+const CUSTOM_STATS_DEFAULT_LIMIT = 50;
+const CUSTOM_STATS_MAX_LIMIT = 200;
+
+// MV OPPORTUNITY: product/category dimensions over full history aggregate
+// `ordrelinje` per request. If slow, pre-aggregate per (varegruppe, month)
+// and per (varekode, month) MVs (same hourly refresh as the 005 MVs) and
+// serve day/month/year rollups from them. Semantics below are unchanged.
+
 export const customStatsModel = {
   getCustomStats: async (
     filters: StatsFilters & { 
@@ -126,7 +135,15 @@ export const customStatsModel = {
       params.push(filters.endDate);
     }
 
-    sql += ` GROUP BY ${groupByClause} ORDER BY ${orderByClause} LIMIT 50`;
+    // filters.limit is honoured when present; default 50 preserves the
+    // historic hard LIMIT, hard-capped at 200 to block runaway scans.
+    const requestedLimit = Number.isFinite(filters.limit) ? Math.floor(filters.limit as number) : CUSTOM_STATS_DEFAULT_LIMIT;
+    const safeLimit = Math.min(
+      Math.max(1, requestedLimit || CUSTOM_STATS_DEFAULT_LIMIT),
+      CUSTOM_STATS_MAX_LIMIT,
+    );
+
+    sql += ` GROUP BY ${groupByClause} ORDER BY ${orderByClause} LIMIT ${safeLimit}`;
 
     const result = await query(sql, params);
     return result.rows;

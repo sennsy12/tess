@@ -48,8 +48,11 @@ export const orderModel = {
 
   findLines: (ordrenr: number) => findOrderLines(ordrenr),
 
-  searchReferences: (q: string, user?: { role: string; kundenr?: string }) =>
-    searchOrdersByReference(q, user),
+  searchReferences: (
+    q: string,
+    user?: { role: string; kundenr?: string },
+    pagination?: { limit?: number; offset?: number },
+  ) => searchOrdersByReference(q, user, pagination),
 
   updateWorkflowStatus: (ordrenr: number, workflowStatus: OrderWorkflowStatus) =>
     updateOrderWorkflowStatus(ordrenr, workflowStatus),

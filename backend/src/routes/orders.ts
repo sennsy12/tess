@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { authMiddleware, roleGuard } from '../middleware/auth.js';
 import { orderController } from '../controllers/orderController.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
-import { validate, orderQuerySchema, searchQuerySchema, updateOrderStatusSchema, createOrderSchema } from '../middleware/validation.js';
+import { validate, orderQuerySchema, searchQuerySchema, updateOrderStatusSchema, createOrderSchema, ordrenrParamSchema } from '../middleware/validation.js';
 import { orderCreateLimiter } from '../middleware/rateLimit.js';
 
 export const ordersRouter = Router();
@@ -36,6 +36,7 @@ ordersRouter.patch(
   '/:ordrenr/cancel',
   authMiddleware,
   roleGuard('kunde', 'admin'),
+  validate(ordrenrParamSchema, 'params'),
   asyncHandler(orderController.cancel),
 );
 
@@ -44,12 +45,25 @@ ordersRouter.patch(
   '/:ordrenr/status',
   authMiddleware,
   roleGuard('admin'),
+  validate(ordrenrParamSchema, 'params'),
   validate(updateOrderStatusSchema),
   asyncHandler(orderController.updateStatus),
 );
 
 // Get workflow history (timeline: who/when/from→to/comment), kunde-scoped
-ordersRouter.get('/:ordrenr/history', authMiddleware, asyncHandler(orderController.getHistory));
+// (invalid ordrenr → 400 via params; unknown/foreign → 404 in service)
+ordersRouter.get(
+  '/:ordrenr/history',
+  authMiddleware,
+  validate(ordrenrParamSchema, 'params'),
+  asyncHandler(orderController.getHistory),
+);
 
 // Get a single order with lines
-ordersRouter.get('/:ordrenr', authMiddleware, asyncHandler(orderController.getOne));
+// (invalid ordrenr → 400 via params; unknown/foreign → 404 in controller)
+ordersRouter.get(
+  '/:ordrenr',
+  authMiddleware,
+  validate(ordrenrParamSchema, 'params'),
+  asyncHandler(orderController.getOne),
+);

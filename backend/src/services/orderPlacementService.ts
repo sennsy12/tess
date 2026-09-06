@@ -11,7 +11,7 @@
  * @module services/orderPlacementService
  */
 import { transaction, query } from '../db/index.js';
-import { NotFoundError } from '../middleware/errorHandler.js';
+import { ConflictError, NotFoundError } from '../middleware/errorHandler.js';
 import { pricingService } from './pricingService.js';
 
 export interface CreateCustomerOrderInput {
@@ -39,13 +39,45 @@ interface ProductRow {
   base_price: number;
 }
 
-/** Fetch an existing order by idempotency key (idempotent replay support). */
-async function findByIdempotencyKey(key: string): Promise<number | null> {
+/**
+ * Fetch an existing order by idempotency key (idempotent replay support).
+ *
+ * Returns ordrenr + kundenr so callers can scope-check the replay: the global
+ * UNIQUE on ordre.idempotency_key (migration 008) is intentionally NOT changed
+ * here (destructive). Cross-customer key reuse is instead rejected in code
+ * with ConflictError (see createOrder) to avoid leaking K001-orders to K002.
+ *
+ * TTL note (deferred, no GC implemented): idempotency_key rows live forever.
+ * A future migration should add e.g. idempotency_created_at + periodic DELETE
+ * of keys older than X days, plus a full outbox table if exactly-once
+ * delivery beyond dedup is needed. Only reported here, not implemented.
+ */
+async function findByIdempotencyKey(key: string): Promise<{ ordrenr: number; kundenr: string } | null> {
   const result = await query(
-    'SELECT ordrenr FROM ordre WHERE idempotency_key = $1 LIMIT 1',
+    'SELECT ordrenr, kundenr FROM ordre WHERE idempotency_key = $1 LIMIT 1',
     [key],
   );
-  return result.rows[0]?.ordrenr ?? null;
+  const row = result.rows[0];
+  return row ? { ordrenr: row.ordrenr, kundenr: row.kundenr } : null;
+}
+
+/**
+ * Guard against cross-customer idempotency-key reuse.
+ * Same key + same kundenr → safe replay. Same key + different kundenr →
+ * ConflictError (caller must retry with a fresh key) instead of leaking
+ * the original customer's order.
+ */
+function assertSameCustomer(
+  existing: { ordrenr: number; kundenr: string },
+  requestedKundenr: string,
+): void {
+  if (existing.kundenr !== requestedKundenr) {
+    throw new ConflictError(
+      `Idempotency-nøkkel er allerede brukt for en annen kunde ` +
+        `(ordre ${existing.ordrenr}, kundenr ${existing.kundenr}). ` +
+        `Bruk en ny idempotencyKey for kundenr ${requestedKundenr}.`,
+    );
+  }
 }
 
 function isUniqueViolation(err: unknown): boolean {
@@ -82,10 +114,12 @@ export const orderPlacementService = {
    * Idempotent on `idempotencyKey`: replays return the original order.
    */
   createOrder: async (input: CreateCustomerOrderInput): Promise<CreatedOrder> => {
-    // Idempotent replay: same key → return the already-created order
-    const existingOrdrenr = await findByIdempotencyKey(input.idempotencyKey);
-    if (existingOrdrenr != null) {
-      return hydrate(existingOrdrenr);
+    // Idempotent replay: same key + same kundenr → return the already-created order.
+    // Same key + different kundenr → ConflictError (no cross-customer leakage).
+    const existing = await findByIdempotencyKey(input.idempotencyKey);
+    if (existing != null) {
+      assertSameCustomer(existing, input.kundenr);
+      return hydrate(existing.ordrenr);
     }
 
     // Resolve products and validate existence in one round-trip
@@ -176,11 +210,12 @@ export const orderPlacementService = {
         duplicate: false,
       };
     } catch (err) {
-      // Lost a race on the idempotency key — treat as replay
+      // Lost a race on the idempotency key — treat as replay (still scope-checked).
       if (isUniqueViolation(err)) {
-        const racedOrdrenr = await findByIdempotencyKey(input.idempotencyKey);
-        if (racedOrdrenr != null) {
-          return hydrate(racedOrdrenr);
+        const raced = await findByIdempotencyKey(input.idempotencyKey);
+        if (raced != null) {
+          assertSameCustomer(raced, input.kundenr);
+          return hydrate(raced.ordrenr);
         }
       }
       throw err;

@@ -22,6 +22,11 @@ function formatRuleValue(rule: CustomerPriceRule): string {
     return formatMoneyNok(rule.fixed_price);
   }
   if (rule.discount_percent != null) {
+    // 0% rules have no price effect; label explicitly to match the catalog
+    // badge-hidden state (catalog hides badge when !discount_applied).
+    if (rule.discount_percent === 0) {
+      return 'Ingen rabatt (0%)';
+    }
     return `${rule.discount_percent} % rabatt`;
   }
   return '—';
@@ -55,17 +60,25 @@ export function KundePricing() {
   const rules = data?.rules ?? [];
   const customer = data?.customer;
 
+  // Degenerate rules (both fixed_price and discount_percent null) carry no
+  // pricing effect — filter them out instead of rendering a "—" row.
+  const validRules = useMemo(
+    () => rules.filter((rule) => rule.fixed_price != null || rule.discount_percent != null),
+    [rules],
+  );
+  const hiddenInvalidCount = rules.length - validRules.length;
+
   const priceLists = useMemo(() => {
     const names = new Set<string>();
-    for (const rule of rules) {
+    for (const rule of validRules) {
       if (rule.price_list_name) names.add(rule.price_list_name);
     }
     return Array.from(names).sort((a, b) => a.localeCompare(b, 'nb'));
-  }, [rules]);
+  }, [validRules]);
 
   const filteredRules = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return rules.filter((rule) => {
+    return validRules.filter((rule) => {
       if (listFilter && rule.price_list_name !== listFilter) return false;
       if (!q) return true;
       const haystack = [
@@ -80,7 +93,7 @@ export function KundePricing() {
         .toLowerCase();
       return haystack.includes(q);
     });
-  }, [rules, search, listFilter]);
+  }, [validRules, search, listFilter]);
 
   const groupedRules = useMemo(() => {
     const groups = new Map<string, CustomerPriceRule[]>();
@@ -136,7 +149,7 @@ export function KundePricing() {
             </div>
             <div className="grid grid-cols-2 gap-3 sm:min-w-[220px]">
               <div className="rounded-xl border border-dark-700/80 bg-dark-950/50 px-4 py-3 text-center">
-                <p className="text-2xl font-bold text-white tabular-nums">{rules.length}</p>
+                <p className="text-2xl font-bold text-white tabular-nums">{validRules.length}</p>
                 <p className="text-xs text-dark-400 mt-0.5">Regler</p>
               </div>
               <div className="rounded-xl border border-dark-700/80 bg-dark-950/50 px-4 py-3 text-center">
@@ -175,9 +188,13 @@ export function KundePricing() {
               ))}
             </select>
           </div>
-          {(search || listFilter) && (
+          {(search || listFilter || hiddenInvalidCount > 0) && (
             <p className="text-sm text-dark-400">
-              Viser {filteredRules.length} av {rules.length} regler
+              {(search || listFilter) && (
+                <>Viser {filteredRules.length} av {validRules.length} regler</>
+              )}
+              {!(search || listFilter) && <>{validRules.length} regler</>}
+              {hiddenInvalidCount > 0 && <> · {hiddenInvalidCount} ugyldige regler skjult</>}
             </p>
           )}
         </div>
@@ -194,7 +211,7 @@ export function KundePricing() {
               </div>
             ))}
           </div>
-        ) : rules.length === 0 ? (
+        ) : validRules.length === 0 ? (
           <EmptyState
             title="Ingen prisregler funnet"
             description="Det er ikke registrert aktive prisavtaler for kontoen din ennå. Ta kontakt dersom du forventer spesialpriser."

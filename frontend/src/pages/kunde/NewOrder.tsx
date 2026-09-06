@@ -26,12 +26,12 @@ export function NewOrder() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const submission = useOrderSubmission(() => setConfirmOpen(false));
 
-  const handleAdd = (product: CatalogProduct) => {
+  const handleAdd = (product: CatalogProduct, qty = 1) => {
     if (cart.items.length >= MAX_CART_LINES && !cart.items.some((i) => i.varekode === product.varekode)) {
       toast.error(`Maks ${MAX_CART_LINES} linjer per bestilling`);
       return;
     }
-    cart.addItem(product);
+    cart.addItem(product, qty);
   };
 
   const handleCheckout = () => {
@@ -107,7 +107,7 @@ export function NewOrder() {
                       key={product.varekode}
                       product={product}
                       inCart={cart.items.find((i) => i.varekode === product.varekode)?.antall ?? 0}
-                      onAdd={() => handleAdd(product)}
+                      onAdd={(qty) => handleAdd(product, qty)}
                     />
                   ))}
             </div>

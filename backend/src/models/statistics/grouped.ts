@@ -109,6 +109,9 @@ export const groupedStatsModel = {
   getByVare: async (filters: StatsFilters): Promise<PaginatedResult<any>> => {
     const { page, limit, offset } = getPagination(filters);
 
+    // MV OPPORTUNITY: unlike getByKunde/getByVaregruppe, this always scans
+    // base tables (a per-vare MV would be large and churn on every ETL load).
+    // Revisit only if slow-query logs implicate it; semantics unchanged.
     let whereClause = ' WHERE 1=1';
     const params: any[] = [];
     let paramIndex = 1;
@@ -157,6 +160,9 @@ export const groupedStatsModel = {
   getByLager: async (filters: StatsFilters): Promise<PaginatedResult<any>> => {
     const { page, limit, offset } = getPagination(filters);
 
+    // MV OPPORTUNITY: small dimension (few warehouses) — a future
+    // mv_stats_by_lager would make the unfiltered case O(warehouses).
+    // Base-table query kept as-is (semantics unchanged).
     let whereClause = ' WHERE 1=1';
     const params: any[] = [];
     let paramIndex = 1;
@@ -200,6 +206,9 @@ export const groupedStatsModel = {
   getByFirma: async (filters: StatsFilters): Promise<PaginatedResult<any>> => {
     const { page, limit, offset } = getPagination(filters);
 
+    // MV OPPORTUNITY: tiny dimension (few companies) — a future
+    // mv_stats_by_firma would make the unfiltered case O(companies).
+    // Base-table query kept as-is (semantics unchanged).
     let whereClause = ' WHERE 1=1';
     const params: any[] = [];
     let paramIndex = 1;

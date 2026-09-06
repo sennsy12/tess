@@ -45,7 +45,8 @@ export function ConfirmOrderModal({
       <p className="text-sm text-dark-400 mb-4">
         {cart.items.length} linjer · Totalt{' '}
         <span className="text-green-400 font-semibold">{formatMoneyNok(cart.total)}</span>.
-        Ordren sendes til godkjenning før den behandles.
+        Ordren sendes til godkjenning før den behandles.{' '}
+        <span className="text-dark-500">Foreløpig pris – re-prises ved bekreftelse.</span>
       </p>
 
       <div className="space-y-3 mb-4 max-h-48 overflow-y-auto border border-dark-800 rounded-lg p-3">

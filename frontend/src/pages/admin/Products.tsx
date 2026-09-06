@@ -6,7 +6,7 @@ import { Pencil } from 'lucide-react';
 import { Layout } from '../../components/Layout';
 import { QueryErrorBanner } from '../../components/QueryErrorBanner';
 import { QueryRefetchBar } from '../../components/QueryRefetchBar';
-import { productKeys, kundeKeys, type ProductFilters } from '../../lib/queryKeys';
+import { productKeys, kundeKeys, pricingKeys, type ProductFilters } from '../../lib/queryKeys';
 import {
   productFiltersFromSearchParams,
   productFiltersToSearchParams,
@@ -16,7 +16,7 @@ import { DataTable, type DataTableState } from '../../components/DataTable';
 import { PageHeader, FilterBar, TableSkeleton, Pagination } from '../../components/admin';
 import { productsApi } from '../../lib/api';
 import { getApiError } from '../../lib/apiErrors';
-import { formatMoneyNok } from '../../lib/formatters';
+import { formatMoneyNok, parseNorwegianNumber } from '../../lib/formatters';
 
 interface Product {
   varekode: string;
@@ -174,15 +174,20 @@ export function AdminProducts() {
       setEditingPrice(null);
       void queryClient.invalidateQueries({ queryKey: productKeys.root() });
       void queryClient.invalidateQueries({ queryKey: kundeKeys.catalogRoot() });
+      void queryClient.invalidateQueries({ queryKey: pricingKeys.all() });
     },
     onError: (err) => toast.error(getApiError(err, 'Kunne ikke oppdatere pris')),
   });
 
   const submitPriceEdit = () => {
     if (!editingPrice) return;
-    const value = parseFloat(editingPrice.value.replace(',', '.'));
-    if (!Number.isFinite(value) || value < 0) {
+    const value = parseNorwegianNumber(editingPrice.value.trim());
+    if (value === null || value < 0) {
       toast.error('Ugyldig pris');
+      return;
+    }
+    if (value > 10000000) {
+      toast.error('Pris kan ikke overstige 10 000 000 kr');
       return;
     }
     priceMutation.mutate({ varekode: editingPrice.product.varekode, base_price: value });
@@ -361,6 +366,7 @@ export function AdminProducts() {
                 id="basePriceInput"
                 type="number"
                 min={0}
+                max={10000000}
                 step="0.01"
                 autoFocus
                 className="input w-full mb-5"

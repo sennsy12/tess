@@ -12,6 +12,7 @@ import {
 import { parsePagination } from '../http/pagination.js';
 import { resolveOrderKundenr } from '../http/ownership.js';
 import { summarizeOrderLines } from '../lib/orderTotals.js';
+import { ORDER_WORKFLOW_LABELS, ORDER_WORKFLOW_STATUSES } from '../lib/orderWorkflow.js';
 import { orderPlacementService } from '../services/orderPlacementService.js';
 import { orderWorkflowService } from '../services/orderWorkflowService.js';
 import { publishOrderSubmitted } from '../services/orderEvents.js';
@@ -63,9 +64,22 @@ export const orderController = {
 
   searchReferences: async (req: AuthRequest, res: Response) => {
     const { q } = req.query as { q: string };
+    // NOTE: searchQuerySchema currently only permits `q`, so validated
+    // req.query drops page/limit. Read the raw query string instead so
+    // pagination works without touching middleware/routes;
+    // parsePagination sanitises + clamps (default 50, max 200).
+    // Route path is unchanged.
+    const rawQuery = Object.fromEntries(
+      new URL(req.originalUrl ?? req.url ?? '', 'http://localhost').searchParams.entries(),
+    );
+    const { page, limit, offset } = parsePagination(rawQuery);
 
-    const orders = await orderModel.searchReferences(q, req.user);
-    res.json(orders);
+    const result = await orderModel.searchReferences(q, req.user, { limit, offset });
+    // Tolerate legacy array-shaped results (e.g. old mocks) — the live
+    // repository always returns { data, total }.
+    const data = Array.isArray(result) ? result : result.data;
+    const total = Array.isArray(result) ? result.length : result.total;
+    res.json(buildListResponse(data, { page, limit, total }));
   },
 
   updateStatus: async (req: AuthRequest, res: Response) => {
@@ -87,7 +101,6 @@ export const orderController = {
   },
 
   listStatuses: async (_req: AuthRequest, res: Response) => {
-    const { ORDER_WORKFLOW_STATUSES, ORDER_WORKFLOW_LABELS } = await import('../lib/orderWorkflow.js');
     res.json(
       ORDER_WORKFLOW_STATUSES.map((value) => ({
         value,
