@@ -64,7 +64,6 @@ export const customerGroupModel = {
     if ('description' in data) {
       setClauses.push(`description = $${paramIndex}`);
       values.push(data.description ?? null);
-      paramIndex++;
     }
 
     if (setClauses.length === 0) {

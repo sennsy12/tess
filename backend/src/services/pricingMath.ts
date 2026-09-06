@@ -62,7 +62,7 @@ export function applyBestRule(
     return result;
   }
 
-  let finalUnitPrice = basePrice;
+  let finalUnitPrice: number;
 
   if (bestRule.fixed_price != null) {
     finalUnitPrice = round2(Number(bestRule.fixed_price));

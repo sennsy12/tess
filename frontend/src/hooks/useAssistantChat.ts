@@ -148,13 +148,15 @@ export function useAssistantChat() {
   const abortRef = useRef<AbortController | null>(null);
   // Refs keep retry/abort stable while send keeps [isLoading, messages, pathname].
   const messagesRef = useRef(messages);
-  messagesRef.current = messages;
   const isLoadingRef = useRef(isLoading);
-  isLoadingRef.current = isLoading;
   const pathnameRef = useRef(pathname);
-  pathnameRef.current = pathname;
   const keyRef = useRef(key);
-  keyRef.current = key;
+  useEffect(() => {
+    messagesRef.current = messages;
+    isLoadingRef.current = isLoading;
+    pathnameRef.current = pathname;
+    keyRef.current = key;
+  }, [messages, isLoading, pathname, key]);
 
   // Abort in-flight request on unmount.
   useEffect(() => {
