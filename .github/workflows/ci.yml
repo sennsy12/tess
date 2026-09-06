@@ -129,6 +129,8 @@ jobs:
           severity: HIGH,CRITICAL
       - name: Upload Trivy results
         uses: github/codeql-action/upload-sarif@v4
-        if: always()
+        # Skip (don't fail) when an earlier step short-circuited the job
+        # before the scan ran — the real failure is reported by that step.
+        if: always() && hashFiles('trivy-results.sarif') != ''
         with:
           sarif_file: ${{ github.workspace }}/trivy-results.sarif
