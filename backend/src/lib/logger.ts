@@ -19,6 +19,17 @@ export const loggerRedactPaths = [
   '*.JWT_SECRET',
   '*.ADMIN_ACTION_KEY',
   '*.SMTP_PASS',
+  // Additive hardening: refresh/identity tokens + AI keys must never reach
+  // stdout/shipper output even if a caller logs a whole auth/config object.
+  '*.refreshToken',
+  'refreshToken',
+  '*.idToken',
+  'idToken',
+  '*.entraOid',
+  'GEMINI_API_KEY',
+  'OPENAI_API_KEY',
+  '*.GEMINI_API_KEY',
+  '*.OPENAI_API_KEY',
   'password',
   'passwd',
   'token',

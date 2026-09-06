@@ -19,6 +19,27 @@ import { encodeCopyLine, countCopyLines } from './copy/encodeCopyLine.js';
 import { tempTableName, createStagingTable } from './copy/staging.js';
 import { provisionDimensionsFromStaging } from './copy/dimensions.js';
 import { mergeStagingDoNothing, mergeStagingUpsert } from './copy/merge.js';
+import { ensureOrderCustomerSeq } from './ensureSequences.js';
+
+/**
+ * Best-effort sequence reheal after an `ordre` bulk load.
+ *
+ * ETL imports carry explicit historical `ordrenr` values that can overtake
+ * `ordre_customer_seq` (used by nextval for customer-placed orders).
+ * Fire-and-forget: never throws, never fails the load, never touches data.
+ */
+function rehealSequenceAfterOrdreLoad(context: string): void {
+  ensureOrderCustomerSeq().then(
+    (status) => {
+      if (status !== 'ok') {
+        dbLogger.warn({ status, context }, 'ordre_customer_seq reheal skipped after ordre load');
+      }
+    },
+    (err) => {
+      dbLogger.warn({ err, context }, 'ordre_customer_seq reheal failed after ordre load (best-effort)');
+    },
+  );
+}
 
 export { getTableColumns, clearTableColumnsCache } from './copy/columns.js';
 import { getTableColumns } from './copy/columns.js';
@@ -107,6 +128,9 @@ export const bulkCopy = async (
     });
 
     await client.query('COMMIT');
+    if (tableName === 'ordre') {
+      rehealSequenceAfterOrdreLoad('bulkCopy');
+    }
     return copyResult;
   } catch (err) {
     await client.query('ROLLBACK');
@@ -269,15 +293,24 @@ export const copyFromLineStream = async (
           upsertUpdateColumns,
         );
         await client.query('COMMIT');
+        if (tableName === 'ordre') {
+          rehealSequenceAfterOrdreLoad('copyFromLineStream:upsert');
+        }
         return inserted;
       }
 
       const inserted = await mergeStagingDoNothing(client, tableName, tempTable, columns);
       await client.query('COMMIT');
+      if (tableName === 'ordre') {
+        rehealSequenceAfterOrdreLoad('copyFromLineStream');
+      }
       return inserted;
     }
 
     await client.query('COMMIT');
+    if (tableName === 'ordre') {
+      rehealSequenceAfterOrdreLoad('copyFromLineStream');
+    }
     return streamedRows;
   } catch (err) {
     await client.query('ROLLBACK');

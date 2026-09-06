@@ -52,6 +52,9 @@ etlRouter.use(etlLimiter);
 // Destructive / test-data routes — disabled in production unless ENABLE_DESTRUCTIVE_ETL=true
 const destructive = requireDestructiveEtl;
 
+// DEPRECATED: mutating operations exposed as GET for backwards compatibility.
+// Prefer the POST aliases below (same handler, both work). GET variants are
+// kept only so existing scripts/bookmarks keep working.
 etlRouter.get('/createDB', destructive, asyncHandler(etlController.createDB));
 etlRouter.get('/truncateDB', destructive, asyncHandler(etlController.truncateDB));
 etlRouter.get('/generateTestData', destructive, asyncHandler(etlController.generateTestData));
@@ -59,6 +62,15 @@ etlRouter.get('/insertTestData', destructive, asyncHandler(etlController.insertT
 etlRouter.get('/generateRealData', destructive, asyncHandler(etlController.generateRealData));
 etlRouter.get('/insertRealData', destructive, asyncHandler(etlController.insertRealData));
 etlRouter.get('/runFullTestPipeline', destructive, asyncHandler(etlController.runFullTestPipeline));
+
+// POST aliases (preferred) — same handlers, backwards compatible addition.
+etlRouter.post('/createDB', destructive, asyncHandler(etlController.createDB));
+etlRouter.post('/truncateDB', destructive, asyncHandler(etlController.truncateDB));
+etlRouter.post('/generateTestData', destructive, asyncHandler(etlController.generateTestData));
+etlRouter.post('/insertTestData', destructive, asyncHandler(etlController.insertTestData));
+etlRouter.post('/generateRealData', destructive, asyncHandler(etlController.generateRealData));
+etlRouter.post('/insertRealData', destructive, asyncHandler(etlController.insertRealData));
+etlRouter.post('/runFullTestPipeline', destructive, asyncHandler(etlController.runFullTestPipeline));
 
 // ============= BULK DATA ROUTES (for millions of rows) =============
 

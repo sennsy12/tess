@@ -6,6 +6,7 @@ import { refreshStatisticsAggregates } from '../services/statsAggregateService.j
 import { isSchedulerJobsEnabled } from '../middleware/productionSafety.js';
 import { logger } from '../lib/logger.js';
 import { AppError } from '../middleware/errorHandler.js';
+import { schedulerJobRunsTotal } from '../metrics/prometheus.js';
 
 export interface ScheduledJob {
   id: string;
@@ -30,6 +31,18 @@ function logJob(jobId: string, status: string, message: string, duration?: numbe
   // Keep only last 100 logs
   if (jobLogs.length > 100) {
     jobLogs.pop();
+  }
+}
+
+/**
+ * Best-effort Prometheus observation for job outcomes. Metrics must never
+ * break job execution, so inc failures are swallowed (debug-logged only).
+ */
+function observeJobRun(jobId: string, status: 'success' | 'error' | 'skipped'): void {
+  try {
+    schedulerJobRunsTotal.inc({ job_id: jobId, status });
+  } catch (err) {
+    logger.debug({ err, jobId, status }, 'Scheduler metric inc failed (best-effort)');
   }
 }
 
@@ -67,6 +80,7 @@ export function createJob(
     if (config.status === 'running') {
       logger.warn({ jobId: id, name }, 'Scheduled job still running — skipping this tick');
       logJob(id, 'skipped', 'Skipped: previous run still in progress');
+      observeJobRun(id, 'skipped');
       return;
     }
     const startTime = Date.now();
@@ -79,6 +93,7 @@ export function createJob(
       const duration = Date.now() - startTime;
       logJob(id, 'success', `Job completed successfully`, duration);
       logger.info({ jobId: id, name, durationMs: duration }, 'Scheduled job completed');
+      observeJobRun(id, 'success');
       config.status = 'idle';
       config.lastError = undefined;
     } catch (error: any) {
@@ -87,6 +102,7 @@ export function createJob(
       config.lastError = error.message;
       logJob(id, 'error', error.message, duration);
       logger.error({ err: error, jobId: id, name, durationMs: duration }, 'Scheduled job failed');
+      observeJobRun(id, 'error');
     }
   }, {
     scheduled: false, // Don't start automatically
@@ -131,7 +147,10 @@ export async function runJobNow(id: string): Promise<void> {
   if (!entry) throw new Error(`Job not found: ${id}`);
 
   // Mutual exclusion with the cron tick — both share config.status.
+  // Warn first (same overlap signal as the cron-tick guard), then fail closed.
   if (entry.config.status === 'running') {
+    logger.warn({ jobId: id }, 'Manual job run skipped — previous run still in progress');
+    observeJobRun(id, 'skipped');
     throw new AppError('Job is already running', 409);
   }
 
@@ -146,12 +165,14 @@ export async function runJobNow(id: string): Promise<void> {
       await task();
       const duration = Date.now() - startTime;
       logJob(id, 'success', 'Manual run completed', duration);
+      observeJobRun(id, 'success');
       entry.config.status = 'idle';
     } catch (error: any) {
       const duration = Date.now() - startTime;
       entry.config.status = 'error';
       entry.config.lastError = error.message;
       logJob(id, 'error', error.message, duration);
+      observeJobRun(id, 'error');
       throw error;
     }
   }

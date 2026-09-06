@@ -1,4 +1,5 @@
 import { query } from '../db/index.js';
+import type { SqlParams } from '../db/index.js';
 import { extractWindowCountPage } from '../lib/paginatedQuery.js';
 import { buildOrderByClause } from '../lib/sqlSort.js';
 import { toIlikeContains } from '../lib/sqlSearch.js';
@@ -21,7 +22,7 @@ const PRODUCT_SORT_COLUMNS: Record<string, string> = {
 export const productModel = {
   searchProducts: async (params: ProductSearchParams): Promise<{ data: any[]; total: number }> => {
     const conditions: string[] = [];
-    const values: any[] = [];
+    const values: SqlParams = [];
     let paramIdx = 1;
 
     if (params.search?.trim()) {

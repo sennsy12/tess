@@ -113,13 +113,24 @@ export const notificationModel = {
     return result.rows[0]?.count ?? 0;
   },
 
-  markRead: async (userId: number, notificationIds: number[]): Promise<number> => {
+  /**
+   * Mark notifications as read — scoped to the caller's audience.
+   * Only notifications visible to `user` (same audience rule as
+   * findForUser/countUnread/markAllRead) can be marked; foreign IDs are
+   * silently ignored (rowCount 0, same success shape) so the endpoint
+   * neither leaks existence nor pollutes other users' read state.
+   */
+  markRead: async (user: NotificationUserContext, notificationIds: number[]): Promise<number> => {
     if (notificationIds.length === 0) return 0;
+    // $1 = ids, $2 = userId, $3+ = audience params (kunde kundenr).
+    const { sql: audienceSql, params: audienceParams } = audienceClause(user, 3);
     const result = await query(
       `INSERT INTO notification_reads (notification_id, user_id)
-       SELECT unnest($1::bigint[]), $2
+       SELECT n.id, $2
+       FROM notifications n
+       WHERE n.id = ANY($1::bigint[]) AND ${audienceSql}
        ON CONFLICT (notification_id, user_id) DO NOTHING`,
-      [notificationIds, userId],
+      [notificationIds, user.id, ...audienceParams],
     );
     return result.rowCount ?? 0;
   },

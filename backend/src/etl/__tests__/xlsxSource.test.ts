@@ -10,6 +10,7 @@ import {
 } from '../streaming/sources/xlsxSource';
 import { parseDateLike, parseExcelSerialDate } from '../streaming/transforms';
 import { ValidationError } from '../../middleware/errorHandler';
+import { etlLogger } from '../../lib/logger';
 
 let tmpDir: string;
 
@@ -233,5 +234,285 @@ describe('xlsxRowSource', () => {
     expect(parseDateLike(String(rows[1].dato))).toBe('2026-05-21');
     expect(rows[0]).toMatchObject({ ordrenr: '7', aktiv: 'true' });
     expect(rows[1]).toMatchObject({ ordrenr: '8', aktiv: 'false' });
+  });
+});
+
+describe('xlsx sparse and merged cells', () => {
+  it('maps gaps to empty strings and ignores columns past the header width', async () => {
+    const file = await writeWorkbook('gaps.xlsx', (wb) => {
+      const ws = wb.addWorksheet('Data');
+      ws.getCell('A1').value = 'KundeNr';
+      ws.getCell('B1').value = 'Sum';
+      ws.getCell('A2').value = 'K001';
+      ws.getCell('C2').value = 5;
+    });
+
+    const rows = await collect(xlsxRowSource(file));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toEqual({ kundenr: 'K001', sum: '' });
+  });
+
+  it('reads merged cells without crashing (top-left value wins)', async () => {
+    const file = await writeWorkbook('merged.xlsx', (wb) => {
+      const ws = wb.addWorksheet('Data');
+      ws.addRow(['KundeNr', 'Navn']);
+      ws.addRow(['K001', 'Acme']);
+      ws.mergeCells('A2:B2');
+    });
+
+    const rows = await collect(xlsxRowSource(file));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ kundenr: 'K001' });
+  });
+});
+
+describe('xlsx formulas and rich text', () => {
+  it('treats formulas without cached result as missing (never throws)', async () => {
+    const file = await writeWorkbook('formula.xlsx', (wb) => {
+      const ws = wb.addWorksheet('Data');
+      ws.addRow(['Antall', 'Dobbel']);
+      ws.getCell('A2').value = 21;
+      ws.getCell('B2').value = { formula: 'A2*2' };
+    });
+
+    const rows = await collect(xlsxRowSource(file));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toEqual({ antall: '21', dobbel: '' });
+  });
+
+  it('concatenates multi-run rich text', async () => {
+    const file = await writeWorkbook('richtext.xlsx', (wb) => {
+      const ws = wb.addWorksheet('Data');
+      ws.addRow(['Navn']);
+      ws.getCell('A2').value = { richText: [{ text: 'Hei ' }, { text: 'verden' }] };
+    });
+
+    const rows = await collect(xlsxRowSource(file));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toEqual({ navn: 'Hei verden' });
+  });
+
+  it('preserves interior whitespace and round-trips very long cells', async () => {
+    const long = `x${'y'.repeat(100_000)}z`;
+    const file = await writeWorkbook('odd.xlsx', (wb) => {
+      const ws = wb.addWorksheet('Data');
+      ws.addRow(['Navn', 'Notat']);
+      ws.addRow(['Kunde  AS', long]);
+    });
+
+    const rows = await collect(xlsxRowSource(file));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toEqual({ navn: 'Kunde  AS', notat: long });
+  });
+});
+
+// ── Hand-rolled stored (uncompressed) zip writer ──────────────────────
+// No zip-writing dependency exists in the repo; stored entries need no
+// compression, so ~60 lines suffice for degenerate/corrupt fixtures.
+
+const CRC_TABLE: Uint32Array = (() => {
+  const table = new Uint32Array(256);
+  for (let n = 0; n < 256; n += 1) {
+    let c = n;
+    for (let k = 0; k < 8; k += 1) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    table[n] = c >>> 0;
+  }
+  return table;
+})();
+
+function crc32(data: Buffer): number {
+  let crc = 0xffffffff;
+  for (const byte of data) crc = CRC_TABLE[(crc ^ byte) & 0xff] ^ (crc >>> 8);
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function writeStoredZip(entries: Array<{ name: string; data: string | Buffer }>): Buffer {
+  const parts: Buffer[] = [];
+  const central: Buffer[] = [];
+  let offset = 0;
+  for (const entry of entries) {
+    const name = Buffer.from(entry.name, 'utf8');
+    const data = typeof entry.data === 'string' ? Buffer.from(entry.data, 'utf8') : entry.data;
+    const crc = crc32(data);
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x04034b50, 0);
+    local.writeUInt16LE(20, 4);
+    local.writeUInt32LE(crc, 14);
+    local.writeUInt32LE(data.length, 18);
+    local.writeUInt32LE(data.length, 22);
+    local.writeUInt16LE(name.length, 26);
+    parts.push(local, name, data);
+
+    const header = Buffer.alloc(46);
+    header.writeUInt32LE(0x02014b50, 0);
+    header.writeUInt16LE(20, 4);
+    header.writeUInt16LE(20, 6);
+    header.writeUInt32LE(crc, 16);
+    header.writeUInt32LE(data.length, 20);
+    header.writeUInt32LE(data.length, 24);
+    header.writeUInt16LE(name.length, 28);
+    header.writeUInt32LE(offset, 42);
+    central.push(header, name);
+    offset += local.length + name.length + data.length;
+  }
+  const cd = Buffer.concat(central);
+  const endRecord = Buffer.alloc(22);
+  endRecord.writeUInt32LE(0x06054b50, 0);
+  const entryCount = entries.length;
+  endRecord.writeUInt16LE(entryCount, 8);
+  endRecord.writeUInt16LE(entryCount, 10);
+  endRecord.writeUInt32LE(cd.length, 12);
+  endRecord.writeUInt32LE(offset, 16);
+  return Buffer.concat([...parts, cd, endRecord]);
+}
+
+function escXml(value: string): string {
+  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function sheetXml(rows: Array<Array<{ ref: string; t?: string; v: string }>>): string {
+  const body = rows
+    .map(
+      (cells, i) =>
+        `<row r="${i + 1}">` +
+        cells
+          .map((c) => `<c r="${c.ref}"${c.t ? ` t="${c.t}"` : ''}><v>${escXml(c.v)}</v></c>`)
+          .join('') +
+        `</row>`
+    )
+    .join('');
+  return `<?xml version="1.0" encoding="UTF-8"?><worksheet><sheetData>${body}</sheetData></worksheet>`;
+}
+
+function workbookXml(sheets: Array<{ name: string; rid: string }>): string {
+  const body = sheets
+    .map((s, i) => `<sheet name="${escXml(s.name)}" sheetId="${i + 1}" r:id="${s.rid}"/>`)
+    .join('');
+  return `<?xml version="1.0" encoding="UTF-8"?><workbook><sheets>${body}</sheets></workbook>`;
+}
+
+function relsXml(rels: Array<{ id: string; target: string }>): string {
+  const body = rels
+    .map(
+      (r) =>
+        `<Relationship Id="${escXml(r.id)}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="${escXml(r.target)}"/>`
+    )
+    .join('');
+  return `<?xml version="1.0" encoding="UTF-8"?><Relationships>${body}</Relationships>`;
+}
+
+async function writeRawZip(name: string, entries: Array<{ name: string; data: string | Buffer }>): Promise<string> {
+  const filePath = path.join(tmpDir, name);
+  await fs.promises.writeFile(filePath, writeStoredZip(entries));
+  return filePath;
+}
+
+const SIMPLE_SHEET = sheetXml([
+  [
+    { ref: 'A1', t: 'inlineStr', v: 'KundeNr' },
+    { ref: 'B1', t: 'inlineStr', v: 'Sum' },
+  ],
+  [
+    { ref: 'A2', t: 'inlineStr', v: 'K001' },
+    { ref: 'B2', v: '5' },
+  ],
+]);
+
+describe('xlsx degenerate archives', () => {
+  it('falls back to positional scan when workbook catalog is absent', async () => {
+    const file = await writeRawZip('no-catalog.zip.xlsx', [
+      { name: 'xl/worksheets/sheet1.xml', data: SIMPLE_SHEET },
+    ]);
+
+    expect(await collectSheetNames(file)).toEqual(['Sheet1']);
+    const rows = await collect(xlsxRowSource(file));
+    expect(rows).toEqual([{ kundenr: 'K001', sum: '5' }]);
+  });
+
+  it('falls back with a warning when the catalog is corrupt', async () => {
+    const warn = jest.spyOn(etlLogger, 'warn').mockImplementation(() => undefined);
+    try {
+      const file = await writeRawZip('corrupt-catalog.zip.xlsx', [
+        { name: 'xl/workbook.xml', data: '<workbook><sheets><sheet name="Data"' },
+        { name: 'xl/_rels/workbook.xml.rels', data: relsXml([{ id: 'rId1', target: 'worksheets/sheet1.xml' }]) },
+        { name: 'xl/worksheets/sheet1.xml', data: SIMPLE_SHEET },
+      ]);
+
+      const rows = await collect(xlsxRowSource(file));
+      expect(rows).toEqual([{ kundenr: 'K001', sum: '5' }]);
+      expect(warn).toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('never follows traversal targets out of xl/worksheets', async () => {
+    const evilSheet = sheetXml([
+      [
+        { ref: 'A1', t: 'inlineStr', v: 'KundeNr' },
+        { ref: 'B1', t: 'inlineStr', v: 'Sum' },
+      ],
+      [
+        { ref: 'A2', t: 'inlineStr', v: 'EVIL' },
+        { ref: 'B2', v: '0' },
+      ],
+    ]);
+    for (const target of ['../evil.xml', '..\\evil.xml']) {
+      const file = await writeRawZip(`traversal-${target.length}.zip.xlsx`, [
+        { name: 'xl/workbook.xml', data: workbookXml([{ name: 'Data', rid: 'rId1' }]) },
+        { name: 'xl/_rels/workbook.xml.rels', data: relsXml([{ id: 'rId1', target }]) },
+        { name: 'xl/worksheets/sheet1.xml', data: SIMPLE_SHEET },
+        { name: 'xl/worksheets/..foo.xml', data: evilSheet },
+        { name: 'evil.xml', data: evilSheet },
+      ]);
+
+      // Traversal target rejected → positional fallback serves the real sheet.
+      const rows = await collect(xlsxRowSource(file, { sheet: 'Data' }));
+      expect(rows).toEqual([{ kundenr: 'K001', sum: '5' }]);
+    }
+  });
+
+  it('fails loudly (ValidationError) on truncated sheet XML', async () => {
+    const file = await writeRawZip('truncated.zip.xlsx', [
+      { name: 'xl/worksheets/sheet1.xml', data: SIMPLE_SHEET.slice(0, 120) },
+    ]);
+
+    await expect(collect(xlsxRowSource(file))).rejects.toThrow(ValidationError);
+  });
+});
+
+describe('xlsx backpressure integration', () => {
+  it('streams thousands of rows to completion (pause/resume must engage)', async () => {
+    const file = await writeWorkbook('big.xlsx', (wb) => {
+      const ws = wb.addWorksheet('Data');
+      ws.addRow(['KundeNr', 'Sum']);
+      for (let i = 0; i < 2500; i += 1) ws.addRow([`K${i}`, i]);
+    });
+
+    const rows = await collect(xlsxRowSource(file));
+    expect(rows).toHaveLength(2500);
+    expect(rows[0]).toEqual({ kundenr: 'K0', sum: '0' });
+    expect(rows[2499]).toEqual({ kundenr: 'K2499', sum: '2499' });
+  });
+
+  it('aborts mid-stream with a slow consumer (no hang on paused stream)', async () => {
+    const file = await writeWorkbook('abort-mid.xlsx', (wb) => {
+      const ws = wb.addWorksheet('Data');
+      ws.addRow(['KundeNr']);
+      for (let i = 0; i < 200; i += 1) ws.addRow([`K${i}`]);
+    });
+
+    const controller = new AbortController();
+    let seen = 0;
+    await expect(
+      (async () => {
+        for await (const row of xlsxRowSource(file, { signal: controller.signal })) {
+          void row;
+          seen += 1;
+          if (seen === 5) controller.abort();
+        }
+      })()
+    ).rejects.toThrow(expect.objectContaining({ name: 'AbortError' }));
+    expect(seen).toBe(5);
   });
 });

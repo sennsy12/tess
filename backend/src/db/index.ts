@@ -13,6 +13,7 @@
  */
 export { default as pool, getPoolStats } from './pool.js';
 export { query, getClient, transaction } from './query.js';
+export type { SqlParams } from './query.js';
 export { batchInsert } from './batchInsert.js';
 export {
   bulkCopy,

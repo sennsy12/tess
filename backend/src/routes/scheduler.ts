@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import { z } from 'zod';
 import { authMiddleware, roleGuard } from '../middleware/auth.js';
 import {
   getAllJobs,
@@ -8,6 +9,24 @@ import {
   getJobLogs,
 } from '../scheduler/index.js';
 import { asyncHandler, ValidationError, NotFoundError } from '../middleware/errorHandler.js';
+
+// Navngitte konstanter for tidligere inline verdier (samme verdier/oppførsel).
+// Ingen ruter slettes; stubben POST /jobs beholdes (deprecated-merknad under).
+const SCHEDULER_LOGS_MAX_LIMIT = 100; // matcher logJob-retensjon (beholder kun siste 100)
+const ALLOWED_SCHEDULER_TASK_TYPES = [
+  'refresh-test-data',
+  'sync-real-data',
+  'purge-old-order-references',
+  'aggregate-stats',
+] as const;
+
+// Zod for POST /jobs — samme feilmeldinger som før (HTTP 400 via ValidationError).
+const createCustomJobSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  cronExpression: z.string().min(1),
+  taskType: z.string().min(1),
+});
 
 export const schedulerRouter = Router();
 
@@ -50,22 +69,32 @@ schedulerRouter.post('/jobs/:id/run', asyncHandler(async (req: Request, res: Res
 // Get job logs
 schedulerRouter.get('/logs', asyncHandler(async (req: Request, res: Response) => {
   const { jobId, limit } = req.query;
-  const logs = getJobLogs(jobId as string, limit ? parseInt(limit as string) : undefined);
+  // Trygg parsing uten nye feil: ugyldig limit faller tilbake til service-default
+  // (tidligere NaN ga tom liste via slice(0, NaN)); gyldige verdier clamps til retensjon.
+  const parsedLimit = limit === undefined ? undefined : parseInt(limit as string, 10);
+  const safeLimit =
+    parsedLimit === undefined
+      ? undefined
+      : Number.isFinite(parsedLimit) && parsedLimit > 0
+        ? Math.min(Math.floor(parsedLimit), SCHEDULER_LOGS_MAX_LIMIT)
+        : undefined;
+  const logs = getJobLogs(jobId as string, safeLimit);
   res.json(logs);
 }));
 
 // Create a custom job
+// @deprecated Stub — ikke fullt implementert (returnerer alltid suksess-melding).
+// Beholdes bakoverkompatibelt; ikke fjern uten major + frontend-avklaring.
 schedulerRouter.post('/jobs', asyncHandler(async (req: Request, res: Response) => {
-  const { id, name, cronExpression, taskType } = req.body;
-  
-  if (!id || !name || !cronExpression || !taskType) {
+  const parsed = createCustomJobSchema.safeParse(req.body);
+  if (!parsed.success) {
     throw new ValidationError('Missing required fields: id, name, cronExpression, taskType');
   }
+  const { taskType } = parsed.data;
 
   // For now, only allow predefined task types
-  const allowedTasks = ['refresh-test-data', 'sync-real-data', 'purge-old-order-references', 'aggregate-stats'];
-  if (!allowedTasks.includes(taskType)) {
-    throw new ValidationError(`Invalid taskType. Allowed: ${allowedTasks.join(', ')}`);
+  if (!(ALLOWED_SCHEDULER_TASK_TYPES as readonly string[]).includes(taskType)) {
+    throw new ValidationError(`Invalid taskType. Allowed: ${ALLOWED_SCHEDULER_TASK_TYPES.join(', ')}`);
   }
 
   res.json({ success: true, message: `Custom job creation not fully implemented` });

@@ -91,6 +91,14 @@ export const authMiddleware = async (
       if (currentVersion === null) {
         return res.status(401).json({ error: 'Unknown user' });
       }
+      // Legacy tokens issued before tokenVersion existed carry no version.
+      // Rejecting them outright would sign out every old session at once
+      // (destructive), so they stay valid until rotation — warn for
+      // observability. New tokens MUST always include tokenVersion
+      // (see jwtClaimsFromUser in authController).
+      if (parsed.data.tokenVersion === undefined) {
+        logger.warn({ userId: parsed.data.id }, 'Legacy token without tokenVersion accepted');
+      }
       if (
         parsed.data.tokenVersion !== undefined &&
         parsed.data.tokenVersion !== currentVersion

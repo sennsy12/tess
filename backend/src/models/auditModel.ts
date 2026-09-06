@@ -8,6 +8,7 @@
  * @module models/auditModel
  */
 import { query } from '../db/index.js';
+import type { SqlParams } from '../db/index.js';
 
 /** A single audit-log row as returned from the database. */
 export interface AuditLogEntry {
@@ -77,7 +78,7 @@ export const auditModel = {
    */
   findAll: async (filters: AuditLogFilters = {}): Promise<{ data: AuditLogEntry[]; total: number }> => {
     const conditions: string[] = [];
-    const values: any[] = [];
+    const values: SqlParams = [];
     let paramIndex = 1;
 
     if (filters.entity_type) {

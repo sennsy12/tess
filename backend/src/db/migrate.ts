@@ -3,6 +3,7 @@ import path from 'path';
 import { Pool } from 'pg';
 import dotenv from 'dotenv';
 import { logger } from '../lib/logger.js';
+import { ensureOrderCustomerSeq } from './ensureSequences.js';
 
 dotenv.config();
 
@@ -88,6 +89,23 @@ export async function runMigrations(pool?: Pool): Promise<void> {
     } finally {
       lockClient.release();
     }
+
+    // Startup reheal for ordre_customer_seq (ETL imports can overtake it;
+    // see ensureSequences.ts). Deliberately NOT awaited: runMigrations must
+    // never block server startup on this, and the helper itself never
+    // throws (best-effort with warn). src/index.ts is owned by another
+    // agent, so the hook lives here — index.ts already awaits
+    // runMigrations(pool) at startup.
+    ensureOrderCustomerSeq().then(
+      (status) => {
+        if (status !== 'ok') {
+          logger.warn({ status }, 'ordre_customer_seq startup reheal skipped');
+        }
+      },
+      (err) => {
+        logger.warn({ err }, 'ordre_customer_seq startup reheal failed (best-effort)');
+      },
+    );
   } finally {
     if (ownsPool) {
       await db.end();

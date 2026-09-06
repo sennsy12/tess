@@ -3,6 +3,7 @@ import {
   toDateInputLocal,
   shiftDaysLocal,
   parsePositiveNumber,
+  parseNonNegativeNumber,
   parseBoundedInt,
   parseNorwegianNumber,
   formatPercent,
@@ -42,6 +43,24 @@ describe('parsePositiveNumber', () => {
   it('returns the number for valid positive input', () => {
     expect(parsePositiveNumber('100')).toBe(100);
     expect(parsePositiveNumber('99.5')).toBe(99.5);
+  });
+});
+
+describe('parseNonNegativeNumber', () => {
+  it('returns 0 for zero input', () => {
+    expect(parseNonNegativeNumber('0')).toBe(0);
+    expect(parseNonNegativeNumber('0.00')).toBe(0);
+  });
+
+  it('returns null for empty, invalid, or negative input', () => {
+    expect(parseNonNegativeNumber('')).toBeNull();
+    expect(parseNonNegativeNumber('abc')).toBeNull();
+    expect(parseNonNegativeNumber('-5')).toBeNull();
+  });
+
+  it('returns the number for valid non-negative input', () => {
+    expect(parseNonNegativeNumber('100')).toBe(100);
+    expect(parseNonNegativeNumber('  5  ')).toBe(5);
   });
 });
 

@@ -6,6 +6,14 @@
  * JSON responses. Also includes the `asyncHandler` wrapper that
  * eliminates try/catch boilerplate in async route handlers.
  *
+ * Feil-envelope er kanonisk `{ status: 'error', error: <melding> }` (HTTP-kode beholdes).
+ * Direkte `res.status(...).json({ error })`-svar uten `status`-felt normaliseres
+ * bakoverkompatibelt ved å LEGGE TIL `status: 'error'` — aldri fjerne felt.
+ *
+ * P1 (utsatt til senere major, ikke breaking her): suksess-envelope er inkonsistent
+ * på tvers av kontrollere (`{ data }` vs `{ success, data }` vs rå arrays/objekter,
+ * f.eks. dashboard/status vs report). Ikke endret her — krever frontend-avklaring.
+ *
  * @module middleware/errorHandler
  */
 import { Request, Response, NextFunction } from 'express';
@@ -102,11 +110,15 @@ export const errorHandler = (
   _next: NextFunction
 ) => {
   // Log error details
+  // requestId is set by requestIdMiddleware — read defensively and omit when
+  // absent so error logging itself can never throw.
+  const requestId = (req as unknown as { id?: unknown }).id;
   const errorContext = {
     method: req.method,
     url: req.originalUrl,
     ip: req.ip,
     userId: (req as any).user?.id,
+    ...(typeof requestId === 'string' && requestId.length > 0 ? { requestId } : {}),
   };
 
   if (err instanceof AppError) {

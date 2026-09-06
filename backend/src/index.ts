@@ -23,14 +23,14 @@ import { assistantRouter } from './routes/assistant.js';
 import { notificationsRouter } from './routes/notifications.js';
 import { clientEventsRouter } from './routes/clientEvents.js';
 import { initializeDefaultJobs, stopAllJobs } from './scheduler/index.js';
-import { initEtlQueue, stopEtlQueue } from './etl/etlQueue.js';
+import { initEtlQueue, stopEtlQueue, isEtlQueueReady } from './etl/etlQueue.js';
 import { apiMetricsMiddleware } from './middleware/apiMetrics.js';
 import { generalLimiter } from './middleware/rateLimit.js';
 import { requestIdMiddleware } from './http/requestId.js';
 import { prometheusMiddleware, register, renderMetrics } from './metrics/prometheus.js';
 import { logger } from './lib/logger.js';
 import { validateEnv, getEnv } from './lib/env.js';
-import { query } from './db/index.js';
+import { query, getPoolStats } from './db/index.js';
 import pool from './db/index.js';
 import { runMigrations } from './db/migrate.js';
 import { errorHandler } from './middleware/errorHandler.js';
@@ -112,14 +112,20 @@ app.get('/api/health', (_req, res) => {
 });
 
 // Readiness probe — verifies database connectivity.
-// Deliberately minimal: this endpoint is unauthenticated, so internal
-// connection-pool details are not exposed (available via metrics instead).
+// Unauthenticated by design (orchestrator/Caddy healthchecks can't log in),
+// so only low-sensitivity counts are exposed here: pool totals + queueReady
+// boolean. Full pool/config details stay in authenticated /metrics + logs.
+// Additive observability: `pool` (total/idle/waiting) + `queueReady` are
+// best-effort extras. Status codes unchanged: 200 when DB ok, 503 when not.
+// {status, timestamp} always present for backwards compatibility.
 app.get('/api/health/ready', async (_req, res) => {  try {
     await query('SELECT 1');
     res.json({
       status: 'ready',
       timestamp: new Date().toISOString(),
       database: 'connected',
+      pool: getReadyPoolStats(),
+      queueReady: getReadyQueueState(),
     });
   } catch (err) {
     logger.warn({ err }, 'Readiness check failed');
@@ -127,9 +133,39 @@ app.get('/api/health/ready', async (_req, res) => {  try {
       status: 'not_ready',
       timestamp: new Date().toISOString(),
       database: 'disconnected',
+      pool: getReadyPoolStats(),
+      queueReady: getReadyQueueState(),
     });
   }
 });
+
+/**
+ * Best-effort pool stats for the readiness payload. Never throws — a
+ * broken stats read must not flip a healthy readiness result to 503.
+ */
+function getReadyPoolStats(): { total: number; idle: number; waiting: number } {
+  try {
+    const stats = getPoolStats();
+    return {
+      total: stats.totalCount,
+      idle: stats.idleCount,
+      waiting: stats.waitingCount,
+    };
+  } catch {
+    return { total: 0, idle: 0, waiting: 0 };
+  }
+}
+
+/**
+ * Best-effort ETL queue state for the readiness payload. Never throws.
+ */
+function getReadyQueueState(): boolean {
+  try {
+    return isEtlQueueReady();
+  } catch {
+    return false;
+  }
+}
 
 // Prometheus scrape endpoint — NO auth by design (scrapers can't log in).
 // Must stay inside the compose network: Caddy must never proxy /metrics.

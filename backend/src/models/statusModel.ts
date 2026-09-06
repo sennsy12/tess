@@ -35,9 +35,22 @@ export const statusModel = {
       estimateTableRowCount('ordre'),
     ]);
 
+    // Additive grounding: reuse the already-fetched latest order date instead
+    // of hardcoding "now". API shape unchanged (still ISO string). Falls back
+    // to now only when the table is empty or the date is unparseable.
+    const latestDato: unknown = latestOrder.rows[0]?.dato ?? null;
+    let lastImport = new Date().toISOString();
+    if (latestDato !== null && latestDato !== undefined) {
+      try {
+        lastImport = new Date(latestDato as string | number | Date).toISOString();
+      } catch {
+        lastImport = new Date().toISOString();
+      }
+    }
+
     return {
       status: 'ok',
-      lastImport: new Date().toISOString(),
+      lastImport,
       latestOrder: latestOrder.rows[0] || null,
       totalOrders: orderCount,
       message: 'Data import status is nominal',
@@ -45,6 +58,9 @@ export const statusModel = {
   },
 
   getExtractionStatus: async () => {
+    // No dedicated extraction pipeline exists yet — same payload as before
+    // plus additive `stub:true` so callers can distinguish real vs placeholder
+    // without any API-form break (frontend ignores unknown fields).
     return {
       status: 'ok',
       lastExtraction: new Date().toISOString(),
@@ -54,6 +70,7 @@ export const statusModel = {
         destination: 'API',
         healthy: true,
       },
+      stub: true,
     };
   },
 

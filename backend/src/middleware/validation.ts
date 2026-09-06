@@ -41,6 +41,15 @@ export {
   createPriceListSchema,
   createPriceRuleSchema,
   calculatePriceSchema,
+  calculateBulkSchema,
+  calculateBulkItemSchema,
+  updateGroupSchema,
+  updatePriceListSchema,
+  updatePriceRuleSchema,
+  pricingIdParamSchema,
+  assignCustomerParamSchema,
+  removeCustomerParamSchema,
+  checkConflictsSchema,
   simulateSchema,
 } from './validation/pricing.js';
 
@@ -51,6 +60,9 @@ export {
   createOrderSchema,
   updateProductPriceSchema,
   orderLineSchema,
+  updateOrderLineSchema,
+  ordrenrParamSchema,
+  orderLineParamsSchema,
 } from './validation/orders.js';
 
 export {

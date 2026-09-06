@@ -58,6 +58,13 @@ services:
       ENTRA_TENANT_ID: ${ENTRA_TENANT_ID:-}
       ENTRA_CLIENT_ID: ${ENTRA_CLIENT_ID:-}
       PORT: 5000
+    # OPS-NOTE (additive docs only — no runtime change): optional assistant/alerts
+    # forwarding. If prod needs AI assistant or SMTP alerts, forward explicitly via
+    # a gitignored host env_file or add entries here, e.g. ENABLE_ASSISTANT,
+    # ASSISTANT_PROVIDER, GEMINI_API_KEY, GEMINI_MODEL, OPENAI_API_KEY, OPENAI_MODEL,
+    # ASSISTANT_MAX_OUTPUT_TOKENS, SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS,
+    # SMTP_FROM, ALERT_EMAIL_TO. Intentionally unset by default: a missing key only
+    # keeps that feature disabled, never breaks prod. Never bake secrets into this file.
     volumes:
       - uploads_prod_data:/app/uploads
     depends_on:

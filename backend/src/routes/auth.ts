@@ -37,15 +37,19 @@ authRouter.post(
   asyncHandler(authController.refresh)
 );
 
-// Revoke a refresh token (logout). Idempotent.
+// Revoke a refresh token (logout). Idempotent. Rate limited like other
+// auth endpoints to slow credential-stuffing/revocation-probing loops.
 authRouter.post(
   '/logout',
+  authLimiter,
   validate(revokeRefreshTokenSchema),
   asyncHandler(authController.logout)
 );
 
-// Verify token
-authRouter.get('/verify', asyncHandler(authController.verify));
+// Verify token (signature-only; see authController.verify). Rate limited:
+// verify is cheap but unauthenticated, so it needs the same brute-force
+// protection as login/refresh.
+authRouter.get('/verify', authLimiter, asyncHandler(authController.verify));
 
 // Public Microsoft sign-in configuration (client/tenant IDs only, no secrets)
 authRouter.get('/entra/config', asyncHandler(authController.entraConfig));

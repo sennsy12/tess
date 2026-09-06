@@ -52,6 +52,19 @@ export const dbPoolWaiting = new client.Gauge({
   registers: [register],
 });
 
+/**
+ * Scheduler job outcomes. Low cardinality by design: `job_id` is the fixed
+ * registered set (aggregate-stats, etc.), `status` is success|error|skipped.
+ * Incremented best-effort from scheduler/index.ts — scrape failures never
+ * affect job execution.
+ */
+export const schedulerJobRunsTotal = new client.Counter({
+  name: 'scheduler_job_runs_total',
+  help: 'Total scheduled job runs by outcome',
+  labelNames: ['job_id', 'status'],
+  registers: [register],
+});
+
 /** Paths never observed (scrape + probes would swamp real signals). */
 const SKIPPED_PATHS = new Set(['/metrics', '/api/health', '/api/health/ready']);
 

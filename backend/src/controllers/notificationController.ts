@@ -12,7 +12,8 @@ import { ValidationError } from '../middleware/errorHandler.js';
 export const notificationController = {
   list: async (req: AuthRequest, res: Response) => {
     if (!req.user) {
-      return res.status(401).json({ error: 'Not authenticated' });
+      // Bakoverkompatibel feil-envelope: `status:'error'` lagt til, `error`-felt og HTTP-kode beholdes.
+      return res.status(401).json({ status: 'error', error: 'Not authenticated' });
     }
 
     const { page, limit, unreadOnly, type } = req.query as unknown as z.infer<typeof notificationQuerySchema>;
@@ -27,7 +28,7 @@ export const notificationController = {
 
   unreadCount: async (req: AuthRequest, res: Response) => {
     if (!req.user) {
-      return res.status(401).json({ error: 'Not authenticated' });
+      return res.status(401).json({ status: 'error', error: 'Not authenticated' });
     }
 
     const count = await notificationModel.countUnread(req.user);
@@ -36,17 +37,17 @@ export const notificationController = {
 
   markRead: async (req: AuthRequest, res: Response) => {
     if (!req.user) {
-      return res.status(401).json({ error: 'Not authenticated' });
+      return res.status(401).json({ status: 'error', error: 'Not authenticated' });
     }
 
     const { ids } = req.body as z.infer<typeof markNotificationsReadSchema>;
-    const marked = await notificationModel.markRead(req.user.id, ids);
+    const marked = await notificationModel.markRead(req.user, ids);
     res.json({ marked });
   },
 
   markAllRead: async (req: AuthRequest, res: Response) => {
     if (!req.user) {
-      return res.status(401).json({ error: 'Not authenticated' });
+      return res.status(401).json({ status: 'error', error: 'Not authenticated' });
     }
 
     const marked = await notificationModel.markAllRead(req.user);
@@ -57,7 +58,7 @@ export const notificationController = {
 export const notificationMarkReadController = {
   markOne: async (req: AuthRequest, res: Response) => {
     if (!req.user) {
-      return res.status(401).json({ error: 'Not authenticated' });
+      return res.status(401).json({ status: 'error', error: 'Not authenticated' });
     }
 
     const id = Number(req.params.id);
@@ -65,7 +66,7 @@ export const notificationMarkReadController = {
       throw new ValidationError('Invalid notification id');
     }
 
-    await notificationModel.markRead(req.user.id, [id]);
+    await notificationModel.markRead(req.user, [id]);
     res.json({ ok: true });
   },
 };

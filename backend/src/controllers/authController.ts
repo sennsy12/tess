@@ -57,7 +57,11 @@ async function verifyPasswordOrDummy(password: string, hash: string | null): Pro
   return verifyPassword(password, hash ?? DUMMY_PASSWORD_HASH);
 }
 
-/** Issue an access + refresh token pair after successful credential checks. */
+/** Issue an access + refresh token pair after successful credential checks.
+ * New access tokens MUST always include tokenVersion (via jwtClaimsFromUser,
+ * defaulting missing DB values to 0) so a later password-change bump can
+ * revoke them. Legacy tokens without a version stay accepted by the
+ * middleware (with a warn) to avoid mass logout — see auth middleware. */
 async function issueTokenPair(
   user: Parameters<typeof jwtClaimsFromUser>[0]
 ): Promise<{ token: string; refreshToken: string }> {
@@ -205,6 +209,10 @@ export const authController = {
   },
 
   verify: async (req: AuthRequest, res: Response) => {
+    // Signature-only check: verifies JWT signature/expiry + payload shape.
+    // Does NOT consult token_version revocation or refresh-token state —
+    // use the auth middleware for request authorization. `versionChecked`
+    // documents this so callers never mistake `valid: true` for "not revoked".
     const authHeader = req.headers.authorization;
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -229,7 +237,7 @@ export const authController = {
       throw new UnauthorizedError('Invalid token payload');
     }
 
-    res.json({ valid: true, user: parsed.data });
+    res.json({ valid: true, versionChecked: false, user: parsed.data });
   },
 
   /**

@@ -78,3 +78,19 @@ export const orderLineSchema = z.object({
   linjesum: z.number().min(0).optional(),
   linjestatus: z.number().int().min(0).max(10).optional(),
 });
+
+// PUT /orderlines/:ordrenr/:linjenr carries keys in the URL, not the body,
+// so the body schema omits `ordrenr` and is fully partial (no required
+// fields, no defaults) — validates shape without breaking partial updates.
+export const updateOrderLineSchema = orderLineSchema.omit({ ordrenr: true }).partial();
+
+// Numeric `:ordrenr` params — coerce handles Express string params; invalid
+// values become a ZodError (→ 400 via validate()) instead of NaN → 500.
+export const ordrenrParamSchema = z.object({
+  ordrenr: z.coerce.number().int().positive(),
+});
+
+export const orderLineParamsSchema = z.object({
+  ordrenr: z.coerce.number().int().positive(),
+  linjenr: z.coerce.number().int().positive(),
+});

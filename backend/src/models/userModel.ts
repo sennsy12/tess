@@ -7,6 +7,7 @@
  * @module models/userModel
  */
 import { query } from '../db/index.js';
+import type { SqlParams } from '../db/index.js';
 import { extractWindowCountPage } from '../lib/paginatedQuery.js';
 import { toIlikeContains } from '../lib/sqlSearch.js';
 
@@ -186,7 +187,7 @@ export const userModel = {
    */
   update: async (id: number, fields: { username?: string; passwordHash?: string; role?: string; kundenr?: string | null }): Promise<UserPublic | null> => {
     const setClauses: string[] = [];
-    const values: any[] = [];
+    const values: SqlParams = [];
     let paramIndex = 1;
 
     if (fields.username !== undefined) {

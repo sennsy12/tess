@@ -47,11 +47,10 @@ export const statisticsCustomSchema = dateRangeSchema.extend({
   kundenr: z.string().optional().transform(emptyToUndefined),
 });
 
-// ID params
+// ID params — coerce handles Express string params (`"5"` → `5`) and yields
+// a proper ZodError (→ ValidationError 400 via validate()) for NaN/negative.
+// NOTE: previously a throwing transform produced a generic Error → 500;
+// success-path behaviour (numeric string → number) is unchanged.
 export const idParamSchema = z.object({
-  id: z.string().transform(v => {
-    const num = parseInt(v, 10);
-    if (isNaN(num) || num < 1) throw new Error('Invalid ID');
-    return num;
-  }),
+  id: z.coerce.number().int().positive(),
 });

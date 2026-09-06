@@ -9,9 +9,18 @@ import {
   createPriceListSchema,
   createPriceRuleSchema,
   calculatePriceSchema,
+  calculateBulkSchema,
+  updateGroupSchema,
+  updatePriceListSchema,
+  updatePriceRuleSchema,
   simulateSchema,
   pricingCustomerSearchSchema,
+  idParamSchema,
+  assignCustomerParamSchema,
+  removeCustomerParamSchema,
+  checkConflictsSchema,
 } from '../middleware/validation.js';
+import { searchLimiter } from '../middleware/rateLimit.js';
 
 export const pricingRouter = Router();
 
@@ -26,10 +35,30 @@ const readRolesWithKunde = roleGuard('admin', 'analyse', 'kunde');
 
 pricingRouter.get('/groups', auth, readRoles, asyncHandler(pricingController.getGroups));
 pricingRouter.post('/groups', auth, adminOnly, validate(createGroupSchema), asyncHandler(pricingController.createGroup));
-pricingRouter.put('/groups/:id', auth, adminOnly, asyncHandler(pricingController.updateGroup));
-pricingRouter.delete('/groups/:id', auth, adminOnly, asyncHandler(pricingController.deleteGroup));
-pricingRouter.put('/groups/:id/customers/:kundenr', auth, adminOnly, asyncHandler(pricingController.assignCustomerToGroup));
-pricingRouter.delete('/groups/customers/:kundenr', auth, adminOnly, asyncHandler(pricingController.removeCustomerFromGroup));
+pricingRouter.put(
+  '/groups/:id',
+  auth,
+  adminOnly,
+  validate(idParamSchema, 'params'),
+  validate(updateGroupSchema),
+  asyncHandler(pricingController.updateGroup),
+);
+pricingRouter.delete('/groups/:id', auth, adminOnly, validate(idParamSchema, 'params'), asyncHandler(pricingController.deleteGroup));
+// Combined param schema preserves both :id and :kundenr (idParamSchema alone would strip kundenr).
+pricingRouter.put(
+  '/groups/:id/customers/:kundenr',
+  auth,
+  adminOnly,
+  validate(assignCustomerParamSchema, 'params'),
+  asyncHandler(pricingController.assignCustomerToGroup),
+);
+pricingRouter.delete(
+  '/groups/customers/:kundenr',
+  auth,
+  adminOnly,
+  validate(removeCustomerParamSchema, 'params'),
+  asyncHandler(pricingController.removeCustomerFromGroup)
+);
 pricingRouter.get(
   '/customers/search',
   auth,
@@ -44,32 +73,57 @@ pricingRouter.get('/customers', auth, readRoles, asyncHandler(pricingController.
 // ============================================
 
 pricingRouter.get('/lists', auth, readRoles, asyncHandler(pricingController.getLists));
-pricingRouter.get('/lists/:id', auth, readRoles, asyncHandler(pricingController.getList));
+pricingRouter.get('/lists/:id', auth, readRoles, validate(idParamSchema, 'params'), asyncHandler(pricingController.getList));
 pricingRouter.post('/lists', auth, adminOnly, validate(createPriceListSchema), asyncHandler(pricingController.createList));
-pricingRouter.put('/lists/:id', auth, adminOnly, asyncHandler(pricingController.updateList));
-pricingRouter.delete('/lists/:id', auth, adminOnly, asyncHandler(pricingController.deleteList));
+pricingRouter.put(
+  '/lists/:id',
+  auth,
+  adminOnly,
+  validate(idParamSchema, 'params'),
+  validate(updatePriceListSchema),
+  asyncHandler(pricingController.updateList),
+);
+pricingRouter.delete('/lists/:id', auth, adminOnly, validate(idParamSchema, 'params'), asyncHandler(pricingController.deleteList));
 
 // ============================================
 // PRICE RULES
 // ============================================
 
-pricingRouter.get('/lists/:id/rules', auth, readRoles, asyncHandler(pricingController.getRules));
-pricingRouter.post('/rules/check-conflicts', auth, adminOnly, asyncHandler(pricingController.checkRuleConflicts));
-pricingRouter.get('/rules/:id', auth, readRoles, asyncHandler(pricingController.getRule));
+pricingRouter.get('/lists/:id/rules', auth, readRoles, validate(idParamSchema, 'params'), asyncHandler(pricingController.getRules));
+pricingRouter.post('/rules/check-conflicts', auth, adminOnly, validate(checkConflictsSchema), asyncHandler(pricingController.checkRuleConflicts));
+pricingRouter.get('/rules/:id', auth, readRoles, validate(idParamSchema, 'params'), asyncHandler(pricingController.getRule));
 pricingRouter.post('/rules', auth, adminOnly, validate(createPriceRuleSchema), asyncHandler(pricingController.createRule));
-pricingRouter.put('/rules/:id', auth, adminOnly, asyncHandler(pricingController.updateRule));
-pricingRouter.delete('/rules/:id', auth, adminOnly, asyncHandler(pricingController.deleteRule));
+pricingRouter.put(
+  '/rules/:id',
+  auth,
+  adminOnly,
+  validate(idParamSchema, 'params'),
+  validate(updatePriceRuleSchema),
+  asyncHandler(pricingController.updateRule),
+);
+pricingRouter.delete('/rules/:id', auth, adminOnly, validate(idParamSchema, 'params'), asyncHandler(pricingController.deleteRule));
 
 // ============================================
 // PRICING SIMULATION
 // ============================================
 
-pricingRouter.post('/simulate', auth, adminOnly, validate(simulateSchema), asyncHandler(pricingSimulatorController.simulate));
+// searchLimiter reused for expensive simulation (60/min) — no aggressive
+// custom limiter, to avoid breaking legit bulk/admin use.
+pricingRouter.post('/simulate', auth, adminOnly, searchLimiter, validate(simulateSchema), asyncHandler(pricingSimulatorController.simulate));
 
 // ============================================
 // PRICE CALCULATION
 // ============================================
 
 pricingRouter.post('/calculate', auth, readRoles, validate(calculatePriceSchema), asyncHandler(pricingController.calculatePrice));
-pricingRouter.post('/calculate/bulk', auth, readRoles, asyncHandler(pricingController.calculatePricesBulk));
+// Bulk: zod-validated (items max 200, reused calculatePriceSchema fields).
+// Same ValidationError 400 format as single calculate via validate().
+pricingRouter.post(
+  '/calculate/bulk',
+  auth,
+  readRoles,
+  searchLimiter,
+  validate(calculateBulkSchema),
+  asyncHandler(pricingController.calculatePricesBulk),
+);
 pricingRouter.get('/customer/:kundenr/rules', auth, readRolesWithKunde, asyncHandler(pricingController.getCustomerRules));

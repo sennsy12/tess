@@ -20,12 +20,13 @@ export const etlJobHandlers = {
   cancelJob: async (req: Request, res: Response) => {
     const { jobId } = req.params;
     if (!jobId) {
-      res.status(400).json({ error: 'jobId required' });
+      // Bakoverkompatibel feil-envelope: `status:'error'` lagt til, `error`-felt og HTTP-kode beholdes.
+      res.status(400).json({ status: 'error', error: 'jobId required' });
       return;
     }
     const job = await getJobAsync(jobId);
     if (!job) {
-      res.status(404).json({ error: 'Job not found' });
+      res.status(404).json({ status: 'error', error: 'Job not found' });
       return;
     }
     cancelJob(jobId);
@@ -42,7 +43,7 @@ export const etlJobHandlers = {
   getJob: async (req: Request, res: Response) => {
     const job = await getJobAsync(req.params.jobId);
     if (!job) {
-      res.status(404).json({ error: 'Job not found' });
+      res.status(404).json({ status: 'error', error: 'Job not found' });
       return;
     }
     const lastFailure = await getLastFailureForJob(req.params.jobId);
@@ -52,7 +53,7 @@ export const etlJobHandlers = {
   jobProgressSSE: async (req: Request, res: Response) => {
     const { jobId } = req.params;
     if (!jobId) {
-      res.status(400).json({ error: 'jobId required' });
+      res.status(400).json({ status: 'error', error: 'jobId required' });
       return;
     }
     res.setHeader('Content-Type', 'text/event-stream');

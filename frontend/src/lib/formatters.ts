@@ -90,6 +90,15 @@ export function parsePositiveNumber(raw: string): number | null {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
+/** Parses a non-negative number from user input, or null if invalid. Allows zero. */
+export function parseNonNegativeNumber(raw: string): number | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const n = Number(trimmed);
+  if (!Number.isFinite(n) || n < 0) return null;
+  return n === 0 ? 0 : n;
+}
+
 /** Parses an integer and clamps it to [min, max]; non-numeric input returns min. */
 export function parseBoundedInt(raw: string, min: number, max: number): number {
   const n = parseInt(raw, 10);

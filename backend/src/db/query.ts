@@ -8,6 +8,17 @@ import type { PoolClient } from 'pg';
 import { dbLogger } from '../lib/logger.js';
 
 /**
+ * Bind-parametere for parameteriserte SQL-spørringer (`$1`, `$2`, …).
+ *
+ * `unknown[]` erstatter `any[]` uten runtime-endring: pg-driveren aksepterer
+ * fortsatt alle verdier, men kallsteder får typesikkerhet (må smalne før bruk).
+ * Se `repositories/order/orderFilters.ts` (`SqlParams`-eksempel) — den snevrere
+ * `Array<string | number | null>` beholdes lokalt der; denne er den kanoniske,
+ * generelle aliasen for data-access-laget.
+ */
+export type SqlParams = unknown[];
+
+/**
  * Execute a single parameterised SQL query and return the result.
  * Queries taking longer than 100 ms are logged as warnings.
  *
@@ -15,7 +26,7 @@ import { dbLogger } from '../lib/logger.js';
  * @param params - Bind parameters matching the placeholders
  * @returns The `pg.QueryResult` from the driver
  */
-export const query = async (text: string, params?: any[]) => {
+export const query = async (text: string, params?: SqlParams) => {
   const start = Date.now();
   const res = await pool.query(text, params);
   const duration = Date.now() - start;

@@ -2,6 +2,7 @@ import unzipper from 'unzipper';
 import { SaxesParser } from 'saxes';
 import { normalizeHeader } from '../transforms.js';
 import { ValidationError } from '../../../middleware/errorHandler.js';
+import { etlLogger } from '../../../lib/logger.js';
 
 /**
  * Deterministic streaming XLSX reader.
@@ -14,14 +15,25 @@ import { ValidationError } from '../../../middleware/errorHandler.js';
  * fail under event-loop pressure in production. This reader instead uses
  * random access via the zip central directory (`unzipper.Open.file`, verified
  * fd-leak-free) and streams ONLY the target sheet's XML through a SAX parser
- * (`saxes`). No temp files, no entry-order dependence, O(1) row memory
- * (plus O(unique shared strings) for the string table, which is inherent to
- * the format).
+ * (`saxes`). No temp files, no entry-order dependence.
  *
- * Cell semantics mirror the CSV path: everything arrives as text and typed
- * parsing happens downstream in `transforms.ts` (`parseDateLike` also
- * understands Excel date serials, which date-formatted cells surface as).
+ * Memory bounds (both enforced, neither assumed):
+ * - Row queue: at most HIGH_WATER_ROWS parsed rows buffer between the zip
+ *   stream and the consumer; the stream is paused past the high watermark
+ *   and resumed below the low watermark (`createRowFlowController`).
+ * - String table: O(unique shared strings) — inherent to the format since
+ *   cells reference strings by index; guarded by SST caps in
+ *   `loadSharedStrings` (fail fast instead of OOM).
  */
+
+/** Pause the zip stream past this many buffered rows… */
+export const XLSX_HIGH_WATER_ROWS = 1000;
+/** …and resume below this many. Gap prevents pause/resume flapping. */
+export const XLSX_LOW_WATER_ROWS = 100;
+/** Fail fast past this many unique shared strings (OOM guard). */
+export const XLSX_MAX_SHARED_STRINGS = 500_000;
+/** Fail fast past this sharedStrings.xml size (OOM guard). */
+export const XLSX_MAX_SST_BYTES = 100 * 1024 * 1024;
 
 export interface XlsxRowSourceOptions {
   /** Worksheet name. Defaults to the first worksheet when omitted. */
@@ -138,6 +150,26 @@ async function parseXmlDocument(
 }
 
 /**
+ * Fail fast instead of OOM: the string table is the one unbounded structure
+ * the format forces on us (cells index into it), so it gets explicit caps.
+ * Pure (no I/O) — unit-tested at the boundaries.
+ */
+export function assertSstBudget(args: { byteLength: number; stringCount: number }): void {
+  if (args.byteLength > XLSX_MAX_SST_BYTES) {
+    throw new ValidationError(
+      `XLSX sharedStrings.xml is too large (${(args.byteLength / 1024 / 1024).toFixed(1)} MB, ` +
+        `max ${(XLSX_MAX_SST_BYTES / 1024 / 1024).toFixed(0)} MB) — file too large for streaming ingest`
+    );
+  }
+  if (args.stringCount > XLSX_MAX_SHARED_STRINGS) {
+    throw new ValidationError(
+      `XLSX has too many unique shared strings (${args.stringCount}, max ${XLSX_MAX_SHARED_STRINGS}) — ` +
+        'file too large for streaming ingest'
+    );
+  }
+}
+
+/**
  * Load the shared-string table (`xl/sharedStrings.xml`).
  * Bounded by the number of UNIQUE strings in the workbook.
  */
@@ -150,6 +182,7 @@ async function loadSharedStrings(entries: Map<string, XlsxFileEntry>): Promise<s
   } catch (err) {
     return fail('unreadable sharedStrings.xml', err);
   }
+  assertSstBudget({ byteLength: Buffer.byteLength(xml, 'utf8'), stringCount: 0 });
   const strings: string[] = [];
   let inItem = false;
   let capture = false;
@@ -170,6 +203,11 @@ async function loadSharedStrings(entries: Map<string, XlsxFileEntry>): Promise<s
       strings.push(buf);
     }
   }).catch((err) => fail('malformed sharedStrings.xml', err));
+  assertSstBudget({ byteLength: 0, stringCount: strings.length });
+  etlLogger.debug(
+    { sharedStrings: strings.length, sstBytes: Buffer.byteLength(xml, 'utf8') },
+    'XLSX shared-string table loaded'
+  );
   return strings;
 }
 
@@ -181,7 +219,10 @@ export interface XlsxSheetInfo {
 /** `worksheets/sheet12.xml` is only trusted when it stays inside xl/worksheets. */
 function sanitizeWorksheetPath(target: string): string | null {
   const normalized = target.replace(/\\/g, '/').replace(/^\/+/, '');
-  if (normalized.includes('..')) return null;
+  // Explicit traversal guard (defense in depth): the anchored regex below
+  // already rejects '..', but the security intent belongs here in plain sight
+  // so a future regex change cannot silently reopen traversal.
+  if (normalized.split('/').some((seg) => seg === '..')) return null;
   if (!/^xl\/worksheets\/[^/]+\.xml$/i.test(normalized)) return null;
   return normalized;
 }
@@ -218,13 +259,22 @@ async function loadSheetMap(entries: Map<string, XlsxFileEntry>): Promise<XlsxSh
       ordered.forEach((sheet, index) => {
         const rawTarget = relTargets.get(sheet.rid);
         const resolved = rawTarget ? sanitizeWorksheetPath(`xl/${rawTarget.replace(/^\/+/, '')}`) : null;
+        if (rawTarget && !resolved) {
+          etlLogger.warn(
+            { sheet: sheet.name, target: rawTarget },
+            'XLSX rels target rejected — falling back to positional sheet'
+          );
+        }
         const fallback = `xl/worksheets/sheet${index + 1}.xml`;
         const path = (resolved && entries.has(resolved) ? resolved : null) ?? (entries.has(fallback) ? fallback : null);
         if (path) sheets.push({ name: sheet.name, path });
       });
       if (sheets.length > 0) return sheets;
-    } catch {
-      // Fall through to positional scan below.
+    } catch (err) {
+      // Malformed catalog: positional fallback below still ingests readable
+      // files, but log it — silently ingesting the *wrong* sheet is worse
+      // than failing loudly, and this warn is what distinguishes the two.
+      etlLogger.warn({ err }, 'XLSX workbook catalog unreadable — falling back to positional scan');
     }
   }
 
@@ -279,6 +329,72 @@ function isRowEmpty(cells: string[]): boolean {
 interface RowStreamEvents {
   onRow: (cells: string[]) => void;
   onDone: (err?: Error) => void;
+}
+
+/**
+ * Backpressure between the zip stream (fast producer) and the row consumer
+ * (e.g. DB COPY — arbitrarily slow). Without this, a fast disk + slow
+ * consumer buffers the whole sheet as `string[][]` (O(rows) memory).
+ *
+ * Pure transition logic — unit-tested in isolation; the wiring in
+ * `streamSheetRows` is deliberately too simple to hide bugs in.
+ */
+export interface RowFlowController {
+  /** Call after enqueue with the new queue length. */
+  onEnqueue: (queueLength: number) => void;
+  /** Call after dequeue with the new queue length. */
+  onDequeue: (queueLength: number) => void;
+  /** Safety net: resume a paused stream (cleanup/abort paths). Idempotent. */
+  release: () => void;
+  /** Visible for tests. */
+  readonly paused: boolean;
+}
+
+export function createRowFlowController(opts: {
+  highWater: number;
+  lowWater: number;
+  pause: () => void;
+  resume: () => void;
+}): RowFlowController {
+  const { highWater, lowWater, pause, resume } = opts;
+  let paused = false;
+  const safePause = (): void => {
+    try {
+      pause();
+    } catch {
+      /* a half-torn-down stream must never break the consumer */
+    }
+  };
+  const safeResume = (): void => {
+    try {
+      resume();
+    } catch {
+      /* same */
+    }
+  };
+  return {
+    get paused() {
+      return paused;
+    },
+    onEnqueue: (queueLength: number) => {
+      if (!paused && queueLength >= highWater) {
+        paused = true;
+        safePause();
+      }
+    },
+    onDequeue: (queueLength: number) => {
+      if (paused && queueLength <= lowWater) {
+        paused = false;
+        safeResume();
+      }
+    },
+    release: () => {
+      if (paused) {
+        paused = false;
+        safeResume();
+      }
+    },
+  };
 }
 
 /** Feed a sheet entry stream through the SAX row state machine. */
@@ -407,9 +523,13 @@ async function* streamSheetRows(
   sharedStrings: string[],
   signal?: AbortSignal
 ): AsyncGenerator<string[]> {
-  let stream: NodeJS.ReadableStream & { destroy: () => void };
+  let stream: NodeJS.ReadableStream & { destroy: () => void; pause: () => void; resume: () => void };
   try {
-    stream = (await sheetEntry.stream()) as NodeJS.ReadableStream & { destroy: () => void };
+    stream = (await sheetEntry.stream()) as NodeJS.ReadableStream & {
+      destroy: () => void;
+      pause: () => void;
+      resume: () => void;
+    };
   } catch (err) {
     return fail('unreadable worksheet stream', err);
   }
@@ -429,12 +549,26 @@ async function* streamSheetRows(
     }
   };
 
+  // Backpressure: pause the producer past HIGH_WATER, resume below LOW_WATER.
+  // Deadlock-audit: the consumer only sleeps when the queue is EMPTY, and the
+  // producer only pauses when the queue holds >= HIGH_WATER (> 0) — so a
+  // sleeping consumer always implies a flowing producer, and a paused
+  // producer always implies pending rows. `release()` in `finally` covers the
+  // abort/early-exit paths where neither fires again.
+  const flow = createRowFlowController({
+    highWater: XLSX_HIGH_WATER_ROWS,
+    lowWater: XLSX_LOW_WATER_ROWS,
+    pause: () => stream.pause(),
+    resume: () => stream.resume(),
+  });
+
   const cleanup = pumpSheetStream(
     stream,
     sharedStrings,
     {
       onRow: (cells) => {
         queue.push(cells);
+        flow.onEnqueue(queue.length);
         notify();
       },
       onDone: (err) => {
@@ -452,7 +586,9 @@ async function* streamSheetRows(
         if (signal?.aborted) {
           throw new DOMException('XLSX ingest aborted', 'AbortError');
         }
-        yield queue.shift() as string[];
+        const next = queue.shift() as string[];
+        flow.onDequeue(queue.length);
+        yield next;
       }
       if (failure) throw failure;
       if (finished) return;
@@ -464,6 +600,7 @@ async function* streamSheetRows(
       });
     }
   } finally {
+    flow.release();
     cleanup();
   }
 }
@@ -529,8 +666,10 @@ export async function peekXlsxHeaders(filePath: string, sheet?: string): Promise
  * Stream data rows from an XLSX worksheet as plain records.
  *
  * The first non-empty row is treated as the header (keys are
- * `normalizeHeader`-normalized, mirroring `csvSource`). Memory stays flat:
- * rows are mapped and yielded one at a time, never buffered.
+ * `normalizeHeader`-normalized, mirroring `csvSource`). Memory stays bounded:
+ * at most XLSX_HIGH_WATER_ROWS parsed rows buffer between producer and
+ * consumer (backpressure pauses the zip stream); records are otherwise
+ * mapped and yielded one at a time.
  */
 export async function* xlsxRowSource(
   filePath: string,
