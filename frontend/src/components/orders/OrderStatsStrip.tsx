@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { StatCard } from '../StatCard';
 import { formatCurrencyNok, formatDateNb, formatNumberNb } from '../../lib/formatters';
+import { latestByString, sumBy } from '../../lib/statsAggregation';
 
 interface OrderLike {
   sum: number;
@@ -32,10 +33,8 @@ const PAGE_SCOPE_TITLE = 'Gjelder kun radene på denne siden';
  */
 export function OrderStatsStrip({ orders, total, isLoading }: OrderStatsStripProps) {
   const stats = useMemo<Stat[]>(() => {
-    const pageSum = orders.reduce((acc, o) => acc + (o.sum ?? 0), 0);
-    const latestDate = orders.reduce<string | null>((latest, o) => {
-      return !latest || o.dato > latest ? o.dato : latest;
-    }, null);
+    const pageSum = sumBy(orders, (o) => o.sum ?? 0);
+    const latest = latestByString(orders, (o) => o.dato);
     return [
       {
         label: 'Ordrer totalt',
@@ -52,7 +51,7 @@ export function OrderStatsStrip({ orders, total, isLoading }: OrderStatsStripPro
       },
       {
         label: 'Siste på siden',
-        value: latestDate ? formatDateNb(latestDate) : '–',
+        value: latest ? formatDateNb(latest.dato) : '–',
         title: PAGE_SCOPE_TITLE,
       },
     ];

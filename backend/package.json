@@ -10,6 +10,7 @@
     "migrate": "tsx src/db/migrate.ts",
     "test": "jest",
     "lint": "eslint src",
+    "typecheck": "tsc --noEmit",
     "lint:fix": "eslint src --fix",
     "test:load:etl": "k6 run load-tests/etl-streaming.js",
     "test:integration": "jest src/tests/integration --runInBand"

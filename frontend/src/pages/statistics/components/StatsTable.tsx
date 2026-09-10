@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Pagination } from '../../../components/admin';
 import { Spinner } from '../../../components/Spinner';
+import { sumBy } from '../../../lib/statsAggregation';
 import { StatsTableProps } from '../../../types/statistics';
 
 export function StatsTable({
@@ -14,10 +15,12 @@ export function StatsTable({
   onRowClick,
 }: StatsTableProps) {
   const [rowFilter, setRowFilter] = useState('');
+  const field = (item: object, key: string): unknown =>
+    (item as Record<string, unknown>)[key];
   const filteredData = useMemo(() => {
     const query = rowFilter.trim().toLowerCase();
     if (!query) return data;
-    return data.filter((item) => String(item[nameKey] ?? '').toLowerCase().includes(query));
+    return data.filter((item) => String(field(item, nameKey) ?? '').toLowerCase().includes(query));
   }, [data, nameKey, rowFilter]);
 
   const { page, limit, total, totalPages } = pagination;
@@ -26,21 +29,19 @@ export function StatsTable({
   const isRowClickable = Boolean(onRowClick);
 
   // Share-of-total within the visible rows (this page only, not global).
-  const totalValue = useMemo(() => {
-    let sum = 0;
-    for (const item of filteredData) {
-      sum += Number(item.total_sum) || 0;
-    }
-    return sum;
-  }, [filteredData]);
+  const totalValue = useMemo(
+    () => sumBy(filteredData, (item) => Number(field(item, 'total_sum')) || 0),
+    [filteredData],
+  );
 
   const renderRow = (item: (typeof data)[number], index: number) => {
-    const value = Number(item.total_sum) || 0;
+    const value = Number(field(item, 'total_sum')) || 0;
+    const orderCount = Number(field(item, 'order_count')) || 0;
     const share = totalValue > 0 ? (value / totalValue) * 100 : 0;
-    const name = String(item[nameKey] ?? '-');
+    const name = String(field(item, nameKey) ?? '-');
     return (
       <tr
-        key={String(item[nameKey] ?? index)}
+        key={String(field(item, nameKey) ?? index)}
         className={`table-row ${isRowClickable ? 'cursor-pointer' : ''}`}
         onClick={() => onRowClick?.(item)}
         // Note: no role="button" — a button role on <tr> is invalid HTML
@@ -61,7 +62,7 @@ export function StatsTable({
         >
           {name}
         </td>
-        <td className="table-cell whitespace-nowrap text-right tabular-nums">{item.order_count || 0}</td>
+        <td className="table-cell whitespace-nowrap text-right tabular-nums">{orderCount}</td>
         <td className="table-cell whitespace-nowrap text-right font-semibold text-primary-400 tabular-nums">
           {currencyFormatter(value)}
         </td>

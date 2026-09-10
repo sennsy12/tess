@@ -1,4 +1,11 @@
 tessxapp.mooo.com {
+    # Compress every response Caddy emits (SPA shell, API JSON). Caddy skips
+    # responses that already carry a Content-Encoding, so this composes with
+    # nginx's gzip above instead of double-compressing.
+    # NOTE: `gzip` only — `zstd` needs Caddy >= 2.8 and this image uses a
+    # floating `caddy:2-alpine` tag, so referencing it could break startup.
+    encode gzip
+
     # Reverse proxy for Backend API
     handle /api/* {
         reverse_proxy backend:5000 {

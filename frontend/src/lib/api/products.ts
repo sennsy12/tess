@@ -1,7 +1,7 @@
 import api from './client';
 
 export const productsApi = {
-  getAll: (params?: Record<string, any>) => api.get('/products', { params }),
+  getAll: (params?: Record<string, unknown>) => api.get('/products', { params }),
   search: (params: {
     search?: string;
     varegruppe?: string;
@@ -10,7 +10,7 @@ export const productsApi = {
     sortBy?: string;
     sortDir?: 'asc' | 'desc';
   }) => api.get('/products/search', { params }),
-  getGroups: () => api.get('/products/groups'),
+  getGroups: () => api.get<string[]>('/products/groups'),
   getOne: (varekode: string) => api.get(`/products/${varekode}`),
   /** Set the catalog base price for a product (admin). */
   updateBasePrice: (varekode: string, base_price: number) =>

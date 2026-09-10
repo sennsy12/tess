@@ -12,7 +12,18 @@ function readStoredCart(kundenr: string): CartState {
     if (!raw) return { ...emptyCart, kundenr };
     const parsed = JSON.parse(raw) as CartState;
     if (!Array.isArray(parsed.items)) return { ...emptyCart, kundenr };
-    return { items: parsed.items.filter((i) => i && typeof i.varekode === 'string'), kundenr };
+    const clean = parsed.items.filter(
+      (i) =>
+        i &&
+        typeof i.varekode === 'string' &&
+        typeof i.antall === 'number' &&
+        Number.isFinite(i.antall) &&
+        i.antall > 0 &&
+        typeof i.unit_price === 'number' &&
+        Number.isFinite(i.unit_price) &&
+        i.unit_price >= 0,
+    );
+    return { items: clean, kundenr };
   } catch {
     return { ...emptyCart, kundenr };
   }
@@ -26,18 +37,18 @@ function readStoredCart(kundenr: string): CartState {
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const kundenr = user?.role === 'kunde' ? (user.kundenr ?? '') : '';
-  const isAdmin = user?.role === 'admin';
 
   const [state, dispatch] = useReducer(cartReducer, { ...emptyCart, kundenr });
 
   useEffect(() => {
     if (kundenr) {
       dispatch({ type: 'load', state: readStoredCart(kundenr) });
-    } else if (!isAdmin) {
+    } else {
+      // Admin (kundenr='') or logged-out: never show the previous kunde's
+      // items. Prior code skipped load for admins and leaked stale carts.
       dispatch({ type: 'load', state: { ...emptyCart, kundenr: null } });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [kundenr, isAdmin]);
+  }, [kundenr]);
 
   // Persist on every change
   useEffect(() => {
@@ -54,6 +65,15 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       dispatch({ type: 'add', product, antall, maxLines: MAX_LINES, maxQty: MAX_QTY }),
     [],
   );
+  const setQuantity = useCallback(
+    (varekode: string, antall: number) => dispatch({ type: 'setQuantity', varekode, antall }),
+    [],
+  );
+  const removeItem = useCallback(
+    (varekode: string) => dispatch({ type: 'remove', varekode }),
+    [],
+  );
+  const clear = useCallback(() => dispatch({ type: 'clear' }), []);
 
   const value = useMemo(
     () => ({
@@ -66,11 +86,11 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       // ("Foreløpig pris – re-prises ved bekreftelse") instead of re-pricing.
       total: Math.round(state.items.reduce((acc, i) => acc + i.unit_price * i.antall, 0) * 100) / 100,
       addItem,
-      setQuantity: (varekode: string, antall: number) => dispatch({ type: 'setQuantity', varekode, antall }),
-      removeItem: (varekode: string) => dispatch({ type: 'remove', varekode }),
-      clear: () => dispatch({ type: 'clear' }),
+      setQuantity,
+      removeItem,
+      clear,
     }),
-    [state.items, addItem],
+    [state.items, addItem, setQuantity, removeItem, clear],
   );
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;

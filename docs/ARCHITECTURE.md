@@ -85,7 +85,7 @@ Client Request
 
 ### Database
 
-- PostgreSQL with `pg` driver and connection pooling (`max: 50`, `min: 10`)
+- PostgreSQL with `pg` driver and connection pooling (`max: 20`, `min: 2` — see `backend/src/lib/env.ts` and `backend/src/db/pool.ts`; budget 4 replicas x 20 = 80 < 100 `max_connections`)
 - Slow query logging (> 100 ms)
 - Transaction helper (`db/index.ts → transaction()`)
 - Tables: `users`, `ordre`, `ordrelinje`, `kunde`, `vare`, `firma`, `lager`, `ordre_henvisning`, `customer_group`, `price_list`, `price_rule`, `audit_log`, `saved_report`
@@ -169,5 +169,5 @@ docker compose up --build
 |----------|-------------|---------|
 | `DATABASE_URL` | PostgreSQL connection string | `postgresql://postgres:postgres@localhost:5432/tess` |
 | `JWT_SECRET` | Secret for signing JWT tokens | (required) |
-| `PORT` | Backend server port | `3000` |
+| `PORT` | Backend server port | `5000` (see `backend/src/index.ts`) |
 | `NODE_ENV` | Environment mode | `development` |

@@ -45,13 +45,30 @@ export const getSessionUser = (): unknown | null => {
   if (typeof sessionStorage === 'undefined') return null;
   try {
     const raw = sessionStorage.getItem(AUTH_USER_KEY);
-    return raw ? JSON.parse(raw) : null;
+    return raw ? (JSON.parse(raw) as unknown) : null;
   } catch {
     // Corrupted payload — treat as absent and clean up.
     clearSessionUser();
     return null;
   }
 };
+
+const VALID_ROLES = new Set(['admin', 'kunde', 'analyse']);
+
+/** Runtime guard for sessionStorage user payloads (corruption must not pass types). */
+export function isSessionUser(value: unknown): value is { id: number; username: string; role: 'admin' | 'kunde' | 'analyse'; kundenr?: string } {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const v = value as Record<string, unknown>;
+  return (
+    typeof v.id === 'number' &&
+    Number.isFinite(v.id) &&
+    typeof v.username === 'string' &&
+    v.username.length > 0 &&
+    typeof v.role === 'string' &&
+    VALID_ROLES.has(v.role) &&
+    (v.kundenr === undefined || typeof v.kundenr === 'string')
+  );
+}
 
 export const setSessionUser = (user: unknown) => {
   if (typeof sessionStorage === 'undefined') return;

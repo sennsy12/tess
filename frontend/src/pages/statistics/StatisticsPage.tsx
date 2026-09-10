@@ -1,10 +1,14 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { EmptyState } from '../../components/EmptyState';
+import { QueryErrorBanner } from '../../components/QueryErrorBanner';
 import { QueryRefetchBar } from '../../components/QueryRefetchBar';
 import { statisticsKeys } from '../../lib/queryKeys';
 import { Layout } from '../../components/Layout';
 import { Breadcrumb } from '../../components/Breadcrumb';
 import { statisticsApi, StatisticsSummary } from '../../lib/api';
+import { getApiError } from '../../lib/apiErrors';
+import { reportError } from '../../lib/observability';
 import { formatCurrencyNok } from '../../lib/formatters';
 import { ChartSkeleton, TableSkeleton } from '../../components/admin';
 import { SavedViewsPanel } from '../../components/SavedViewsPanel';
@@ -52,7 +56,7 @@ export function StatisticsPage({
   const chartRef = useRef<HTMLDivElement>(null);
   const hasAppliedDefaultView = useRef(false);
 
-  const { data: statsResult, isLoading, isFetching } = useQuery({
+  const { data: statsResult, isLoading, isFetching, isError, error, refetch } = useQuery({
     queryKey: statisticsKeys.list(savedViewsScope, statType, page, dateRange, filters),
     queryFn: () => {
       const params = {
@@ -67,6 +71,12 @@ export function StatisticsPage({
     },
     placeholderData: (prev) => prev,
   });
+
+  useEffect(() => {
+    if (isError && error) {
+      reportError(error, { source: 'statistics-list', scope: savedViewsScope });
+    }
+  }, [isError, error, savedViewsScope]);
 
   // Period summary powers the KPI strip; fetched for the selected range
   // regardless of comparison being enabled.
@@ -84,10 +94,13 @@ export function StatisticsPage({
 
   const data = statsResult?.data ?? [];
   const pagination = statsResult?.pagination ?? { page: 1, limit: 25, total: 0, totalPages: 0 };
-  const showRefetchBar = isFetching && !!statsResult;
+  const showRefetchBar = isFetching && !!statsResult && !isError;
+  const statsErrorMessage = isError ? getApiError(error, 'Kunne ikke laste statistikk') : null;
 
   const { data: comparison = null } = useQuery({
-    queryKey: statisticsKeys.comparison(savedViewsScope, dateRange, compareEnabled),
+    // Include current total in key so delta recomputes when summary arrives
+    // after date-range change (previously stale until next range edit).
+    queryKey: [...statisticsKeys.comparison(savedViewsScope, dateRange, compareEnabled), currentSummary?.totalRevenue ?? 0],
     queryFn: async (): Promise<ComparisonData | null> => {
       if (!compareEnabled || !dateRange.startDate || !dateRange.endDate) return null;
       const prevRange = getPreviousRange(dateRange.startDate, dateRange.endDate);
@@ -103,36 +116,40 @@ export function StatisticsPage({
     enabled: compareEnabled && !!dateRange.startDate && !!dateRange.endDate,
   });
 
-  const handlePageChange = (newPage: number) => {
+  const handlePageChange = useCallback((newPage: number) => {
     setPage(newPage);
-  };
+  }, []);
 
-  const handleRowClick = (row: Record<string, unknown>) => {
-    if (statType === 'varegruppe' && row.varegruppe) {
-      setFilters({ ...filters, varegruppe: String(row.varegruppe) });
-      setStatType('vare');
-      setPage(1);
-    } else if (statType === 'kunde' && row.kundenr) {
-      setFilters({ ...filters, kundenr: String(row.kundenr) });
-      setStatType('vare');
-      setPage(1);
-    }
-  };
+  const handleRowClick = useCallback(
+    (row: object) => {
+      const record = row as Record<string, unknown>;
+      if (statType === 'varegruppe' && record.varegruppe) {
+        setFilters((prev) => ({ ...prev, varegruppe: String(record.varegruppe) }));
+        setStatType('vare');
+        setPage(1);
+      } else if (statType === 'kunde' && record.kundenr) {
+        setFilters((prev) => ({ ...prev, kundenr: String(record.kundenr) }));
+        setStatType('vare');
+        setPage(1);
+      }
+    },
+    [statType],
+  );
 
-  const handleStatTypeChange = (newType: StatType) => {
+  const handleStatTypeChange = useCallback((newType: StatType) => {
     setStatType(newType);
     setPage(1);
-  };
+  }, []);
 
-  const handleDateRangeChange = (newRange: typeof dateRange) => {
+  const handleDateRangeChange = useCallback((newRange: typeof dateRange) => {
     setDateRange(newRange);
     setPage(1);
-  };
+  }, []);
 
-  const handleFiltersChange = (newFilters: typeof filters) => {
+  const handleFiltersChange = useCallback((newFilters: typeof filters) => {
     setFilters(newFilters);
     setPage(1);
-  };
+  }, []);
 
   const workspaceState = {
     statType,
@@ -165,7 +182,7 @@ export function StatisticsPage({
     setPage(1);
   }, [defaultView]);
 
-  const applyPreset = (presetId: string) => {
+  const applyPreset = useCallback((presetId: string) => {
     const preset = STATISTICS_PRESETS.find((item) => item.id === presetId);
     if (!preset) return;
     const next = preset.apply();
@@ -174,7 +191,7 @@ export function StatisticsPage({
     setFilters(next.filters);
     setCompareEnabled(next.compareEnabled);
     setPage(1);
-  };
+  }, []);
 
   const home = getStatisticsHome(savedViewsScope);
   const viewsDescription =
@@ -224,6 +241,16 @@ export function StatisticsPage({
               <TableSkeleton rows={8} columns={4} />
             </div>
           </div>
+        ) : isError ? (
+          <QueryErrorBanner
+            message={statsErrorMessage ?? 'Kunne ikke laste statistikk'}
+            onRetry={() => void refetch()}
+          />
+        ) : data.length === 0 ? (
+          <EmptyState
+            title="Ingen data for valgt periode og filtre"
+            description="Prøv å utvide perioden eller fjerne filtre for å se statistikk."
+          />
         ) : (
           <div ref={chartRef} className="space-y-6">
             {showRefetchBar && <QueryRefetchBar active />}

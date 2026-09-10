@@ -9,16 +9,36 @@ import {
   clearSessionUser,
   getRefreshToken,
   getSessionUser,
+  isSessionUser,
   setAuthToken,
   setRefreshToken,
   setSessionUser,
 } from '../lib/auth/tokenStore';
 import { onAuthUnauthorized } from '../lib/auth/authEvents';
-import { logoutMicrosoft } from '../lib/auth/msalClient';
 import { AuthContext } from './authContextInstance';
 import type { User } from './authTypes';
 
 export type { User } from './authTypes';
+
+/** Single explicit refresh for boot path (client.ts excludes /auth/verify). */
+async function tryRefreshOnce(): Promise<boolean> {
+  try {
+    const refreshToken = getRefreshToken();
+    if (!refreshToken) return false;
+    const res = await authApi.refresh(refreshToken);
+    const next = res.data as { token?: string; refreshToken?: string };
+    if (!next?.token || !next?.refreshToken) {
+      clearRefreshToken();
+      return false;
+    }
+    setAuthToken(next.token);
+    setRefreshToken(next.refreshToken);
+    return true;
+  } catch {
+    clearRefreshToken();
+    return false;
+  }
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
@@ -35,7 +55,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       void authApi.logout(refreshToken).catch(() => undefined);
     }
     // Best-effort Microsoft sign-out (hybrid auth); never blocks local logout.
-    void logoutMicrosoft();
+    // Imported on demand: a static import here would pull @azure/msal-browser
+    // into the entry chunk for every user, including the (default) majority
+    // who never sign in with Microsoft.
+    void import('../lib/auth/msalClient')
+      .then((mod) => mod.logoutMicrosoft())
+      .catch(() => undefined);
     clearAuthToken();
     clearRefreshToken();
     clearSessionUser();
@@ -46,7 +71,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let isMounted = true;
-    const storedUser = getSessionUser() as User | null;
+    const rawStoredUser = getSessionUser();
+    const storedUser = isSessionUser(rawStoredUser) ? rawStoredUser : null;
+    if (rawStoredUser && !storedUser) {
+      // Corrupted session payload — drop it rather than trusting the shape.
+      clearSessionUser();
+    }
     const storedToken = sessionStorage.getItem(AUTH_TOKEN_KEY);
 
     const initAuth = async () => {
@@ -69,18 +99,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // another request, or the user logged in again), we do not
         // resurrect stale auth state afterwards.
         const tokenAtStart = storedToken;
-        try {
-          const response = await authApi.verify();
-          const verifiedUser = response.data?.user as User | undefined;
-          const tokenUnchanged =
-            isMounted && sessionStorage.getItem(AUTH_TOKEN_KEY) === tokenAtStart;
-          if (verifiedUser && tokenUnchanged) {
-            setUser(verifiedUser);
-            setSessionUser(verifiedUser);
+        const stillCurrent = () =>
+          isMounted && sessionStorage.getItem(AUTH_TOKEN_KEY) === tokenAtStart;
+
+        const applyVerifiedUser = async (): Promise<boolean> => {
+          try {
+            const response = await authApi.verify();
+            const verifiedUser = isSessionUser(response.data?.user as unknown)
+              ? (response.data.user as User)
+              : undefined;
+            if (verifiedUser && stillCurrent()) {
+              setUser(verifiedUser);
+              setSessionUser(verifiedUser);
+              return true;
+            }
+            return false;
+          } catch {
+            return false;
           }
-        } catch {
-          // Only log out if the session was not replaced while we awaited.
-          if (isMounted && sessionStorage.getItem(AUTH_TOKEN_KEY) === tokenAtStart) {
+        };
+
+        const ok = await applyVerifiedUser();
+        if (!ok && stillCurrent()) {
+          // /auth/verify is excluded from auto-refresh in client.ts, so an
+          // expired access token + valid refresh token would otherwise log
+          // out needlessly. Try one refresh, then re-verify once.
+          const refreshed = await tryRefreshOnce();
+          if (refreshed && stillCurrent()) {
+            const retryOk = await applyVerifiedUser();
+            if (!retryOk && stillCurrent()) {
+              logout();
+            } else if (stillCurrent()) {
+              // Refresh rotated the access token — sync React state.
+              const current = sessionStorage.getItem(AUTH_TOKEN_KEY);
+              if (current) setToken(current);
+            }
+          } else if (stillCurrent()) {
             logout();
           }
         }

@@ -15,15 +15,15 @@ export interface PaginationInfo {
   totalPages: number;
 }
 
-export interface StatsTableProps {
-  data: any[];
+export interface StatsTableProps<T extends object = object> {
+  data: T[];
   nameKey: string;
   title: string;
   currencyFormatter: (value: number) => string;
   pagination: PaginationInfo;
   onPageChange: (page: number) => void;
   isLoading?: boolean;
-  onRowClick?: (row: any) => void;
+  onRowClick?: (row: T) => void;
 }
 
 export type StatType = 'kunde' | 'varegruppe' | 'vare' | 'lager' | 'firma';
@@ -41,8 +41,8 @@ export interface StatsFiltersProps {
   exportFilenamePrefix?: string;
 }
 
-export interface StatsChartsProps {
-  data: any[];
+export interface StatsChartsProps<T extends object = object> {
+  data: T[];
   nameKey: string;
   title: string;
   currencyFormatter: (value: number) => string;

@@ -79,8 +79,8 @@ export interface AuditEntry {
   entity_type: string;
   entity_id: string;
   entity_name: string | null;
-  changes: Record<string, { old: any; new: any }> | null;
-  metadata: Record<string, any> | null;
+  changes: Record<string, { old: unknown; new: unknown }> | null;
+  metadata: Record<string, unknown> | null;
   ip_address: string | null;
 }
 

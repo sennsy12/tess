@@ -11,9 +11,12 @@ import {
   ordersApi,
 } from '../../lib/api';
 import { StatCardSkeleton, ChartSkeleton } from '../../components/admin';
+import { reportError } from '../../lib/observability';
 import { formatCurrencyNok, formatNumberNb, abbreviateCurrencyNok } from '../../lib/formatters';
 import { statusKeys, dashboardKeys } from '../../lib/queryKeys';
+import { usePendingApprovalCount } from '../../hooks/useApprovals';
 import { fillMissingPeriods } from '../../lib/chartUtils';
+import { positiveRevenue, sparkSeries } from '../../lib/statsAggregation';
 import { StatCard } from '../../components/StatCard';
 import {
   TopProductsWidget,
@@ -21,7 +24,7 @@ import {
   PriceDeviationsWidget,
   DataStatusWidget,
 } from './dashboard/widgets';
-import { DashboardAnalytics, TimeSeriesPoint, FirmaLagerStat } from '../../types/dashboard';
+import { DashboardAnalytics } from '../../types/dashboard';
 
 export function AdminDashboard() {
   const chartRef = useRef<HTMLDivElement>(null);
@@ -31,7 +34,15 @@ export function AdminDashboard() {
 
   const { data: status } = useQuery({
     queryKey: statusKeys.system(),
-    queryFn: () => statusApi.getStatus().then(res => res.data).catch(() => null),
+    queryFn: () =>
+      statusApi
+        .getStatus()
+        .then((res) => res.data)
+        .catch((err: unknown) => {
+          // Non-critical widget: degrade to null but keep telemetry.
+          reportError(err, { source: 'admin-dashboard-status' });
+          return null;
+        }),
     enabled: queriesEnabled,
   });
 
@@ -47,7 +58,14 @@ export function AdminDashboard() {
 
   const { data: apiMetrics } = useQuery({
     queryKey: dashboardKeys.apiMetrics(),
-    queryFn: () => statusApi.getApiMetrics().then((res) => res.data).catch(() => null),
+    queryFn: () =>
+      statusApi
+        .getApiMetrics()
+        .then((res) => res.data)
+        .catch((err: unknown) => {
+          reportError(err, { source: 'admin-dashboard-api-metrics' });
+          return null;
+        }),
     enabled: queriesEnabled,
   });
 
@@ -61,15 +79,10 @@ export function AdminDashboard() {
     },
   });
 
-  const { data: pendingApprovalCount = 0 } = useQuery({
-    queryKey: dashboardKeys.pendingApprovalCount(),
-    enabled: queriesEnabled,
-    queryFn: async () => {
-      const response = await ordersApi.getAll({ workflowStatus: 'pending_approval', limit: 1 });
-      return response.data?.pagination?.total ?? 0;
-    },
-    refetchInterval: 60_000,
-  });
+  // Shared with the sidebar badge (`PendingApprovalsBadge`) via the same
+  // query key — one `GET /orders?workflowStatus=pending_approval&limit=1`
+  // regardless of how many consumers are mounted.
+  const { data: pendingApprovalCount = 0 } = usePendingApprovalCount({ enabled: queriesEnabled });
 
   const { data: analytics, isLoading } = useQuery({
     queryKey: dashboardKeys.analytics(),
@@ -78,13 +91,25 @@ export function AdminDashboard() {
   });
 
   const summary = analytics?.summary ?? null;
-  const rawTimeSeries = analytics?.timeSeries ?? [];
+  const analyticsTimeSeries = analytics?.timeSeries;
+  const analyticsFirma = analytics?.firma?.data;
+  const analyticsLager = analytics?.lager?.data;
   const timeSeries = useMemo(
-    () => fillMissingPeriods(rawTimeSeries, 'month'),
-    [rawTimeSeries],
+    () => fillMissingPeriods(analyticsTimeSeries ?? [], 'month'),
+    [analyticsTimeSeries],
   );
-  const firmaStats = (analytics?.firma?.data ?? []).filter((f: FirmaLagerStat) => f.total_sum > 0);
-  const lagerStats = (analytics?.lager?.data ?? []).filter((l: FirmaLagerStat) => l.total_sum > 0);
+  // Einstein: memoize derivations — previously .filter/.map ran every render
+  // and produced new spark refs that forced recharts to re-render on any
+  // polling refetch (pendingApprovalCount polls every 60s).
+  // Math lives in lib/statsAggregation (pure, vitest-isolated).
+  const { firmaStats, lagerStats, revenueSpark, orderCountSpark } = useMemo(() => {
+    return {
+      firmaStats: positiveRevenue(analyticsFirma ?? []),
+      lagerStats: positiveRevenue(analyticsLager ?? []),
+      revenueSpark: sparkSeries(timeSeries, 'total_sum'),
+      orderCountSpark: sparkSeries(timeSeries, 'order_count'),
+    };
+  }, [analyticsFirma, analyticsLager, timeSeries]);
 
   return (
     <Layout title="Admin Dashboard">
@@ -146,7 +171,7 @@ export function AdminDashboard() {
               format={formatCurrencyNok}
               className="gradient-primary text-white"
               labelClassName="text-white/80"
-              sparkData={timeSeries.map((t: TimeSeriesPoint) => ({ value: t.total_sum }))}
+              sparkData={revenueSpark}
               sparkDataKey="value"
               sparkColor="#ffffff"
             />
@@ -156,7 +181,7 @@ export function AdminDashboard() {
               numericValue={summary?.totalOrders || 0}
               className="gradient-success text-white"
               labelClassName="text-white/80"
-              sparkData={timeSeries.map((t: TimeSeriesPoint) => ({ value: t.order_count }))}
+              sparkData={orderCountSpark}
               sparkDataKey="value"
               sparkColor="#ffffff"
             />

@@ -5,11 +5,16 @@ import toast from 'react-hot-toast';
 import { X } from 'lucide-react';
 import { Layout } from '../../components/Layout';
 import { Breadcrumb } from '../../components/Breadcrumb';
+import { EmptyState } from '../../components/EmptyState';
+import { QueryErrorBanner } from '../../components/QueryErrorBanner';
+import { QueryRefetchBar } from '../../components/QueryRefetchBar';
 import { Spinner } from '../../components/Spinner';
 import { Pagination, TableSkeleton } from '../../components/admin';
 import { OrderWorkflowBadge } from '../../components/orders/OrderWorkflowBadge';
 import { ordersApi } from '../../lib/api';
+import { getApiError } from '../../lib/apiErrors';
 import { formatCurrencyNok, formatDateNb } from '../../lib/formatters';
+import { useApprovalCount } from '../../hooks/useApprovals';
 import { approvalsKeys, orderKeys } from '../../lib/queryKeys';
 import {
   executeBulkStatusUpdate,
@@ -35,15 +40,9 @@ const DESTRUCTIVE_TARGETS = new Set<OrderWorkflowStatus>(['rejected', 'cancelled
 const MODAL_SAMPLE_LIMIT = 5;
 
 function StatusCount({ status }: { status: OrderWorkflowStatus }) {
-  const { data } = useQuery({
-    queryKey: approvalsKeys.count(status),
-    queryFn: async () => {
-      const response = await ordersApi.getAll({ workflowStatus: status, limit: 1 });
-      return response.data?.pagination?.total ?? 0;
-    },
-    refetchInterval: 60_000,
-    staleTime: 30_000,
-  });
+  // Shared hook → same key as the sidebar badge + admin dashboard (dedupe).
+  const { data, isError } = useApprovalCount(status);
+  if (isError) return <span title="Kunne ikke laste antall">—</span>;
   return <>{typeof data === 'number' ? data : '…'}</>;
 }
 
@@ -74,8 +73,13 @@ export function AdminApprovals() {
     placeholderData: (prev) => prev,
   });
 
-  const rows = useMemo(() => rowsQuery.data?.data ?? [], [rowsQuery]);
+  const rows = useMemo(() => rowsQuery.data?.data ?? [], [rowsQuery.data]);
   const pagination = rowsQuery.data?.pagination;
+  const rowsErrorMessage = rowsQuery.isError
+    ? getApiError(rowsQuery.error, 'Kunne ikke laste ordrekøen')
+    : null;
+  const showRowsError = rowsQuery.isError && rows.length === 0 && !rowsQuery.isLoading;
+  const showRefetchBar = rowsQuery.isFetching && !rowsQuery.isLoading && rows.length > 0;
 
   const switchTab = (status: OrderWorkflowStatus) => {
     setActiveStatus(status);
@@ -320,8 +324,15 @@ export function AdminApprovals() {
           <div className="card p-0 overflow-hidden">
             <TableSkeleton rows={8} columns={7} />
           </div>
+        ) : showRowsError ? (
+          <QueryErrorBanner
+            message={rowsErrorMessage ?? 'Kunne ikke laste ordrekøen'}
+            onRetry={() => void rowsQuery.refetch()}
+          />
         ) : (
-          <div className="card p-0 overflow-hidden">
+          <div className="space-y-3">
+            {showRefetchBar && <QueryRefetchBar active />}
+            <div className="card p-0 overflow-hidden">
             <div className="table-container border-0 rounded-none">
               <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-dark-700 scrollbar-track-transparent">
                 <table className="w-full table-fixed">
@@ -415,8 +426,11 @@ export function AdminApprovals() {
                     })}
                     {rows.length === 0 && (
                       <tr>
-                        <td colSpan={8} className="table-cell text-center text-dark-400 py-10">
-                          Ingen ordrer i «{ORDER_WORKFLOW_LABELS[activeStatus]}»
+                        <td colSpan={8} className="p-0">
+                          <EmptyState
+                            title={`Ingen ordrer i «${ORDER_WORKFLOW_LABELS[activeStatus]}»`}
+                            description="Køen er tom for denne statusen. Bytt fane eller kom tilbake senere."
+                          />
                         </td>
                       </tr>
                     )}
@@ -440,6 +454,7 @@ export function AdminApprovals() {
                 />
               </div>
             )}
+          </div>
           </div>
         )}
       </div>

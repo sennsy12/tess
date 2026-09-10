@@ -56,7 +56,7 @@ const SNAPSHOT_EXCLUDE = new Set([
 // Helpers
 // ────────────────────────────────────────────────────────────
 
-function formatValue(value: any, field?: string): string {
+function formatValue(value: unknown, field?: string): string {
   if (value === null || value === undefined) return '(tom)';
   if (typeof value === 'boolean') return value ? 'Ja' : 'Nei';
   if (field === 'base_price') {
@@ -108,7 +108,7 @@ const ACTION_OPTIONS = [
 // ────────────────────────────────────────────────────────────
 
 /** Expanded detail pane for UPDATE entries showing field diffs. */
-function UpdateDetails({ changes }: { changes: Record<string, { old: any; new: any }> }) {
+function UpdateDetails({ changes }: { changes: Record<string, { old: unknown; new: unknown }> }) {
   return (
     <div className="px-4 pb-3 border-t border-dark-700 pt-3">
       <div className="text-xs font-medium text-dark-400 mb-2 uppercase tracking-wide">
@@ -134,15 +134,15 @@ function UpdateDetails({ changes }: { changes: Record<string, { old: any; new: a
  * Backend stores UPDATE with only newData (no old) so `changes` is null and
  * `metadata` may hold newData/snapshot/direct fields (or a top-level newData
  * if the API ever returns it). Always returns null instead of crashing. */
-function getMemberDetails(entry: AuditEntry): Record<string, any> | null {
+function getMemberDetails(entry: AuditEntry): Record<string, unknown> | null {
   try {
-    const meta = entry?.metadata as Record<string, any> | null | undefined;
+    const meta = entry?.metadata as Record<string, unknown> | null | undefined;
     if (meta && typeof meta === 'object' && !Array.isArray(meta)) {
-      const nested = (meta as Record<string, any>).newData;
+      const nested = (meta as Record<string, unknown>).newData;
       if (nested && typeof nested === 'object' && !Array.isArray(nested) && Object.keys(nested).length > 0) {
-        return nested as Record<string, any>;
+        return nested as Record<string, unknown>;
       }
-      const snap = (meta as Record<string, any>).snapshot;
+      const snap = (meta as Record<string, unknown>).snapshot;
       if (
         entry?.entity_type === 'customer_group_member' &&
         snap &&
@@ -150,16 +150,16 @@ function getMemberDetails(entry: AuditEntry): Record<string, any> | null {
         !Array.isArray(snap) &&
         Object.keys(snap).length > 0
       ) {
-        return snap as Record<string, any>;
+        return snap as Record<string, unknown>;
       }
-      const direct: Record<string, any> = {};
-      if ('kundenr' in meta) direct.kundenr = (meta as Record<string, any>).kundenr;
-      if ('customer_group_id' in meta) direct.customer_group_id = (meta as Record<string, any>).customer_group_id;
+      const direct: Record<string, unknown> = {};
+      if ('kundenr' in meta) direct.kundenr = (meta as Record<string, unknown>).kundenr;
+      if ('customer_group_id' in meta) direct.customer_group_id = (meta as Record<string, unknown>).customer_group_id;
       if (Object.keys(direct).length > 0) return direct;
     }
-    const rawNew = (entry as unknown as Record<string, any> | null | undefined)?.newData;
+    const rawNew = (entry as unknown as Record<string, unknown> | null | undefined)?.newData;
     if (rawNew && typeof rawNew === 'object' && !Array.isArray(rawNew) && Object.keys(rawNew).length > 0) {
-      return rawNew as Record<string, any>;
+      return rawNew as Record<string, unknown>;
     }
   } catch {
     return null;
@@ -169,11 +169,11 @@ function getMemberDetails(entry: AuditEntry): Record<string, any> | null {
 
 /** Generic fallback for UPDATE metadata without `changes` (scalar fields only,
  * never crashes on null/nested objects). */
-function getExtraMetadata(entry: AuditEntry): Record<string, any> | null {
+function getExtraMetadata(entry: AuditEntry): Record<string, unknown> | null {
   try {
-    const meta = entry?.metadata as Record<string, any> | null | undefined;
+    const meta = entry?.metadata as Record<string, unknown> | null | undefined;
     if (!meta || typeof meta !== 'object' || Array.isArray(meta)) return null;
-    const { snapshot, newData, ...rest } = meta as Record<string, any>;
+    const { snapshot, newData, ...rest } = meta as Record<string, unknown>;
     void snapshot;
     void newData;
     const scalars = Object.entries(rest).filter(([, v]) => v === null || v === undefined || typeof v !== 'object');
@@ -185,7 +185,7 @@ function getExtraMetadata(entry: AuditEntry): Record<string, any> | null {
 }
 
 /** Expanded detail pane for customer_group_member assign/remove audits. */
-function MemberDetails({ details }: { details: Record<string, any> }) {
+function MemberDetails({ details }: { details: Record<string, unknown> }) {
   const rows = Object.entries(details ?? {});
   return (
     <div className="px-4 pb-3 border-t border-dark-700 pt-3">
@@ -211,7 +211,7 @@ function MemberDetails({ details }: { details: Record<string, any> }) {
 }
 
 /** Generic expanded pane for metadata without diffs. */
-function MetadataDetails({ data }: { data: Record<string, any> }) {
+function MetadataDetails({ data }: { data: Record<string, unknown> }) {
   const rows = Object.entries(data ?? {});
   return (
     <div className="px-4 pb-3 border-t border-dark-700 pt-3">
@@ -233,7 +233,7 @@ function MetadataDetails({ data }: { data: Record<string, any> }) {
 }
 
 /** Expanded detail pane for DELETE entries showing the snapshot. */
-function DeleteDetails({ snapshot }: { snapshot: Record<string, any> }) {
+function DeleteDetails({ snapshot }: { snapshot: Record<string, unknown> }) {
   const fields = useMemo(
     () => Object.entries(snapshot).filter(([key]) => !SNAPSHOT_EXCLUDE.has(key)),
     [snapshot],
@@ -373,7 +373,7 @@ export function AuditLogTab() {
               const hasChanges = changesCount > 0;
               const deleteSnapshot =
                 entry?.action === 'DELETE'
-                  ? (entry?.metadata as Record<string, any> | null | undefined)?.snapshot
+                  ? (entry?.metadata as Record<string, unknown> | null | undefined)?.snapshot
                   : undefined;
               const hasDeleteSnapshot =
                 !!deleteSnapshot && typeof deleteSnapshot === 'object' && !Array.isArray(deleteSnapshot);
@@ -427,7 +427,7 @@ export function AuditLogTab() {
                     <MetadataDetails data={extraMetadata} />
                   )}
                   {isExpanded && hasDeleteSnapshot && (
-                    <DeleteDetails snapshot={deleteSnapshot as Record<string, any>} />
+                    <DeleteDetails snapshot={deleteSnapshot as Record<string, unknown>} />
                   )}
                 </div>
               );

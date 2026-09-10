@@ -108,7 +108,8 @@ export const dashboardController = {
    * Get price deviations widget data
    */
   getPriceDeviations: async (req: AuthRequest, res: Response) => {
-    const limit = parseInt(req.query.limit as string) || DASHBOARD_TOP_LIMIT;
+    // Capped like the other top-N widgets to block runaway scans.
+    const limit = Math.min(parseInt(req.query.limit as string) || DASHBOARD_TOP_LIMIT, DASHBOARD_TOP_MAX_LIMIT);
     const data = await priceRuleModel.getPriceDeviations(limit);
     res.json(data);
   },

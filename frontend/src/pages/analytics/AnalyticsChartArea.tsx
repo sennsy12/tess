@@ -7,6 +7,8 @@ import { getDimensionLabel, getMetricLabel } from './analyticsLabels';
 import type { AnalyticsConfig, AnalyticsDataPoint } from './analyticsTypes';
 
 const DETAILS_PAGE_SIZE = 25;
+/** Max SVG slices for recharts — beyond this the chart janks while the table stays paginated. */
+const CHART_TOP_N = 50;
 
 type SortKey = 'label' | 'value';
 type SortDir = 'asc' | 'desc';
@@ -41,7 +43,10 @@ export function AnalyticsChartArea({
 }: AnalyticsChartAreaProps) {
   const [sort, setSort] = useState<SortState>({ key: 'value', dir: 'desc' });
 
-  const sortedData = useMemo(() => {
+  // Einstein: single pass — sort once, derive max/total/chart-slice together.
+  // Previously 3 memos (sort + max reduce + total reduce) + full unsliced
+  // data to recharts = O(N) SVG nodes on product/category dimensions.
+  const { sortedData, maxValue, totalValue, chartData, chartOverflow } = useMemo(() => {
     const copy = [...data];
     copy.sort((a, b) => {
       const result =
@@ -50,18 +55,29 @@ export function AnalyticsChartArea({
           : a.value - b.value;
       return sort.dir === 'asc' ? result : -result;
     });
-    return copy;
+    let max = 0;
+    let total = 0;
+    for (const d of copy) {
+      if (d.value > max) max = d.value;
+      total += d.value;
+    }
+    // Chart shows value-desc TopN regardless of table sort (label sort would
+    // scatter large slices). Table keeps user sort + pagination.
+    const byValue = sort.key === 'value' && sort.dir === 'desc'
+      ? copy
+      : [...copy].sort((a, b) => b.value - a.value);
+    const overflow = Math.max(0, byValue.length - CHART_TOP_N);
+    const top = byValue.slice(0, CHART_TOP_N);
+    let chart: AnalyticsDataPoint[];
+    let overflowTotal = 0;
+    if (overflow > 0) {
+      for (let i = CHART_TOP_N; i < byValue.length; i++) overflowTotal += byValue[i].value;
+      chart = [...top, { label: `Andre (${overflow})`, value: overflowTotal }];
+    } else {
+      chart = top;
+    }
+    return { sortedData: copy, maxValue: max, totalValue: total, chartData: chart, chartOverflow: overflow };
   }, [data, sort]);
-
-  const maxValue = useMemo(
-    () => data.reduce((max, d) => Math.max(max, d.value), 0),
-    [data],
-  );
-
-  const totalValue = useMemo(
-    () => data.reduce((acc, d) => acc + d.value, 0),
-    [data],
-  );
 
   if (isLoading) {
     return (
@@ -118,10 +134,10 @@ export function AnalyticsChartArea({
         <div className="card relative min-h-[400px]">
           {config.chartType === 'bar' && (
             <BarChart
-              data={data}
+              data={chartData}
               xKey="label"
               yKey="value"
-              title={chartTitle}
+              title={chartOverflow > 0 ? `${chartTitle} (topp ${CHART_TOP_N})` : chartTitle}
               color="#6366f1"
               seriesName={seriesName}
               valueFormatter={valueFormatter}
@@ -129,10 +145,10 @@ export function AnalyticsChartArea({
           )}
           {config.chartType === 'line' && (
             <LineChart
-              data={data}
+              data={chartData}
               xKey="label"
               yKey="value"
-              title={chartTitle}
+              title={chartOverflow > 0 ? `${chartTitle} (topp ${CHART_TOP_N})` : chartTitle}
               color="#6366f1"
               seriesName={seriesName}
               valueFormatter={valueFormatter}
@@ -140,10 +156,10 @@ export function AnalyticsChartArea({
           )}
           {config.chartType === 'pie' && (
             <PieChart
-              data={data}
+              data={chartData}
               nameKey="label"
               valueKey="value"
-              title={chartTitle}
+              title={chartOverflow > 0 ? `${chartTitle} (topp ${CHART_TOP_N})` : chartTitle}
               seriesName={seriesName}
               valueFormatter={valueFormatter}
             />

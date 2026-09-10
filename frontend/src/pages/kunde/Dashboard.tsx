@@ -2,69 +2,102 @@ import { useMemo, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import { Layout } from '../../components/Layout';
+import { EmptyState } from '../../components/EmptyState';
 import { LineChart, PieChart } from '../../components/Charts';
 import { ExportButton } from '../../components/ExportButton';
-import { statisticsApi, ordersApi } from '../../lib/api';
+import { statisticsApi, ordersApi, type TimeSeriesPoint } from '../../lib/api';
 import { kundeKeys } from '../../lib/queryKeys';
 import { useAuth } from '../../context/useAuth';
 import { StatCard } from '../../components/StatCard';
 import { StatCardSkeleton, ChartSkeleton } from '../../components/admin';
 import { QueryErrorBanner } from '../../components/QueryErrorBanner';
+import { QueryRefetchBar } from '../../components/QueryRefetchBar';
+import { getApiError } from '../../lib/apiErrors';
 import { revenueTrendSummary } from '../../lib/chartSummary';
 import { fillMissingPeriods } from '../../lib/chartUtils';
 import { formatCurrencyNok, formatDateNb, formatMoneyNok, formatNumberNb } from '../../lib/formatters';
+import { positiveRevenue, sparkSeries } from '../../lib/statsAggregation';
+import type { Order } from '../../types/order';
 
 export function KundeDashboard() {
   const { user } = useAuth();
   const chartRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
-  const summaryQuery = useQuery({
-    queryKey: kundeKeys.summary(),
-    queryFn: () => statisticsApi.summary().then((res) => res.data),
+  // One request instead of three: `/statistics/batch` computes summary +
+  // varegruppe + time-series in parallel server-side (same model functions
+  // the individual endpoints run, so values are identical) and returns them
+  // in a single round trip. The `kunde` dimension batch also returns is not
+  // needed here — its cost is ~one bounded top-50 GROUP BY, which is cheaper
+  // than the two extra HTTP round trips it saves.
+  const dashboardQuery = useQuery({
+    queryKey: [...kundeKeys.summary(), 'batch'],
+    queryFn: async () => {
+      const { data } = await statisticsApi.batch({ groupBy: 'month' });
+      return {
+        summary: data.summary,
+        timeSeries: data.timeSeries ?? [],
+        varegruppe: data.varegruppe?.data ?? [],
+      };
+    },
     staleTime: 60_000,
   });
 
   const recentOrdersQuery = useQuery({
     queryKey: kundeKeys.recentOrders(),
-    queryFn: async () => {
+    queryFn: async (): Promise<Order[]> => {
       const res = await ordersApi.getAll({ limit: 5, page: 1 });
-      const ordersData = res.data?.data || res.data || [];
-      return ordersData.slice(0, 5);
+      const payload = res.data as unknown;
+      if (Array.isArray(payload)) return (payload as Order[]).slice(0, 5);
+      if (payload && typeof payload === 'object' && 'data' in payload && Array.isArray((payload as { data: unknown }).data)) {
+        return ((payload as { data: Order[] }).data).slice(0, 5);
+      }
+      return [];
     },
     staleTime: 60_000,
   });
 
-  const varegruppeQuery = useQuery({
-    queryKey: kundeKeys.varegruppeStats(),
-    queryFn: async () => {
-      const res = await statisticsApi.byVaregruppe();
-      return res.data?.data || res.data || [];
-    },
-    staleTime: 60_000,
-  });
-
-  const timeSeriesQuery = useQuery({
-    queryKey: kundeKeys.timeSeries(),
-    queryFn: () => statisticsApi.timeSeries({ groupBy: 'month' }).then((res) => res.data),
-    staleTime: 60_000,
-  });
-
-  const summary = summaryQuery.data;
-  const recentOrders = recentOrdersQuery.data ?? [];
-  const varegruppeStats = varegruppeQuery.data ?? [];
-  const timeSeries = useMemo(
-    () => fillMissingPeriods(timeSeriesQuery.data ?? [], 'month'),
-    [timeSeriesQuery.data],
+  const summary = dashboardQuery.data?.summary ?? null;
+  const recentOrders: Order[] = recentOrdersQuery.data ?? [];
+  const varegruppeRaw = dashboardQuery.data?.varegruppe;
+  const timeSeriesRaw = dashboardQuery.data?.timeSeries;
+  const timeSeries: TimeSeriesPoint[] = useMemo(
+    () => fillMissingPeriods(timeSeriesRaw ?? [], 'month'),
+    [timeSeriesRaw],
   );
 
-  const isLoading =
-    summaryQuery.isLoading ||
-    timeSeriesQuery.isLoading ||
-    varegruppeQuery.isLoading;
+  // Einstein: single-pass derivations — previously .filter/.map ran 2-3x per
+  // render and created new spark refs that defeated memo in StatCard/Sparkline.
+  // Math lives in lib/statsAggregation (pure, vitest-isolated).
+  const { orderCountSpark, revenueSpark, positiveVaregrupper, varegruppeCount } = useMemo(() => {
+    const positiveVaregrupper = positiveRevenue(varegruppeRaw ?? []);
+    return {
+      orderCountSpark: sparkSeries(timeSeries, 'order_count'),
+      revenueSpark: sparkSeries(timeSeries, 'total_sum'),
+      positiveVaregrupper,
+      varegruppeCount: positiveVaregrupper.length,
+    };
+  }, [timeSeries, varegruppeRaw]);
 
+  const isLoading =
+    dashboardQuery.isLoading ||
+    recentOrdersQuery.isLoading;
+
+  // Any failed widget is critical — previously only summary && timeSeries
+  // counted, so varegruppe/recent failures were silent.
   const hasCriticalError =
-    summaryQuery.isError && timeSeriesQuery.isError;
+    dashboardQuery.isError ||
+    recentOrdersQuery.isError;
+
+  const dashboardErrorMessage = getApiError(
+    dashboardQuery.error ?? recentOrdersQuery.error,
+    'Noe av dashboard-data kunne ikke lastes.',
+  );
+
+  const showRefetchBar =
+    !isLoading &&
+    (dashboardQuery.isFetching || recentOrdersQuery.isFetching) &&
+    Boolean(summary ?? timeSeries.length > 0);
 
   if (isLoading && !hasCriticalError) {
     return (
@@ -87,17 +120,16 @@ export function KundeDashboard() {
   return (
     <Layout title="Kunde Dashboard">
       <div className="space-y-6">
-        {(summaryQuery.isError || timeSeriesQuery.isError) && (
+        {hasCriticalError && (
           <QueryErrorBanner
-            message="Noe av dashboard-data kunne ikke lastes."
+            message={dashboardErrorMessage}
             onRetry={() => {
-              void summaryQuery.refetch();
-              void timeSeriesQuery.refetch();
-              void varegruppeQuery.refetch();
+              void dashboardQuery.refetch();
               void recentOrdersQuery.refetch();
             }}
           />
         )}
+        {showRefetchBar && <QueryRefetchBar active />}
         {/* Welcome message */}
         <div className="card bg-gradient-to-r from-primary-600/20 to-primary-800/20 border-primary-700/50 animate-fade-in">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -125,7 +157,7 @@ export function KundeDashboard() {
             label="Totale Ordrer"
             value={formatNumberNb(summary?.totalOrders || 0)}
             numericValue={summary?.totalOrders || 0}
-            sparkData={timeSeries.map((t: any) => ({ value: t.order_count ?? t.total_orders ?? 0 }))}
+            sparkData={orderCountSpark}
             sparkDataKey="value"
             sparkColor="#6366f1"
           />
@@ -134,7 +166,7 @@ export function KundeDashboard() {
             value={currencyFormatter(summary?.totalRevenue || 0)}
             numericValue={summary?.totalRevenue || 0}
             format={currencyFormatter}
-            sparkData={timeSeries.map((t: any) => ({ value: t.total_sum ?? 0 }))}
+            sparkData={revenueSpark}
             sparkDataKey="value"
             sparkColor="#10b981"
           />
@@ -198,15 +230,15 @@ export function KundeDashboard() {
           </div>
           <div className="card">
             <PieChart
-              data={varegruppeStats.filter((v: any) => v.total_sum > 0)}
+              data={positiveVaregrupper}
               nameKey="varegruppe"
               valueKey="total_sum"
               title="Fordeling per varegruppe"
               seriesName="Omsetning"
               valueFormatter={currencyFormatter}
               summary={
-                varegruppeStats.length > 0
-                  ? `Fordeling på ${varegruppeStats.filter((v: { total_sum: number }) => v.total_sum > 0).length} varegrupper med omsetning.`
+                varegruppeCount > 0
+                  ? `Fordeling på ${varegruppeCount} varegrupper med omsetning.`
                   : undefined
               }
             />
@@ -216,22 +248,40 @@ export function KundeDashboard() {
         {/* Recent orders */}
         <div className="card">
           <h3 className="text-lg font-semibold mb-4">Siste Ordrer</h3>
+          {recentOrdersQuery.isError && recentOrders.length === 0 ? (
+            <QueryErrorBanner
+              message={getApiError(recentOrdersQuery.error, 'Kunne ikke laste siste ordrer')}
+              onRetry={() => void recentOrdersQuery.refetch()}
+            />
+          ) : recentOrders.length === 0 ? (
+            <EmptyState
+              title="Ingen ordrer ennå"
+              description="Når du legger inn bestillinger vil de vises her."
+            />
+          ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr>
-                  <th className="table-header">Ordrenr</th>
-                  <th className="table-header">Dato</th>
-                  <th className="table-header">Firma</th>
-                  <th className="table-header">Sum</th>
+                  <th scope="col" className="table-header">Ordrenr</th>
+                  <th scope="col" className="table-header">Dato</th>
+                  <th scope="col" className="table-header">Firma</th>
+                  <th scope="col" className="table-header">Sum</th>
                 </tr>
               </thead>
               <tbody>
-                {recentOrders.map((order: any) => (
+                {recentOrders.map((order) => (
                   <tr
                     key={order.ordrenr}
                     className="cursor-pointer hover:bg-dark-800/30"
                     onClick={() => navigate(`/kunde/orders/${order.ordrenr}`)}
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        navigate(`/kunde/orders/${order.ordrenr}`);
+                      }
+                    }}
                   >
                     <td className="table-cell font-medium text-primary-400">
                       <Link
@@ -254,6 +304,7 @@ export function KundeDashboard() {
               </tbody>
             </table>
           </div>
+          )}
         </div>
       </div>
     </Layout>

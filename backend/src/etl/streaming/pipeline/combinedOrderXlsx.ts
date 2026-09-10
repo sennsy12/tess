@@ -1,5 +1,6 @@
 import { getClient } from '../../../db/index.js';
 import { getTableColumns } from '../../../db/copyLoaders.js';
+import { quoteIdentifier } from '../../../db/identifiers.js';
 import { etlLogger } from '../../../lib/logger.js';
 import { scheduleStatisticsRefreshAfterEtl } from '../../../services/statsAggregateService.js';
 import { xlsxRowSource } from '../sources/xlsxSource.js';
@@ -148,9 +149,10 @@ export async function runCombinedOrderXlsxEtl(config: {
 
     // Phase 2: merge ordre (dimensions before merge, inside txn).
     await provisionDimensions(clientOrdre, ordreTemp, ordreTarget.columns);
+    const ordreCols = ordreTarget.columns.map(quoteIdentifier).join(', ');
     const ordreResult = await clientOrdre.query(
-      `INSERT INTO ordre (${ordreTarget.columns.join(', ')})
-       SELECT ${ordreTarget.columns.join(', ')} FROM ${ordreTemp}
+      `INSERT INTO ${quoteIdentifier('ordre')} (${ordreCols})
+       SELECT ${ordreCols} FROM ${quoteIdentifier(ordreTemp)}
        ON CONFLICT DO NOTHING`
     );
     const ordreInserted = ordreResult.rowCount || 0;
@@ -158,9 +160,10 @@ export async function runCombinedOrderXlsxEtl(config: {
 
     // Phase 3: ordre committed -> FK-safe to merge order lines now.
     await provisionDimensions(clientLinje, linjeTemp, linjeTarget.columns);
+    const linjeCols = linjeTarget.columns.map(quoteIdentifier).join(', ');
     const linjeResult = await clientLinje.query(
-      `INSERT INTO ordrelinje (${linjeTarget.columns.join(', ')})
-       SELECT ${linjeTarget.columns.join(', ')} FROM ${linjeTemp}
+      `INSERT INTO ${quoteIdentifier('ordrelinje')} (${linjeCols})
+       SELECT ${linjeCols} FROM ${quoteIdentifier(linjeTemp)}
        ON CONFLICT DO NOTHING`
     );
     const ordrelinjeInserted = linjeResult.rowCount || 0;

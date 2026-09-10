@@ -13,22 +13,50 @@ export interface TopNOptions<T> {
   createOther?: (sum: number) => T;
 }
 
-export function topN<T>(
-  items: T[],
+/**
+ * Sorts items by value descending. The selector runs exactly once per item
+ * (precomputed value table) instead of on every comparator call, and the
+ * value table is normalised (`|| 0`) so NaN never poisons the sort.
+ */
+export function sortByValueDesc<T>(items: readonly T[], by: (item: T) => number): T[] {
+  return items
+    .map((item) => ({ item, value: by(item) || 0 }))
+    .sort((a, b) => b.value - a.value)
+    .map((entry) => entry.item);
+}
+
+/**
+ * Takes the first n entries of an already value-sorted list (see
+ * `sortByValueDesc`) and optionally appends one aggregated "other" row
+ * summing the remainder. Lets several charts share a single sort.
+ */
+export function topNFromSorted<T>(
+  sortedDesc: readonly T[],
   n: number,
   by: (item: T) => number,
   options?: TopNOptions<T>,
 ): T[] {
-  const sorted = [...items].sort((a, b) => by(b) - by(a));
-  if (sorted.length <= n) return sorted;
+  if (sortedDesc.length <= n) return [...sortedDesc];
 
-  const top = sorted.slice(0, n);
+  const top = sortedDesc.slice(0, n);
   if (!options?.withOther || !options.createOther) return top;
 
-  const restSum = sorted.slice(n).reduce((acc, item) => acc + by(item), 0);
+  let restSum = 0;
+  for (let index = n; index < sortedDesc.length; index += 1) {
+    restSum += by(sortedDesc[index]) || 0;
+  }
   if (restSum <= 0) return top;
 
   return [...top, options.createOther(restSum)];
+}
+
+export function topN<T>(
+  items: readonly T[],
+  n: number,
+  by: (item: T) => number,
+  options?: TopNOptions<T>,
+): T[] {
+  return topNFromSorted(sortByValueDesc(items, by), n, by, options);
 }
 
 export function buildTimeSeries<T>(

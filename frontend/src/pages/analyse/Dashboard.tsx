@@ -13,6 +13,7 @@ import {
 } from '../../lib/api';
 import { formatCurrencyNok } from '../../lib/formatters';
 import { fillMissingPeriods } from '../../lib/chartUtils';
+import { positiveRevenue } from '../../lib/statsAggregation';
 import { DashboardStats } from './components/DashboardStats';
 import { TopCustomerCard } from './components/TopCustomerCard';
 import { DashboardCharts } from './components/DashboardCharts';
@@ -37,8 +38,8 @@ export function AnalyseDashboard() {
 
       return {
         summary: summary ?? null,
-        kundeStats: kundeData.filter((k) => k.total_sum > 0).slice(0, 10),
-        varegruppeStats: varegruppeData.filter((v) => v.total_sum > 0),
+        kundeStats: positiveRevenue(kundeData).slice(0, 10),
+        varegruppeStats: positiveRevenue(varegruppeData),
         timeSeries: timeSeries || [],
       };
     },

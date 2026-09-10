@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { Repeat } from 'lucide-react';
 import { Layout } from '../../components/Layout';
@@ -17,27 +18,58 @@ import {
   ORDER_WORKFLOW_STATUSES,
   canTransition,
   getNextWorkflowStatuses,
+  isOrderWorkflowStatus,
   type OrderWorkflowStatus,
 } from '../../types/notification';
 import { OrderLineSummaryCard } from '../../components/orders/OrderLineSummaryCard';
 import { Spinner } from '../../components/Spinner';
 import { formatCurrency, formatDateNb, formatDecimalNb } from '../../lib/formatters';
+import { orderKeys } from '../../lib/queryKeys';
+import { useOrderHistory } from '../../hooks/useOrderHistory';
 
-import { OrderDetail, type OrderStatusHistoryEntry } from '../../types/order';
+import { OrderDetail } from '../../types/order';
 
 export function AdminOrderDetail() {
   const { ordrenr } = useParams<{ ordrenr: string }>();
   const navigate = useNavigate();
   const cart = useCart();
-  const [order, setOrder] = useState<OrderDetail | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState('');
+  const queryClient = useQueryClient();
+  const ordrenrNum = ordrenr ? Number.parseInt(ordrenr, 10) : Number.NaN;
+  const hasValidOrderId = Number.isFinite(ordrenrNum);
+
   const [statusSaving, setStatusSaving] = useState(false);
   const [isPdfBusy, setIsPdfBusy] = useState(false);
-  const [history, setHistory] = useState<OrderStatusHistoryEntry[]>([]);
-  const [historyLoading, setHistoryLoading] = useState(false);
   const [statusComment, setStatusComment] = useState('');
   const [pendingStatus, setPendingStatus] = useState<OrderWorkflowStatus | ''>('');
+
+  const {
+    data: order,
+    isLoading,
+    error: orderError,
+    refetch,
+  } = useQuery({
+    queryKey: orderKeys.detail('admin', ordrenrNum),
+    queryFn: async () => (await ordersApi.getOne(ordrenrNum)).data,
+    enabled: hasValidOrderId,
+  });
+
+  // Timeline loads in parallel with the order instead of after it. It stays
+  // auxiliary: `useOrderHistory` isolates its own failure, so a missing
+  // history table/endpoint degrades to an empty timeline rather than
+  // breaking the order view.
+  const historyQuery = useOrderHistory('admin', hasValidOrderId ? ordrenrNum : undefined);
+  const history = historyQuery.data ?? [];
+  const historyLoading = historyQuery.isLoading;
+
+  const error = orderError ? getApiError(orderError, 'Kunne ikke laste ordre') : '';
+
+  // Reset unsaved decision draft — the component instance is reused when
+  // navigating order A → B, so a stale selection/comment must not leak
+  // into the newly opened order.
+  useEffect(() => {
+    setPendingStatus('');
+    setStatusComment('');
+  }, [ordrenrNum]);
 
   const handleDownloadPdf = async () => {
     if (!order || isPdfBusy) return;
@@ -51,43 +83,14 @@ export function AdminOrderDetail() {
     }
   };
 
-  const loadOrder = async (id: number) => {
-    // Reset unsaved decision draft — the component instance is reused when
-    // navigating order A → B, so a stale selection/comment must not leak
-    // into the newly opened order.
-    setPendingStatus('');
-    setStatusComment('');
-    try {
-      const response = await ordersApi.getOne(id);
-      setOrder(response.data);
-      // Timeline is auxiliary — a missing history table/endpoint must not
-      // break the order view (e.g. DBs that haven't migrated yet).
-      setHistoryLoading(true);
-      try {
-        const historyResponse = await ordersApi.getHistory(id);
-        setHistory(historyResponse.data?.data ?? []);
-      } catch {
-        setHistory([]);
-      } finally {
-        setHistoryLoading(false);
-      }
-    } catch (err: unknown) {
-      setError(getApiError(err, 'Kunne ikke laste ordre'));
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (ordrenr) {
-      void loadOrder(parseInt(ordrenr));
-    }
-  }, [ordrenr]);
-
   const handleStatusChange = async (workflowStatus: OrderWorkflowStatus) => {
     if (!order) return;
-    const current = (order.workflow_status ?? 'new') as OrderWorkflowStatus;
-    if (!canTransition(current, workflowStatus)) {
+    const rawCurrent = order.workflow_status ?? 'new';
+    if (!isOrderWorkflowStatus(rawCurrent)) {
+      toast.error('Ukjent ordrestatus – last siden på nytt');
+      return;
+    }
+    if (!canTransition(rawCurrent, workflowStatus)) {
       toast.error('Ugyldig statusovergang');
       return;
     }
@@ -99,15 +102,17 @@ export function AdminOrderDetail() {
     setStatusSaving(true);
     try {
       await ordersApi.updateStatus(order.ordrenr, workflowStatus, comment || undefined);
-      setOrder({ ...order, workflow_status: workflowStatus });
+      // Patch the cached detail in place so the badge flips immediately…
+      queryClient.setQueryData<OrderDetail>(
+        orderKeys.detail('admin', order.ordrenr),
+        (previous) => (previous ? { ...previous, workflow_status: workflowStatus } : previous),
+      );
       setStatusComment('');
       setPendingStatus('');
-      try {
-        const historyResponse = await ordersApi.getHistory(order.ordrenr);
-        setHistory(historyResponse.data?.data ?? []);
-      } catch {
-        // Keep the updated status even if history refresh fails.
-      }
+      // …then refresh the timeline and the order list. A failed history
+      // refresh keeps the updated status rather than reverting it.
+      void queryClient.invalidateQueries({ queryKey: orderKeys.history('admin', order.ordrenr) });
+      void queryClient.invalidateQueries({ queryKey: orderKeys.root() });
       toast.success('Ordrestatus oppdatert');
     } catch (err: unknown) {
       toast.error(getApiError(err, 'Kunne ikke oppdatere status'));
@@ -149,7 +154,7 @@ export function AdminOrderDetail() {
               { label: 'Detaljer' },
             ]}
           />
-          <QueryErrorBanner message={error || 'Ordre ikke funnet'} onRetry={() => ordrenr && loadOrder(parseInt(ordrenr, 10))} />
+          <QueryErrorBanner message={error || 'Ordre ikke funnet'} onRetry={() => void refetch()} />
           <button type="button" onClick={() => navigate('/admin/orders')} className="btn-secondary">
             ← Tilbake til ordrer
           </button>

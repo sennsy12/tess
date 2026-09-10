@@ -129,7 +129,6 @@ export const dashboardKeys = {
   widgets: () => ['admin', 'widgets'] as const,
   apiMetrics: () => ['admin', 'dashboard-api-metrics'] as const,
   ordersNeedingAttention: () => ['admin', 'orders-needing-attention'] as const,
-  pendingApprovalCount: () => ['admin', 'pending-approval-count'] as const,
   analytics: () => ['admin', 'analytics'] as const,
 };
 

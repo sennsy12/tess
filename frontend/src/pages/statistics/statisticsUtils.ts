@@ -61,7 +61,7 @@ export function getNameKey(statType: StatType) {
   }
 }
 
-/** Fetches every page of a statistics grouping (capped) so exports cover the full period, not just the visible page. */
+/** Fetches every page of a statistics grouping (capped) so exports cover the full period, not just the visible page. Page 1 reveals totalPages; the remaining pages are fetched in parallel (order preserved by page number) to cut export latency on large datasets. */
 export async function fetchAllStatRows(
   statType: StatType,
   params: Record<string, unknown>,
@@ -76,13 +76,19 @@ export async function fetchAllStatRows(
   const maxPages = Math.ceil(STATISTICS_EXPORT_ROW_CAP / STATISTICS_EXPORT_PAGE_SIZE);
   const totalPages = Math.min(firstPage.pagination?.totalPages ?? 1, maxPages);
 
-  for (let pageNumber = 2; pageNumber <= totalPages; pageNumber += 1) {
-    const nextPage = await fetchStatData(statType, {
-      ...params,
-      page: pageNumber,
-      limit: STATISTICS_EXPORT_PAGE_SIZE,
-    });
-    rows.push(...(nextPage.data ?? []));
+  if (totalPages > 1) {
+    const remainingPages = await Promise.all(
+      Array.from({ length: totalPages - 1 }, (_, index) =>
+        fetchStatData(statType, {
+          ...params,
+          page: index + 2,
+          limit: STATISTICS_EXPORT_PAGE_SIZE,
+        }),
+      ),
+    );
+    for (const nextPage of remainingPages) {
+      rows.push(...(nextPage.data ?? []));
+    }
   }
 
   return rows.slice(0, STATISTICS_EXPORT_ROW_CAP);

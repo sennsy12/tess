@@ -1,20 +1,28 @@
 import { useMemo } from 'react';
 import { BarChart, PieChart } from '../../../components/Charts';
 import { abbreviateCurrencyNok } from '../../../lib/formatters';
-import { topN } from '../../../lib/chartUtils';
+import { sortByValueDesc, topNFromSorted } from '../../../lib/chartUtils';
 import { StatsChartsProps } from '../../../types/statistics';
 
 const CHART_COLOR = '#6366f1';
 
+/** Hoisted row-value selector so the value table is computed once per data change. */
+const byTotalSum = (item: object): number =>
+  Number((item as Record<string, unknown>).total_sum) || 0;
+
 export function StatsCharts({ data, nameKey, title, currencyFormatter }: StatsChartsProps) {
+  // Sort once; both charts derive from the same value-sorted table
+  // (previously topN re-sorted the same rows twice per render).
+  const sorted = useMemo(() => sortByValueDesc(data, byTotalSum), [data]);
+
   const barData = useMemo(
-    () => topN(data, 15, (item) => Number(item.total_sum) || 0),
-    [data],
+    () => topNFromSorted(sorted, 15, byTotalSum),
+    [sorted],
   );
 
   const pieData = useMemo(
     () =>
-      topN(data, 8, (item) => Number(item.total_sum) || 0, {
+      topNFromSorted(sorted, 8, byTotalSum, {
         withOther: true,
         createOther: (sum) =>
           ({
@@ -22,7 +30,7 @@ export function StatsCharts({ data, nameKey, title, currencyFormatter }: StatsCh
             total_sum: sum,
           }) as (typeof data)[number],
       }),
-    [data, nameKey],
+    [sorted, nameKey],
   );
 
   return (

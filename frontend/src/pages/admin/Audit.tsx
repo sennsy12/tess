@@ -336,9 +336,14 @@ export function AdminAudit() {
                 };
                 const entityLabel = ENTITY_LABELS[entry.entity_type] || entry.entity_type;
                 const isExpanded = expandedId === entry.id;
+                const rawSnapshot = entry.metadata?.snapshot;
+                const deleteSnapshot =
+                  rawSnapshot && typeof rawSnapshot === 'object' && !Array.isArray(rawSnapshot)
+                    ? (rawSnapshot as Record<string, unknown>)
+                    : null;
                 const hasDetails =
                   (entry.changes && Object.keys(entry.changes).length > 0) ||
-                  (entry.action === 'DELETE' && entry.metadata?.snapshot);
+                  (entry.action === 'DELETE' && deleteSnapshot !== null);
 
                 return (
                   <div key={entry.id} className="rounded-lg border border-dark-700 overflow-hidden">
@@ -381,8 +386,8 @@ export function AdminAudit() {
                     {isExpanded && entry.action === 'UPDATE' && entry.changes && (
                       <UpdateDetails changes={entry.changes} />
                     )}
-                    {isExpanded && entry.action === 'DELETE' && entry.metadata?.snapshot && (
-                      <DeleteDetails snapshot={entry.metadata.snapshot} />
+                    {isExpanded && entry.action === 'DELETE' && deleteSnapshot && (
+                      <DeleteDetails snapshot={deleteSnapshot} />
                     )}
                   </div>
                 );

@@ -20,7 +20,7 @@ import { useOrderHistory } from '../../hooks/useOrderHistory';
 import { addOrderToCart } from '../../lib/reorder';
 import { downloadOrderPdf } from '../../lib/orderPdf';
 import { useCart } from '../../context/useCart';
-import { KUNDE_CANCELLABLE_STATUSES, type OrderWorkflowStatus } from '../../types/notification';
+import { KUNDE_CANCELLABLE_STATUSES, isOrderWorkflowStatus } from '../../types/notification';
 import type { OrderDetail } from '../../types/order';
 import { formatCurrency, formatDateNb, formatDecimalNb, formatMoneyNok } from '../../lib/formatters';
 
@@ -35,9 +35,9 @@ export function KundeOrderDetail() {
 
   const { data: order, isLoading, isError, error, refetch } = useQuery({
     queryKey: kundeKeys.order(orderId),
-    queryFn: async () => {
+    queryFn: async (): Promise<OrderDetail> => {
       const response = await ordersApi.getOne(orderId);
-      return response.data as OrderDetail;
+      return response.data;
     },
     enabled: Number.isFinite(orderId),
   });
@@ -58,9 +58,12 @@ export function KundeOrderDetail() {
     },
   });
 
+  const rawWorkflowStatus = order?.workflow_status;
   const cancellable =
     order != null &&
-    KUNDE_CANCELLABLE_STATUSES.includes((order.workflow_status ?? 'new') as OrderWorkflowStatus);
+    rawWorkflowStatus != null &&
+    isOrderWorkflowStatus(rawWorkflowStatus) &&
+    KUNDE_CANCELLABLE_STATUSES.includes(rawWorkflowStatus);
 
   const handleDownloadPdf = async () => {
     if (!order || isPdfBusy) return;
@@ -86,9 +89,20 @@ export function KundeOrderDetail() {
     navigate('/kunde/order/new');
   };
 
-  const errorMessage =
-    (error as { response?: { data?: { error?: string } } })?.response?.data?.error ||
-    'Kunne ikke laste ordre';
+  const errorMessage = getApiError(error, 'Kunne ikke laste ordre');
+
+  if (!Number.isFinite(orderId)) {
+    return (
+      <Layout title="Ordre detaljer">
+        <div className="space-y-4">
+          <QueryErrorBanner message="Ugyldig ordrenummer i adressen." />
+          <button type="button" onClick={() => navigate('/kunde/orders')} className="btn-secondary">
+            ← Tilbake til ordrer
+          </button>
+        </div>
+      </Layout>
+    );
+  }
 
   if (isLoading) {
     return (

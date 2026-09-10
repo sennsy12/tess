@@ -14,6 +14,9 @@ import { KundeDashboard } from '../Dashboard';
 
 vi.mock('../../../lib/api', () => ({
   statisticsApi: {
+    batch: vi.fn(),
+    // Kept in the mock so they can be asserted as NOT called after the
+    // batch migration (a regression here silently re-fires 3 requests).
     summary: vi.fn(),
     byVaregruppe: vi.fn(),
     timeSeries: vi.fn(),
@@ -42,6 +45,7 @@ vi.mock('../../../components/ExportButton', () => ({
 
 import { statisticsApi, ordersApi } from '../../../lib/api';
 
+const mockBatch = statisticsApi.batch as ReturnType<typeof vi.fn>;
 const mockSummary = statisticsApi.summary as ReturnType<typeof vi.fn>;
 const mockByVaregruppe = statisticsApi.byVaregruppe as ReturnType<typeof vi.fn>;
 const mockTimeSeries = statisticsApi.timeSeries as ReturnType<typeof vi.fn>;
@@ -49,12 +53,17 @@ const mockGetAll = ordersApi.getAll as ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockSummary.mockResolvedValue({
+  mockBatch.mockResolvedValue({
     data: {
-      total_orders: 42,
-      total_sum: 125000,
-      total_products: 318,
-      average_order_value: 2976.19,
+      summary: {
+        total_orders: 42,
+        total_sum: 125000,
+        total_products: 318,
+        average_order_value: 2976.19,
+      },
+      timeSeries: [],
+      // shape mirrors axios + buildListResponse: { data, pagination }
+      varegruppe: { data: [], pagination: { page: 1, limit: 50, total: 0 } },
     },
   } as never);
   mockByVaregruppe.mockResolvedValue({ data: [] } as never);
@@ -90,12 +99,17 @@ describe('KundeDashboard (smoke)', () => {
     expect(await screen.findByText(/Velkommen, K001!/)).toBeInTheDocument();
   });
 
-  it('fetches all four dashboard queries', async () => {
+  it('fetches the dashboard data in one batch request instead of three', async () => {
     renderPage();
     await screen.findByText(/Velkommen, K001!/);
-    expect(mockSummary).toHaveBeenCalledTimes(1);
-    expect(mockTimeSeries).toHaveBeenCalledWith({ groupBy: 'month' });
-    expect(mockByVaregruppe).toHaveBeenCalledTimes(1);
+    // The whole KPI/chart dataset arrives from the single batch endpoint…
+    expect(mockBatch).toHaveBeenCalledTimes(1);
+    expect(mockBatch).toHaveBeenCalledWith({ groupBy: 'month' });
+    // …and the three individual endpoints must NOT be hit anymore.
+    expect(mockSummary).not.toHaveBeenCalled();
+    expect(mockByVaregruppe).not.toHaveBeenCalled();
+    expect(mockTimeSeries).not.toHaveBeenCalled();
+    // Recent orders stay a separate lightweight call.
     expect(mockGetAll).toHaveBeenCalledWith({ limit: 5, page: 1 });
   });
 

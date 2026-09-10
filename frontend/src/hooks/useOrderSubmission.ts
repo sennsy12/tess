@@ -48,7 +48,13 @@ export function useOrderSubmission(closeConfirm: () => void) {
     onSuccess: (data) => {
       cart.clear();
       closeConfirm();
+      // orderKeys.root() only prefixes ['admin','orders'] — kunde lists live
+      // under ['kunde','orders'] + singular ['kunde','order',id] + summary
+      // widgets. Invalidate the whole kunde family to avoid stale dashboards.
       void queryClient.invalidateQueries({ queryKey: kundeKeys.ordersRoot() });
+      void queryClient.invalidateQueries({ queryKey: kundeKeys.summary() });
+      void queryClient.invalidateQueries({ queryKey: kundeKeys.recentOrders() });
+      void queryClient.invalidateQueries({ queryKey: kundeKeys.root() });
       toast.success(`Ordre #${data.ordrenr} sendt til godkjenning`);
       navigate(`/kunde/orders/${data.ordrenr}`);
     },

@@ -4,9 +4,16 @@
  * @module db/copy/merge
  */
 import type { PoolClient } from 'pg';
-import { quoteIdentifier, assertSafeIdentifiers } from '../identifiers.js';
+import { quoteIdentifier, assertSafeIdentifiers, SAFE_IDENTIFIER_RE } from '../identifiers.js';
 
 type Queryable = { query: PoolClient['query'] };
+
+function assertPlainIdentifiers(label: string, names: string[]): void {
+  const invalid = names.filter((n) => !SAFE_IDENTIFIER_RE.test(n));
+  if (invalid.length > 0) {
+    throw new Error(`Invalid ${label}: ${invalid.map((c) => JSON.stringify(c)).join(', ')}`);
+  }
+}
 
 /** INSERT … SELECT … ON CONFLICT DO NOTHING, returns inserted count. */
 export async function mergeStagingDoNothing(
@@ -15,9 +22,13 @@ export async function mergeStagingDoNothing(
   stagingName: string,
   columns: string[],
 ): Promise<number> {
+  // Columns here already come from getTableColumns()/buildColumnPlan allow-lists;
+  // quoting + regex check is defense-in-depth with no behavior change.
+  assertPlainIdentifiers('merge identifier', [tableName, stagingName, ...columns]);
+  const cols = columns.map(quoteIdentifier).join(', ');
   const result = await client.query(`
-          INSERT INTO ${tableName} (${columns.join(', ')})
-          SELECT ${columns.join(', ')} FROM ${stagingName}
+          INSERT INTO ${quoteIdentifier(tableName)} (${cols})
+          SELECT ${cols} FROM ${quoteIdentifier(stagingName)}
           ON CONFLICT DO NOTHING
         `);
   return result.rowCount || 0;
@@ -48,9 +59,11 @@ export async function mergeStagingUpsert(
       : null;
   const conflictClause = `ON CONFLICT (${keyCols.map(quoteIdentifier).join(', ')})`;
   const doUpdate = setClause ? `DO UPDATE SET ${setClause}` : 'DO NOTHING';
+  assertPlainIdentifiers('merge identifier', [tableName, stagingName, ...columns]);
+  const cols = columns.map(quoteIdentifier).join(', ');
   const result = await client.query(`
-          INSERT INTO ${tableName} (${columns.join(', ')})
-          SELECT ${columns.join(', ')} FROM ${stagingName}
+          INSERT INTO ${quoteIdentifier(tableName)} (${cols})
+          SELECT ${cols} FROM ${quoteIdentifier(stagingName)}
           ${conflictClause} ${doUpdate}
         `);
   return result.rowCount || 0;

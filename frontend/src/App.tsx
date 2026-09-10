@@ -1,5 +1,5 @@
 import { Suspense, lazy } from 'react'
-import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom'
 import { QueryCache, QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MotionConfig } from 'framer-motion'
 import { Toaster } from 'react-hot-toast'
@@ -80,6 +80,83 @@ function ProtectedLayout({ allowedRoles }: { allowedRoles: string[] }) {
   )
 }
 
+function NotFound() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-dark-950 p-6">
+      <div className="card max-w-md text-center space-y-4">
+        <h1 className="text-xl font-semibold text-dark-50">Fant ikke siden</h1>
+        <p className="text-sm text-dark-400">
+          Adressen finnes ikke. Sjekk lenken eller gå tilbake til forsiden.
+        </p>
+        <a href="/login" className="btn-primary block w-full">
+          Til innlogging
+        </a>
+      </div>
+    </div>
+  )
+}
+
+function AppRoutes() {
+  const location = useLocation()
+  return (
+    <RouteErrorBoundary resetKey={location.pathname}>
+      <Toaster {...toasterConfig} />
+      <Routes>
+      <Route path="/login" element={
+        <Suspense fallback={<PageLoader />}>
+          <Login />
+        </Suspense>
+      } />
+
+      <Route element={<ProtectedLayout allowedRoles={['kunde', 'analyse', 'admin']} />}>
+        <Route path="/hjelp" element={<Help />} />
+      </Route>
+
+      <Route element={<ProtectedLayout allowedRoles={['kunde', 'admin']} />}>
+        <Route path="/kunde" element={<KundeDashboard />} />
+        <Route path="/kunde/order/new" element={<KundeNewOrder />} />
+        <Route path="/kunde/orders" element={<KundeOrders />} />
+        <Route path="/kunde/orders/:ordrenr" element={<KundeOrderDetail />} />
+        <Route path="/kunde/konto" element={<KundeAccount />} />
+        <Route path="/kunde/pricing" element={<KundePricing />} />
+        <Route path="/kunde/analytics" element={<AdvancedAnalytics />} />
+        <Route path="/kunde/statistics" element={<KundeStatistics />} />
+        <Route path="/kunde/varsler" element={<KundeNotifications />} />
+        <Route path="/kunde/settings" element={<Settings />} />
+      </Route>
+
+      <Route element={<ProtectedLayout allowedRoles={['analyse', 'admin']} />}>
+        <Route path="/analyse" element={<AnalyseDashboard />} />
+        <Route path="/analyse/statistics" element={<AnalyseStatistics />} />
+        <Route path="/analyse/settings" element={<Settings />} />
+      </Route>
+
+      <Route element={<ProtectedLayout allowedRoles={['admin']} />}>
+        <Route path="/admin" element={<AdminDashboard />} />
+        <Route path="/admin/approvals" element={<AdminApprovals />} />
+        <Route path="/admin/orderlines" element={<AdminOrderLines />} />
+        <Route path="/admin/status" element={<AdminStatus />} />
+        <Route path="/admin/etl" element={<AdminETL />} />
+        <Route path="/admin/pricing" element={<AdminPricing />} />
+        <Route path="/admin/statistics" element={<AdminStatistics />} />
+        <Route path="/admin/orders" element={<AdminOrders />} />
+        <Route path="/admin/orders/:ordrenr" element={<AdminOrderDetail />} />
+        <Route path="/admin/analytics" element={<AdminAdvancedAnalytics />} />
+        <Route path="/admin/users" element={<AdminUsers />} />
+        <Route path="/admin/customers" element={<AdminCustomers />} />
+        <Route path="/admin/products" element={<AdminProducts />} />
+        <Route path="/admin/audit" element={<AdminAudit />} />
+        <Route path="/admin/varsler" element={<AdminNotifications />} />
+        <Route path="/admin/settings" element={<Settings />} />
+      </Route>
+
+      <Route path="/" element={<Navigate to="/login" replace />} />
+      <Route path="*" element={<NotFound />} />
+      </Routes>
+    </RouteErrorBoundary>
+  )
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
@@ -87,61 +164,7 @@ function App() {
         <AuthProvider>
           <CartProvider>
           <MotionConfig reducedMotion="user">
-          <RouteErrorBoundary>
-          <Toaster {...toasterConfig} />
-          <Routes>
-          <Route path="/login" element={
-            <Suspense fallback={<PageLoader />}>
-              <Login />
-            </Suspense>
-          } />
-
-          <Route element={<ProtectedLayout allowedRoles={['kunde', 'analyse', 'admin']} />}>
-            <Route path="/hjelp" element={<Help />} />
-          </Route>
-
-          <Route element={<ProtectedLayout allowedRoles={['kunde', 'admin']} />}>
-            <Route path="/kunde" element={<KundeDashboard />} />
-            <Route path="/kunde/order/new" element={<KundeNewOrder />} />
-            <Route path="/kunde/orders" element={<KundeOrders />} />
-            <Route path="/kunde/orders/:ordrenr" element={<KundeOrderDetail />} />
-            <Route path="/kunde/konto" element={<KundeAccount />} />
-            <Route path="/kunde/pricing" element={<KundePricing />} />
-            <Route path="/kunde/analytics" element={<AdvancedAnalytics />} />
-            <Route path="/kunde/statistics" element={<KundeStatistics />} />
-            <Route path="/kunde/varsler" element={<KundeNotifications />} />
-            <Route path="/kunde/settings" element={<Settings />} />
-          </Route>
-
-          <Route element={<ProtectedLayout allowedRoles={['analyse', 'admin']} />}>
-            <Route path="/analyse" element={<AnalyseDashboard />} />
-            <Route path="/analyse/statistics" element={<AnalyseStatistics />} />
-            <Route path="/analyse/settings" element={<Settings />} />
-          </Route>
-
-          <Route element={<ProtectedLayout allowedRoles={['admin']} />}>
-            <Route path="/admin" element={<AdminDashboard />} />
-            <Route path="/admin/approvals" element={<AdminApprovals />} />
-            <Route path="/admin/orderlines" element={<AdminOrderLines />} />
-            <Route path="/admin/status" element={<AdminStatus />} />
-            <Route path="/admin/etl" element={<AdminETL />} />
-            <Route path="/admin/pricing" element={<AdminPricing />} />
-            <Route path="/admin/statistics" element={<AdminStatistics />} />
-            <Route path="/admin/orders" element={<AdminOrders />} />
-            <Route path="/admin/orders/:ordrenr" element={<AdminOrderDetail />} />
-            <Route path="/admin/analytics" element={<AdminAdvancedAnalytics />} />
-            <Route path="/admin/users" element={<AdminUsers />} />
-            <Route path="/admin/customers" element={<AdminCustomers />} />
-            <Route path="/admin/products" element={<AdminProducts />} />
-            <Route path="/admin/audit" element={<AdminAudit />} />
-            <Route path="/admin/varsler" element={<AdminNotifications />} />
-            <Route path="/admin/settings" element={<Settings />} />
-          </Route>
-
-          <Route path="/" element={<Navigate to="/login" replace />} />
-          <Route path="*" element={<Navigate to="/login" replace />} />
-          </Routes>
-          </RouteErrorBoundary>
+          <AppRoutes />
           </MotionConfig>
           </CartProvider>
         </AuthProvider>

@@ -120,7 +120,7 @@ npm run dev
 | -------- | ----------- |
 | **Auth** | |
 | POST /api/auth/login | User login |
-| POST /api/auth/login/kunde | Kunde login with kundenr |
+| POST /api/auth/login-kunde | Kunde login with kundenr |
 | **Orders** | |
 | GET /api/orders | List orders with filters |
 | GET /api/orders/:ordrenr | Get order details |

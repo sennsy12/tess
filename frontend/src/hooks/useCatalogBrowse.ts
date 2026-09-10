@@ -43,7 +43,13 @@ export function useCatalogBrowse() {
     queryKey: kundeKeys.productGroups(),
     queryFn: async () => {
       const res = await productsApi.getGroups();
-      return (res.data ?? []) as string[];
+      const raw = res.data ?? [];
+      // Backend may return string[] or {data: string[]} depending on endpoint version.
+      if (Array.isArray(raw)) return raw.filter((g): g is string => typeof g === 'string');
+      if (raw && typeof raw === 'object' && 'data' in raw && Array.isArray((raw as { data: unknown }).data)) {
+        return ((raw as { data: unknown }).data as unknown[]).filter((g): g is string => typeof g === 'string');
+      }
+      return [];
     },
     staleTime: GROUPS_STALE_TIME_MS,
   });

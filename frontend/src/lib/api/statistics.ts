@@ -93,21 +93,21 @@ export interface DashboardAnalyticsBatchResponse {
 // ============================================
 
 export const statisticsApi = {
-  byKunde: (params?: Record<string, any> & PaginationParams) =>
+  byKunde: (params?: Record<string, unknown> & PaginationParams) =>
     api.get<PaginatedResponse<KundeStats>>('/statistics/by-kunde', { params }),
-  byVaregruppe: (params?: Record<string, any> & PaginationParams) =>
+  byVaregruppe: (params?: Record<string, unknown> & PaginationParams) =>
     api.get<PaginatedResponse<VaregruppeStats>>('/statistics/by-varegruppe', { params }),
-  byVare: (params?: Record<string, any> & PaginationParams) =>
+  byVare: (params?: Record<string, unknown> & PaginationParams) =>
     api.get<PaginatedResponse<VareStats>>('/statistics/by-vare', { params }),
-  byLager: (params?: Record<string, any> & PaginationParams) =>
+  byLager: (params?: Record<string, unknown> & PaginationParams) =>
     api.get<PaginatedResponse<LagerStats>>('/statistics/by-lager', { params }),
-  byFirma: (params?: Record<string, any> & PaginationParams) =>
+  byFirma: (params?: Record<string, unknown> & PaginationParams) =>
     api.get<PaginatedResponse<FirmaStats>>('/statistics/by-firma', { params }),
-  timeSeries: (params?: Record<string, any>) =>
+  timeSeries: (params?: Record<string, unknown>) =>
     api.get<TimeSeriesPoint[]>('/statistics/time-series', { params }),
-  summary: (params?: Record<string, any>) =>
+  summary: (params?: Record<string, unknown>) =>
     api.get<StatisticsSummary>('/statistics/summary', { params }),
-  batch: (params?: Record<string, any>) =>
+  batch: (params?: Record<string, unknown>) =>
     api.get<StatisticsBatchResponse>('/statistics/batch', { params }),
-  getCustom: (params: Record<string, any>) => api.get('/statistics/custom', { params }),
+  getCustom: (params: Record<string, unknown>) => api.get('/statistics/custom', { params }),
 };
