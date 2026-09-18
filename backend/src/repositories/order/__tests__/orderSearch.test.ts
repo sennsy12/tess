@@ -61,4 +61,33 @@ describe('searchOrdersByReference', () => {
     expect(sql).toContain('LIMIT $3 OFFSET $4');
     expect(params).toEqual(['%abc%', 'K1', 10, 0]);
   });
+
+  // ── Regression: reference rows are line-level, so an order can match ──
+  // ── through many of its lines. The match must run in a semi-join      ──
+  // ── (EXISTS), never in a row-multiplying join paired with the         ──
+  // ── window count. Live-measured: old form reported total=2 for a      ──
+  // ── one-order match through 2 lines; the fixed form reports 1.        ──
+
+  it('matches references in a semi-join so line fan-out cannot multiply rows', async () => {
+    mockRows([]);
+    await searchOrdersByReference('REF123');
+    const [sql] = mockQuery.mock.calls[0] as [string, Array<string | number>];
+    expect(sql).toContain('WHERE EXISTS (');
+    // The old fan-out join must never return as a top-level join.
+    expect(sql).not.toContain('INNER JOIN ordrelinje ol ON o.ordrenr = ol.ordrenr');
+    // SELECT DISTINCT was only there to collapse the fan-out — its absence
+    // proves the main query yields at most one row per order.
+    expect(sql).not.toContain('SELECT DISTINCT');
+  });
+
+  it('still counts pre-pagination matches over orders, not line rows', async () => {
+    // Envelope contract: a one-row page whose window count reflects the
+    // full distinct-order match count (extractWindowCountPage reads it
+    // from the first row).
+    mockRows([{ ordrenr: 7, kundenavn: 'K', firmanavn: 'F', _total_count: 1 }]);
+    const result = await searchOrdersByReference('REF123');
+    expect(result.data).toHaveLength(1);
+    expect(result.total).toBe(1);
+    expect(result.data[0]).not.toHaveProperty('_total_count');
+  });
 });

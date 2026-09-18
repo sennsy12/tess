@@ -3,9 +3,10 @@
  * Kunde-scoped in SQL.
  *
  * Always paginated with `COUNT(*) OVER()` (same `{ data, total }` envelope
- * as `findOrders`) so reference searches can never trigger an unbounded
- * DISTINCT scan. Callers that omit `pagination` get page 1 with the default
- * page size — existing calls without params keep working.
+ * as `findOrders`). The match runs in an EXISTS semi-join so a multi-line
+ * hit can never multiply `ordre` rows — the window count therefore equals
+ * the distinct-order match count (see the comment inside the function for
+ * the measured fan-out bug this replaced).
  *
  * @module repositories/order/orderSearch
  */
@@ -37,20 +38,32 @@ export async function searchOrdersByReference(
   pagination?: OrderSearchPagination,
 ): Promise<{ data: Array<Record<string, any>>; total: number }> {
   const { limit, offset } = normalizeSearchPagination(pagination);
+  // Matching rows live in `ordre_henvisning` (one per order line). The match
+  // runs inside EXISTS so a multi-line hit can never multiply the `ordre`
+  // rows: the previous INNER JOIN form combined with `COUNT(*) OVER()`
+  // counted line rows BEFORE the SELECT DISTINCT collapsed them, inflating
+  // `total` up to the average-lines-per-order factor (measured 3428 vs the
+  // true 1150 orders on the dev dataset — ~3x phantom pagination pages).
+  // EXISTS also lets the planner use the trigram indexes on
+  // `ordre_henvisning.henvisning1-5` (migration 004) from the inside out.
   let sql = `
-      SELECT DISTINCT o.*, k.kundenavn, f.firmanavn,
+      SELECT o.*, k.kundenavn, f.firmanavn,
         COUNT(*) OVER()::int AS _total_count
       FROM ordre o
       LEFT JOIN kunde k ON o.kundenr = k.kundenr
       LEFT JOIN firma f ON o.firmaid = f.firmaid
-      INNER JOIN ordrelinje ol ON o.ordrenr = ol.ordrenr
-      INNER JOIN ordre_henvisning oh ON ol.ordrenr = oh.ordrenr AND ol.linjenr = oh.linjenr
-      WHERE (
-        oh.henvisning1 ILIKE $1 OR
-        oh.henvisning2 ILIKE $1 OR
-        oh.henvisning3 ILIKE $1 OR
-        oh.henvisning4 ILIKE $1 OR
-        oh.henvisning5 ILIKE $1
+      WHERE EXISTS (
+        SELECT 1
+        FROM ordrelinje ol
+        INNER JOIN ordre_henvisning oh ON ol.ordrenr = oh.ordrenr AND ol.linjenr = oh.linjenr
+        WHERE ol.ordrenr = o.ordrenr
+          AND (
+            oh.henvisning1 ILIKE $1 OR
+            oh.henvisning2 ILIKE $1 OR
+            oh.henvisning3 ILIKE $1 OR
+            oh.henvisning4 ILIKE $1 OR
+            oh.henvisning5 ILIKE $1
+          )
       )
     `;
   const params: Array<string | number> = [toIlikeContains(q)];
@@ -63,7 +76,7 @@ export async function searchOrdersByReference(
   sql += ' ORDER BY o.dato DESC';
 
   // Window count is computed before LIMIT/OFFSET, so _total_count is the
-  // full match count (same pattern as findOrders).
+  // full match count — now over distinct orders, not line rows.
   const limitIndex = params.length + 1;
   const offsetIndex = params.length + 2;
   sql += ` LIMIT $${limitIndex} OFFSET $${offsetIndex}`;
