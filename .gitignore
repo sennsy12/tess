@@ -10,4 +10,5 @@ data/
 *.log
 .DS_Store
 uploads/
-.etl-checkpoints/
+# husky's auto-generated hook shims (recreated by the prepare script)
+.husky/_/

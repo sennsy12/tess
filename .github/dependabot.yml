@@ -1,0 +1,57 @@
+version: 2
+updates:
+  # Backend dependencies (multer, express, pg, ...)
+  - package-ecosystem: npm
+    directory: '/backend'
+    schedule:
+      interval: weekly
+    groups:
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+    labels:
+      - dependencies
+      - backend
+
+  # Frontend dependencies (react, vite, tanstack, ...)
+  - package-ecosystem: npm
+    directory: '/frontend'
+    schedule:
+      interval: weekly
+    groups:
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+    labels:
+      - dependencies
+      - frontend
+
+  # Repo-level tooling (husky, commitlint, lint-staged)
+  - package-ecosystem: npm
+    directory: '/'
+    schedule:
+      interval: weekly
+    groups:
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+    labels:
+      - dependencies
+      - tooling
+
+  # GitHub Actions (ci.yml)
+  - package-ecosystem: github-actions
+    directory: '/'
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        update-types:
+          - minor
+          - patch
+    labels:
+      - dependencies
+      - ci

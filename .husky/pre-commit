@@ -1,0 +1,2 @@
+# Lint and auto-fix staged files before each commit.
+npx lint-staged
