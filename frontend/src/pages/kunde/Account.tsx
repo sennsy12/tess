@@ -17,6 +17,7 @@ import {
 import { Layout } from '../../components/Layout';
 import { QueryErrorBanner } from '../../components/QueryErrorBanner';
 import { EmptyState } from '../../components/EmptyState';
+import { EmptyData } from '../../components/emptyStates/EmptyIllustrations';
 import { customersApi } from '../../lib/api/customers';
 import { accountKeys } from '../../lib/queryKeys';
 import { useAuth } from '../../context/useAuth';
@@ -83,6 +84,7 @@ export function KundeAccount() {
     return (
       <Layout title="Min konto">
         <EmptyState
+          illustration={<EmptyData />}
           title="Ingen kundekonto"
           description="Denne brukeren er ikke knyttet til et kundenummer."
         />

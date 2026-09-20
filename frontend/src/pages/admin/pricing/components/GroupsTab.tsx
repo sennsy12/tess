@@ -1,6 +1,6 @@
 import { INITIAL_GROUP_FORM, GroupsTabProps } from '../../../../types/pricing';
 import { EmptyState } from '../../../../components/EmptyState';
-import { Users } from 'lucide-react';
+import { EmptyData } from '../../../../components/emptyStates/EmptyIllustrations';
 
 interface ExtendedGroupsTabProps extends GroupsTabProps {
   onContinue?: () => void;
@@ -85,7 +85,7 @@ export function GroupsTab({
       {/* Groups Table */}
       {groups.length === 0 && !showGroupForm && !editingGroup ? (
         <EmptyState
-          icon={<Users className="h-8 w-8" />}
+          illustration={<EmptyData />}
           title="Ingen kundegrupper ennå"
           description="Kundegrupper lar deg gi ulike priser til ulike kundetyper — f.eks. grossister, VIP-kunder eller regioner."
           action={

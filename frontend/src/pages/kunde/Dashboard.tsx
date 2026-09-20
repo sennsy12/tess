@@ -10,6 +10,7 @@ import { kundeKeys } from '../../lib/queryKeys';
 import { useAuth } from '../../context/useAuth';
 import { StatCard } from '../../components/StatCard';
 import { StatCardSkeleton, ChartSkeleton } from '../../components/admin';
+import { EmptyOrders } from '../../components/emptyStates/EmptyIllustrations';
 import { QueryErrorBanner } from '../../components/QueryErrorBanner';
 import { QueryRefetchBar } from '../../components/QueryRefetchBar';
 import { getApiError } from '../../lib/apiErrors';
@@ -255,8 +256,14 @@ export function KundeDashboard() {
             />
           ) : recentOrders.length === 0 ? (
             <EmptyState
+              illustration={<EmptyOrders />}
               title="Ingen ordrer ennå"
               description="Når du legger inn bestillinger vil de vises her."
+              action={
+                <Link to="/kunde/order/new" className="btn-primary">
+                  Ny bestilling
+                </Link>
+              }
             />
           ) : (
           <div className="overflow-x-auto">

@@ -12,6 +12,7 @@ import { EmptyState } from '../EmptyState';
 import { OrderWorkflowBadge } from './OrderWorkflowBadge';
 import { OrderMobileCard } from './OrderMobileCard';
 import { OrderStatsStrip } from './OrderStatsStrip';
+import { EmptyOrders, EmptySearch } from '../emptyStates/EmptyIllustrations';
 import { useSavedViews } from '../../hooks/useSavedViews';
 import { useServerListPage } from '../../hooks/useServerListPage';
 import { useTablePreferences } from '../../hooks/useTablePreferences';
@@ -382,6 +383,7 @@ export function OrdersListContent({ variant }: OrdersListContentProps) {
         </div>
       ) : isError ? null : orders.length === 0 && filterChips.length > 0 ? (
         <EmptyState
+          illustration={<EmptySearch />}
           title="Ingen ordrer matcher filtrene"
           description="Prøv å justere søk eller datoperiode."
           action={
@@ -418,6 +420,18 @@ export function OrdersListContent({ variant }: OrdersListContentProps) {
               columns={COLUMNS}
               onRowClick={(order) => navigate(orderDetailPath((order as { ordrenr: number }).ordrenr))}
               emptyMessage="Ingen ordrer funnet"
+              emptyIllustration={<EmptyOrders />}
+              emptyAction={
+                isAdmin ? undefined : (
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={() => navigate('/kunde/order/new')}
+                  >
+                    Ny bestilling
+                  </button>
+                )
+              }
               paginate={false}
               serverSort
               stickyFirstColumn

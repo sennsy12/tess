@@ -6,6 +6,7 @@ import { X } from 'lucide-react';
 import { Layout } from '../../components/Layout';
 import { Breadcrumb } from '../../components/Breadcrumb';
 import { EmptyState } from '../../components/EmptyState';
+import { EmptySearch } from '../../components/emptyStates/EmptyIllustrations';
 import { QueryErrorBanner } from '../../components/QueryErrorBanner';
 import { QueryRefetchBar } from '../../components/QueryRefetchBar';
 import { Spinner } from '../../components/Spinner';
@@ -428,6 +429,7 @@ export function AdminApprovals() {
                       <tr>
                         <td colSpan={8} className="p-0">
                           <EmptyState
+                            illustration={<EmptySearch />}
                             title={`Ingen ordrer i «${ORDER_WORKFLOW_LABELS[activeStatus]}»`}
                             description="Køen er tom for denne statusen. Bytt fane eller kom tilbake senere."
                           />

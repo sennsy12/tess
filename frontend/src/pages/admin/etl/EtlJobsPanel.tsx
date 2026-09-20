@@ -8,6 +8,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { EmptyState } from '../../../components/EmptyState';
+import { EmptyData } from '../../../components/emptyStates/EmptyIllustrations';
 import { Spinner } from '../../../components/Spinner';
 import { ConfirmModal, ListSkeleton } from '../../../components/admin';
 import { QueryErrorBanner } from '../../../components/QueryErrorBanner';
@@ -325,6 +326,7 @@ export function EtlJobsPanel({ focusJobId, onFocusConsumed }: EtlJobsPanelProps)
           <ListSkeleton count={4} />
         ) : filteredJobs.length === 0 ? (
           <EmptyState
+            illustration={<EmptyData />}
             title="Ingen jobber"
             description={
               filter === 'all'

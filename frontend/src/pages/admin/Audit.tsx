@@ -6,6 +6,7 @@ import { QueryErrorBanner } from '../../components/QueryErrorBanner';
 import { QueryRefetchBar } from '../../components/QueryRefetchBar';
 import { auditKeys, userKeys } from '../../lib/queryKeys';
 import { EmptyState } from '../../components/EmptyState';
+import { EmptyData } from '../../components/emptyStates/EmptyIllustrations';
 import { Spinner } from '../../components/Spinner';
 import { Pagination } from '../../components/admin';
 import { auditApi, usersApi } from '../../lib/api';
@@ -312,6 +313,7 @@ export function AdminAudit() {
           </div>
         ) : isError ? null : entries.length === 0 ? (
           <EmptyState
+            illustration={<EmptyData />}
             title={hasActiveFilters ? 'Ingen oppføringer matcher filtrene' : 'Ingen endringslogg ennå'}
             description={
               hasActiveFilters

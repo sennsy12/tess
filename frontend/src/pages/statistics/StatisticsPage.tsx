@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { EmptyState } from '../../components/EmptyState';
+import { EmptyData } from '../../components/emptyStates/EmptyIllustrations';
 import { QueryErrorBanner } from '../../components/QueryErrorBanner';
 import { QueryRefetchBar } from '../../components/QueryRefetchBar';
 import { statisticsKeys } from '../../lib/queryKeys';
@@ -248,6 +249,7 @@ export function StatisticsPage({
           />
         ) : data.length === 0 ? (
           <EmptyState
+            illustration={<EmptyData />}
             title="Ingen data for valgt periode og filtre"
             description="Prøv å utvide perioden eller fjerne filtre for å se statistikk."
           />

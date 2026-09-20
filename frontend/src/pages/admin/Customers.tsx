@@ -10,6 +10,7 @@ import {
   customerFiltersToSearchParams,
 } from '../../lib/listPageUrl';
 import { EmptyState } from '../../components/EmptyState';
+import { EmptySearch } from '../../components/emptyStates/EmptyIllustrations';
 import { DataTable, type DataTableState } from '../../components/DataTable';
 import { PageHeader, FilterBar, TableSkeleton, Pagination } from '../../components/admin';
 import { pricingApi, ordersApi } from '../../lib/api';
@@ -474,6 +475,7 @@ export function AdminCustomers() {
             <TableSkeleton rows={10} columns={4} />
           ) : isError ? null : customers.length === 0 && hasActiveFilters ? (
             <EmptyState
+              illustration={<EmptySearch />}
               title="Ingen kunder matcher søket"
               description="Prøv et annet kundenr, navn eller prisgruppe."
               action={

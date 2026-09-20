@@ -1,8 +1,8 @@
 import { FormEvent } from 'react';
 import { INITIAL_LIST_FORM, ListsTabProps } from '../../../../types/pricing';
 import { EmptyState } from '../../../../components/EmptyState';
+import { EmptyData } from '../../../../components/emptyStates/EmptyIllustrations';
 import { formatDateNb } from '../../../../lib/formatters';
-import { List } from 'lucide-react';
 
 export function ListsTab({
   lists,
@@ -157,7 +157,7 @@ export function ListsTab({
       {/* Lists Table */}
       {lists.length === 0 && !showListForm && !editingList ? (
         <EmptyState
-          icon={<List className="h-8 w-8" />}
+          illustration={<EmptyData />}
           title="Ingen prislister ennå"
           description="En prisliste samler regler og styrer når prisene gjelder. Opprett minst én aktiv liste før du legger til regler."
           action={

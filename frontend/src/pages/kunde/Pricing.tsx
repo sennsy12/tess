@@ -11,6 +11,7 @@ import {
 import { Layout } from '../../components/Layout';
 import { QueryErrorBanner } from '../../components/QueryErrorBanner';
 import { EmptyState } from '../../components/EmptyState';
+import { EmptyData } from '../../components/emptyStates/EmptyIllustrations';
 import { pricingApi } from '../../lib/api';
 import { pricingKeys } from '../../lib/queryKeys';
 import { formatMoneyNok } from '../../lib/formatters';
@@ -114,6 +115,7 @@ export function KundePricing() {
     return (
       <Layout title="Mine priser">
         <EmptyState
+          illustration={<EmptyData />}
           title="Ingen kundekonto"
           description="Denne brukeren er ikke knyttet til et kundenummer."
         />

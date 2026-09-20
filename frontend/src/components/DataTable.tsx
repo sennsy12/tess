@@ -11,12 +11,13 @@ import {
   ChevronsRight,
   Columns3,
   Download,
-  PackageSearch,
   Pencil,
   X,
 } from 'lucide-react';
 import { downloadCsv } from '../lib/csv';
 import { useOnClickOutside } from '../hooks/useOnClickOutside';
+import { EmptyState } from './EmptyState';
+import { EmptySearch } from './emptyStates/EmptyIllustrations';
 import {
   MAX_COLUMN_LABEL_LENGTH,
   resolveColumnHeader,
@@ -52,6 +53,10 @@ interface DataTableProps<T> {
   columns: Column<T>[];
   onRowClick?: (row: T) => void;
   emptyMessage?: string;
+  /** Executive Dark illustration for the empty state (default: EmptySearch). */
+  emptyIllustration?: ReactNode;
+  /** Optional call-to-action under the empty-state text (e.g. «Ny bestilling»). */
+  emptyAction?: ReactNode;
   pageSize?: number;
   rowKey?: (row: T) => string | number;
   className?: string; // Additional container classes
@@ -260,6 +265,8 @@ export function DataTable<T extends object>({
   columns,
   onRowClick,
   emptyMessage = 'Ingen data funnet',
+  emptyIllustration,
+  emptyAction,
   pageSize = 50,
   rowKey,
   className = '',
@@ -519,13 +526,16 @@ export function DataTable<T extends object>({
   };
 
   if (data.length === 0) {
+    // Unified with the app-wide <EmptyState> — one visual standard for all
+    // empty tables (the old inline PackageSearch block is retired).
     return (
-      <div className={`card flex flex-col items-center justify-center py-16 text-center ${className}`}>
-        <div className="w-16 h-16 bg-dark-800 rounded-full flex items-center justify-center mb-4">
-          <PackageSearch className="h-8 w-8 text-dark-500" aria-hidden />
-        </div>
-        <p className="text-dark-300 font-medium text-lg">{emptyMessage}</p>
-        <p className="text-dark-500 text-sm mt-2">Prøv å endre søkekriteriene dine</p>
+      <div className={`card ${className}`}>
+        <EmptyState
+          title={emptyMessage}
+          description="Prøv å endre søkekriteriene dine"
+          illustration={emptyIllustration ?? <EmptySearch />}
+          action={emptyAction}
+        />
       </div>
     );
   }

@@ -320,6 +320,17 @@ body::before {
   }
 }
 
+/* Empty-state illustrations: the accent group floats gently to draw the
+ * eye without stealing focus. */
+@keyframes empty-illo-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+.empty-illo .empty-illo-accent {
+  animation: empty-illo-float 5s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .btn::after,
   .card-hover,
@@ -329,7 +340,8 @@ body::before {
   .shimmer,
   .animate-fade-in,
   .tab-content-enter,
-  .query-refetch-indeterminate {
+  .query-refetch-indeterminate,
+  .empty-illo .empty-illo-accent {
     animation: none !important;
     transition: none !important;
     transform: none !important;

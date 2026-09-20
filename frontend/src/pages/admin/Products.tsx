@@ -12,6 +12,7 @@ import {
   productFiltersToSearchParams,
 } from '../../lib/listPageUrl';
 import { EmptyState } from '../../components/EmptyState';
+import { EmptySearch } from '../../components/emptyStates/EmptyIllustrations';
 import { DataTable, type DataTableState } from '../../components/DataTable';
 import { PageHeader, FilterBar, TableSkeleton, Pagination } from '../../components/admin';
 import { productsApi } from '../../lib/api';
@@ -286,6 +287,7 @@ export function AdminProducts() {
             <TableSkeleton rows={10} columns={3} />
           ) : isError ? null : products.length === 0 && hasActiveFilters ? (
             <EmptyState
+              illustration={<EmptySearch />}
               title="Ingen produkter matcher søket"
               description="Prøv et annet varekode, navn eller varegruppe."
               action={
