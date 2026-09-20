@@ -124,4 +124,18 @@ describe('KundeDashboard (smoke)', () => {
     // The recent-orders section lists fetched orders.
     expect(await screen.findByText('#10001')).toBeInTheDocument();
   });
+
+  it('renders an illustrated empty state with a Ny bestilling link when no orders exist', async () => {
+    mockGetAll.mockResolvedValue({
+      data: { data: [], pagination: { page: 1, limit: 5, total: 0 } },
+    } as never);
+
+    const { container } = renderPage();
+
+    expect(await screen.findByText('Ingen ordrer ennå')).toBeInTheDocument();
+    const link = screen.getByRole('link', { name: 'Ny bestilling' });
+    expect(link).toHaveAttribute('href', '/kunde/order/new');
+    // Executive Dark illustration renders for the empty branch.
+    expect(container.querySelector('.empty-illo svg')).toBeInTheDocument();
+  });
 });

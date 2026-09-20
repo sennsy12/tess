@@ -12,7 +12,7 @@ import {
   productFiltersToSearchParams,
 } from '../../lib/listPageUrl';
 import { EmptyState } from '../../components/EmptyState';
-import { EmptySearch } from '../../components/emptyStates/EmptyIllustrations';
+import { EmptyCatalog, EmptySearch } from '../../components/emptyStates/EmptyIllustrations';
 import { DataTable, type DataTableState } from '../../components/DataTable';
 import { PageHeader, FilterBar, TableSkeleton, Pagination } from '../../components/admin';
 import { productsApi } from '../../lib/api';
@@ -318,6 +318,7 @@ export function AdminProducts() {
                 columns={columns}
                 rowKey={(row) => row.varekode}
                 emptyMessage="Ingen produkter funnet"
+                emptyIllustration={<EmptyCatalog />}
                 paginate={false}
                 serverSort
                 stickyFirstColumn
