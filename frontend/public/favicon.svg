@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- TESS favicon — Executive Dark: navy surface, gold hairline, champagne "T" monogram.
+       The T is drawn geometrically (no font dependency) so it stays crisp at 16px. -->
+  <defs>
+    <radialGradient id="bg" cx="0.2" cy="0" r="1.2">
+      <stop offset="0" stop-color="#1e293b"/>
+      <stop offset="1" stop-color="#0f172a"/>
+    </radialGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e3d5ac"/>
+      <stop offset="1" stop-color="#c9a962"/>
+    </linearGradient>
+  </defs>
+  <rect width="32" height="32" rx="7" fill="url(#bg)"/>
+  <rect x="0.75" y="0.75" width="30.5" height="30.5" rx="6.25" fill="none" stroke="rgba(201,169,98,0.35)" stroke-width="1.5"/>
+  <rect x="8" y="8.5" width="16" height="4.5" rx="1" fill="url(#gold)"/>
+  <rect x="13.75" y="8.5" width="4.5" height="15" rx="1" fill="url(#gold)"/>
+</svg>
