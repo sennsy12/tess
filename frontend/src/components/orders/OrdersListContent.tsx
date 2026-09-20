@@ -127,7 +127,10 @@ export function OrdersListContent({ variant }: OrdersListContentProps) {
           queryParams[key] = value.trim();
         }
       }
-      if (isAdmin && sortKey && sortDirection) {
+      // Server-side sorting for both roles: the backend whitelists sort
+      // columns (ORDER_SORT_COLUMNS) and scopes kunde users to their own
+      // orders, so unknown keys silently fall back to the default order.
+      if (sortKey && sortDirection) {
         queryParams.sortBy = sortKey;
         queryParams.sortDir = sortDirection;
       }
@@ -141,7 +144,6 @@ export function OrdersListContent({ variant }: OrdersListContentProps) {
     defaultVisibleColumns: COLUMNS.map((c) => String(c.key)),
     pageSize: PAGE_LIMIT,
     staleTime: 60_000,
-    resetPageOnSort: isAdmin,
     urlSync: {
       read: orderFiltersFromSearchParams,
       write: orderFiltersToSearchParams,
@@ -417,7 +419,7 @@ export function OrdersListContent({ variant }: OrdersListContentProps) {
               onRowClick={(order) => navigate(orderDetailPath((order as { ordrenr: number }).ordrenr))}
               emptyMessage="Ingen ordrer funnet"
               paginate={false}
-              serverSort={isAdmin}
+              serverSort
               stickyFirstColumn
               enableColumnManagement
               enableColumnRenaming

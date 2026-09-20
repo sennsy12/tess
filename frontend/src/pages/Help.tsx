@@ -164,20 +164,20 @@ const SECTIONS: HelpSection[] = [
     icon: Search,
     title: { no: 'Søk og sortering i ordretabellen', en: 'Search and sorting in the order table' },
     intro: {
-      no: 'Slik treffer du riktig ordre — og én kjent begrensning du bør vite om.',
-      en: 'How to hit the right order — plus one known limitation to be aware of.',
+      no: 'Slik treffer du riktig ordre og sorterer hele datasettet.',
+      en: 'How to hit the right order and sort the full dataset.',
     },
     bullets: {
       no: [
         'Ordrenr-feltet gir eksakt treff og deep-link. Fritekst treffer kundenr, kundenavn, kundeordreref, kunderef og henvisning 1–5.',
         'Kombiner med fra/til-dato og status. Aktive filtre vises som chips som kan fjernes enkeltvis.',
-        'Klikk kolonneoverskrift for å sortere. Admin sorterer på server (alle sider). Kunde sorterer gjeldende side (50 rader) — kjent begrensning under utbedring.',
+        'Klikk kolonneoverskrift for å sortere. Sortering skjer på serveren for alle roller — kolonnene dine er sikret mot egne ordrer uansett.',
         'Kolonnevelger og CSV-eksport finnes i tabellverktøyet. Lagrede visninger (private/delte) bevarer søk + sortering.',
       ],
       en: [
         'The order-number field gives exact hits and deep-links. Free text hits customer number, name, order refs and references 1–5.',
         'Combine with from/to dates and status. Active filters show as removable chips.',
-        'Click a column header to sort. Admins sort server-side (all pages). Customers sort the current page (50 rows) — a known limitation being fixed.',
+        'Click a column header to sort. Sorting happens server-side for all roles — customer tables are always scoped to their own orders.',
         'Column picker and CSV export live in the table toolbar. Saved views (private/shared) preserve search + sorting.',
       ],
     },

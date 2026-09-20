@@ -1,2 +1,3 @@
 # Enforce Conventional Commits (see commitlint.config.js).
-npx --no -- commitlint --edit "$1"
+# See .husky/pre-commit for why we avoid `npx` here (Windows/WSL bash shim).
+commitlint --edit "$1"
