@@ -35,7 +35,7 @@ Demobrukere (dev): `admin / admin123` (administrator), `analyse / analyse123` (a
 | K1.2 | Søk via kundenr | ✅ Dekket (admin) / begrenset (kunde) | Fritekstfelt søker `kundenr/kundenavn`. Kunde ser kun egne ordrer av sikkerhetshensyn (radfiltrering) — korrekt oppførsel |
 | K1.3 | Søk via andre variabler, f.eks. dato | ✅ Dekket | Fra/til-dato + ordrestatus (`workflowStatus`) + firma/lager |
 | K1.4 | Søk via henvisning 1–5 | ✅ Dekket | `ordre_henvisning(henvisning1..5)` på linjenivå + trigram-indekser + `GET /orders/search/references`. UI: fritekstsøk treffer henvisninger; ordredetalj viser dem per linje |
-| K2 | Sortere tabell med salgsordre på alle kolonner | ⚠️ Delvis | Kolonneheader-sortering finnes. Admin = server-sortering (alle sider). Kunde = klient-sortering (gjeldende side, 50 rader). Kjent begrensning, se §6 |
+| K2 | Sortere tabell med salgsordre på alle kolonner | ✅ Dekket | Kolonneheader-sortering finnes. Alle roller sender `sortBy/sortDir` til serveren; backend hviteliste (`ORDER_SORT_COLUMNS`) + kunde-scoping sikrer korrekt sortering over hele datasettet |
 | K-NF3 | Siden er hurtig | ✅ Dekket | Prefetch på hover, React Query-cache 5 min, paginering, `COPY`-import, indekser |
 | K-NF4 | Enkel, ikke overveldende | ✅ Dekket | 8 kunde-sider maks, mobil bunnmeny, onboarding-modal, tom-tilstander |
 | K-NF5 | Dokumentasjon av funksjoner | ✅ Dekket (nå) | `/hjelp` + denne filen |
@@ -161,7 +161,7 @@ Analyse har bevisst **ingen** ordre-søk, bestilling, prisstyring eller ETL — 
 
 | Egenskap | Hvordan det oppfylles |
 |----------|----------------------|
-| Ytelse | Paginering (20/25/50), server-sortering (admin), React Query-cache, prefetch på hover, `batch`-statistikk, materialized views, trigram- og ytelsesindekser, `COPY`-import for 100k+ rader, SSE i stedet for polling for ETL |
+| Ytelse | Paginering (20/25/50), server-sortering (alle roller), React Query-cache, prefetch på hover, `batch`-statistikk, materialized views, trigram- og ytelsesindekser, `COPY`-import for 100k+ rader, SSE i stedet for polling for ETL |
 | Brukervennlighet | Rolestyrte menyer, norsk UI (`nb-NO`), mobil bunnmeny, tom-tilstander, skeleton/spinner, `Ctrl+K`, lagrede visninger, onboarding, hjelpeside |
 | Pålitelighet | Transaksjoner, idempotens-nøkkel, overgangsregler + 409 ved konflikt, overlap-guard i scheduler, fail-closed token-sjekk, `x-request-id`, strukturert logging (pino), Prometheus-metrikk |
 | Sikkerhet | JWT 1h + refresh-rotasjon, bcrypt, `token_version`-dreping, `roleGuard`, radfiltrering, Zod-validering, parametrisert SQL, rate-limiting, `helmet`, CORS-lås, destruktiv ETL blokkert i prod uten flagg |
@@ -172,11 +172,10 @@ Analyse har bevisst **ingen** ordre-søk, bestilling, prisstyring eller ETL — 
 
 ## 6. Kjente begrensninger (ærlig liste)
 
-1. **Kunde-sortering er klient-side** (`serverSort=false`): sorterer kun gjeldende side. Admin har server-sortering. Anbefalt forbedring: send `sortBy/sortDir` også for kunde.
-2. **Frontend-helse er antatt:** `GET /status/health` rapporterer frontend som «assumed healthy» med konfigurert URL — ingen aktiv probe. Anbefalt: enkel uptime-sjekk fra backend eller RUM-metrikk via `/client-events`.
-3. **`docs/API.md` må holdes manuelt synkronisert** med `routes/` — ingen OpenAPI-generator ennå. Anbefalt: generer OpenAPI fra Zod-skjemaer på sikt.
-4. **Henvisningssøk er fritekst:** treffer alle 5 feltene, men UI har ikke 5 separate felt. Tilstrekkelig for MVP; vurder avansert-filter ved behov.
-5. **Custom-job-oppretting er stub:** `POST /scheduler/jobs` aksepterer kun forhåndsdefinerte `taskType` og returnerer «not fully implemented».
+1. **Frontend-helse er antatt:** `GET /status/health` rapporterer frontend som «assumed healthy» med konfigurert URL — ingen aktiv probe. Anbefalt: enkel uptime-sjekk fra backend eller RUM-metrikk via `/client-events`.
+2. **`docs/API.md` må holdes manuelt synkronisert** med `routes/` — ingen OpenAPI-generator ennå. Anbefalt: generer OpenAPI fra Zod-skjemaer på sikt.
+3. **Henvisningssøk er fritekst:** treffer alle 5 feltene, men UI har ikke 5 separate felt. Tilstrekkelig for MVP; vurder avansert-filter ved behov.
+4. **Custom-job-oppretting er stub:** `POST /scheduler/jobs` aksepterer kun forhåndsdefinerte `taskType` og returnerer «not fully implemented».
 
 ---
 

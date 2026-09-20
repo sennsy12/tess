@@ -160,7 +160,7 @@ Filer: `controllers/orderLineController.ts`, `models/orderLineModel.ts`. Alle mu
 - `GET /orders` valideres av `orderQuerySchema` (`pagination + dateRange + sort + kundenr/ordrenr/firmaid/lagernavn/kundeordreref/kunderef/search/q/workflowStatus`).
 - Fritekst `search/q` treffer `kundenr/kundenavn/henvisninger/referanser` via trigram-indekser (`004_trigram_search_indexes.sql`) + `LIKE`/similarity-rangering.
 - `GET /orders/search/references?q=` søker isolert i `ordre_henvisning` (må registreres før `/:ordrenr`-ruta).
-- Sortering: admin sender `sortBy/sortDir` til server; kunde sorterer klient-side (kjent begrensning, se `FUNKSJONER.md §6`).
+- Sortering: alle roller sender `sortBy/sortDir`; backend hviteliste (`ORDER_SORT_COLUMNS` i `orderFinder.ts`) mapper nøkler til kolonner, og kunde-scoping skjer i filterlaget uansett rolle.
 - Paginering: ordre 50/side, statistikk 25, brukere 20, varsler 20. Svar: `{ data, pagination: { page, limit, total } }`.
 
 ---
@@ -283,7 +283,7 @@ Logger holdes i minne (siste 100): `GET /scheduler/logs?jobId=&limit=`.
 
 - **State:** server-state i TanStack Query (nøkler `['domain','resource',...params]`, `staleTime 5 min`, `retry 1`, ingen refetch-på-fokus). Klient-state i Context (`AuthContext`, `CartProvider` maks 200 linjer).
 - **API-lag:** `lib/api/*.ts` (ett fil per domene) via felles `client.ts` (axios + single-flight refresh-interceptor). Barrel-eksport i `lib/api/index.ts`.
-- **Tabeller:** `DataTable.tsx` (sort asc/desc, `serverSort/disableClientSort`, kolonnevelger med `storageKey`, CSV via `lib/csv.ts`). Admin-tabeller sender `sortBy/sortDir`; kunde-tabeller sorterer klient-side.
+- **Tabeller:** `DataTable.tsx` (sort asc/desc, `serverSort/disableClientSort`, kolonnevelger med `storageKey`, CSV via `lib/csv.ts`). Alle lister sender `sortBy/sortDir` til serveren; backend hvitelister validerer sortnøkkelen.
 - **Statistikk-sider:** `StatisticsPage.tsx` + `StatsFilters/Charts/Table/KpiStrip/PresetChips` + `statisticsPresets.ts`. Avansert: `AdvancedAnalyticsPage.tsx` + `analyticsPresets.ts`.
 - **Bestilling:** `useCatalogBrowse` (søk+gruppe) → `CartProvider` → `useOrderSubmission` (genererer `idempotencyKey`, håndterer `duplicate:true`) → `ConfirmOrderModal`.
 - **Ruting:** `App.tsx` lazy-laster alle sider (`Suspense` + `PageLoader`), `ProtectedLayout` per rolle-gruppe, `RouteErrorBoundary` per tre. Prefetch på nav-hover (`lib/prefetch.ts`).
@@ -296,12 +296,11 @@ Logger holdes i minne (siste 100): `GET /scheduler/logs?jobId=&limit=`.
 
 | # | Gjeld | Konsekvens | Anbefalt tiltak |
 |---|-------|-----------|-----------------|
-| 1 | Kunde-sortering er klient-side | Feil inntrykk av «alle kolonner» ved >50 rader | Send `sortBy/sortDir` også for kunde (1-linjers endring + test) |
-| 2 | Frontend-helse er antatt | Falsk trygghet i statusbildet | Aktiv probe (fetch `FRONTEND_URL`) eller RUM via `/client-events` |
-| 3 | Ingen OpenAPI-generator | `API.md` kan drive fra `routes/` | Generer OpenAPI fra Zod-skjemaer + kontraktstest i CI |
-| 4 | `POST /scheduler/jobs` er stub | Forvirrende API | Fullfør eller fjern; dokumenter som stub inntil videre (gjort i `API.md`) |
-| 5 | ` ordre_henvisning`-søk er fritekst | Ingen H1–H5-separasjon i UI | Avansert-filter ved behov (backend støtter det allerede) |
-| 6 | Miks av norsk/engelsk i kode | Liten friksjon for nye utviklere | Hold norsk i UI + `*_LABELS`, engelsk i API/kode (nå dokumentert) |
+| 1 | Frontend-helse er antatt | Falsk trygghet i statusbildet | Aktiv probe (fetch `FRONTEND_URL`) eller RUM via `/client-events` |
+| 2 | Ingen OpenAPI-generator | `API.md` kan drive fra `routes/` | Generer OpenAPI fra Zod-skjemaer + kontraktstest i CI |
+| 3 | `POST /scheduler/jobs` er stub | Forvirrende API | Fullfør eller fjern; dokumenter som stub inntil videre (gjort i `API.md`) |
+| 4 | ` ordre_henvisning`-søk er fritekst | Ingen H1–H5-separasjon i UI | Avansert-filter ved behov (backend støtter det allerede) |
+| 5 | Miks av norsk/engelsk i kode | Liten friksjon for nye utviklere | Hold norsk i UI + `*_LABELS`, engelsk i API/kode (nå dokumentert) |
 
 ---
 
