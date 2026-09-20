@@ -1,2 +1,10 @@
 # Lint and auto-fix staged files before each commit.
-npx lint-staged
+#
+# Call the local binary directly instead of `npx`: Node's global npx shim
+# (`C:\Program Files\nodejs\npx`) is a `#!/usr/bin/env bash` script, and on
+# Windows hosts where `bash` resolves to the WSL launcher
+# (C:\Windows\System32\bash.exe) with no usable distro, the hook dies with
+# "execvp(/bin/bash) failed: No such file or directory". husky's `h` wrapper
+# already puts `node_modules/.bin` on PATH, and npm's local shims there use
+# a plain `#!/bin/sh` shebang — no bash involved.
+lint-staged
