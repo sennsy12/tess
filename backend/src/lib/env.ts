@@ -24,6 +24,12 @@ const envSchema = z.object({
   // Auth - only enforced in production
   JWT_SECRET: z.string().optional(),
 
+  // Per-account lockout (progressive backoff). See db/migrations/009 and
+  // controllers/authController.ts. All optional with safe defaults.
+  AUTH_MAX_FAILED_ATTEMPTS: z.coerce.number().int().min(1).max(100).default(5),
+  AUTH_LOCKOUT_BASE_SECONDS: z.coerce.number().int().min(1).max(86400).default(300),
+  AUTH_LOCKOUT_MAX_SECONDS: z.coerce.number().int().min(1).max(86400).default(3600),
+
   // Privileged admin operations (user management, etc.)
   ADMIN_ACTION_KEY: z.string().optional(),
 

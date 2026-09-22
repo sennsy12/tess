@@ -11,6 +11,10 @@ jest.mock('../models/userModel', () => ({
     getTokenVersion: jest.fn(),
     bumpTokenVersion: jest.fn().mockResolvedValue(1),
     update: jest.fn(),
+    recordFailedLogin: jest
+      .fn()
+      .mockResolvedValue({ failedLoginCount: 1, lockedUntil: null }),
+    resetFailedLogins: jest.fn().mockResolvedValue(undefined),
   },
 }));
 
@@ -21,9 +25,31 @@ jest.mock('../models/refreshTokenModel', () => ({
       .fn()
       .mockResolvedValue({ token: 'mock-refresh-token', expiresAt: new Date() }),
     rotate: jest.fn(),
-    revoke: jest.fn().mockResolvedValue(true),
+    revoke: jest
+      .fn()
+      .mockResolvedValue({ revoked: true, userId: 1, username: 'admin' }),
     revokeAllForUser: jest.fn().mockResolvedValue(1),
   },
+}));
+
+jest.mock('../services/auditService', () => ({
+  auditService: {
+    log: jest.fn().mockResolvedValue(undefined),
+    logFromRequest: jest.fn().mockResolvedValue(undefined),
+    logAuthEvent: jest.fn().mockResolvedValue(undefined),
+  },
+}));
+
+// Pass-through rate limiters: this file issues many requests from one IP and
+// the real in-memory limiter (10 req / 15 min) would exhaust mid-suite,
+// 429-ing tests that have nothing to do with rate limiting.
+jest.mock('../middleware/rateLimit', () => ({
+  generalLimiter: (_req: unknown, _res: unknown, next: () => void) => next(),
+  authLimiter: (_req: unknown, _res: unknown, next: () => void) => next(),
+  etlLimiter: (_req: unknown, _res: unknown, next: () => void) => next(),
+  searchLimiter: (_req: unknown, _res: unknown, next: () => void) => next(),
+  assistantLimiter: (_req: unknown, _res: unknown, next: () => void) => next(),
+  orderCreateLimiter: (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
 
 jest.mock('bcrypt', () => ({
@@ -38,6 +64,7 @@ jest.mock('jsonwebtoken', () => ({
 
 import { userModel } from '../models/userModel';
 import { refreshTokenModel } from '../models/refreshTokenModel';
+import { auditService } from '../services/auditService';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 
@@ -197,6 +224,172 @@ describe('Auth Endpoints', () => {
       expect(res.status).toBe(401);
       expect(userModel.bumpTokenVersion).not.toHaveBeenCalled();
       expect(refreshTokenModel.revokeAllForUser).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('auth audit trail', () => {
+    it('logs LOGIN on successful password login', async () => {
+      (userModel.findByUsername as jest.Mock).mockResolvedValue({
+        id: 7,
+        username: 'admin',
+        password_hash: 'hashedpassword',
+        role: 'admin',
+        token_version: 0,
+      });
+      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+
+      await request(app).post('/api/auth/login').send({ username: 'admin', password: 'pw' });
+
+      expect(auditService.logAuthEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'LOGIN',
+          username: 'admin',
+          userId: 7,
+          metadata: { method: 'password' },
+        })
+      );
+    });
+
+    it('logs LOGIN_FAILED with reason bad_password', async () => {
+      (userModel.findByUsername as jest.Mock).mockResolvedValue({
+        id: 7,
+        username: 'admin',
+        password_hash: 'hashedpassword',
+        role: 'admin',
+        token_version: 0,
+      });
+      (bcrypt.compare as jest.Mock).mockResolvedValue(false);
+
+      await request(app)
+        .post('/api/auth/login')
+        .send({ username: 'admin', password: 'wrongpassword' });
+
+      expect(auditService.logAuthEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'LOGIN_FAILED',
+          userId: 7,
+          metadata: { method: 'password', reason: 'bad_password' },
+        })
+      );
+    });
+
+    it('logs LOGIN_FAILED with reason unknown_user (no userId leak)', async () => {
+      (userModel.findByUsername as jest.Mock).mockResolvedValue(null);
+
+      await request(app)
+        .post('/api/auth/login')
+        .send({ username: 'ghost', password: 'pw' });
+
+      expect(auditService.logAuthEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'LOGIN_FAILED',
+          username: 'ghost',
+          metadata: { method: 'password', reason: 'unknown_user' },
+        })
+      );
+      // Unknown user must not carry a userId at all
+      const call = (auditService.logAuthEvent as jest.Mock).mock.calls.at(-1)?.[0];
+      expect(call?.userId).toBeUndefined();
+    });
+
+    it('logs LOGOUT with the owning user when the token was revoked', async () => {
+      await request(app).post('/api/auth/logout').send({ refreshToken: 'c'.repeat(64) });
+
+      expect(auditService.logAuthEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'LOGOUT',
+          username: 'admin',
+          userId: 1,
+        })
+      );
+    });
+
+    it('logs PASSWORD_CHANGE on successful change', async () => {
+      (jwt.verify as jest.Mock).mockReturnValue({
+        id: 1,
+        username: 'admin',
+        role: 'admin',
+        tokenVersion: 0,
+      });
+      (userModel.getTokenVersion as jest.Mock).mockResolvedValue(0);
+      (userModel.findByIdWithHash as jest.Mock).mockResolvedValue({
+        id: 1,
+        username: 'admin',
+        password_hash: 'old-hash',
+        role: 'admin',
+        token_version: 0,
+      });
+      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+
+      await request(app)
+        .post('/api/auth/change-password')
+        .set({ Authorization: 'Bearer test-token' })
+        .send({ currentPassword: 'old-password', newPassword: 'brand-new-password' });
+
+      expect(auditService.logAuthEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'PASSWORD_CHANGE',
+          username: 'admin',
+          userId: 1,
+        })
+      );
+    });
+  });
+
+  describe('per-account lockout', () => {
+    const baseUser = {
+      id: 7,
+      username: 'admin',
+      password_hash: 'hashedpassword',
+      role: 'admin',
+      token_version: 0,
+    };
+
+    it('returns 429 when the account is locked out', async () => {
+      (userModel.findByUsername as jest.Mock).mockResolvedValue({
+        ...baseUser,
+        locked_until: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+      });
+
+      const res = await request(app)
+        .post('/api/auth/login')
+        .send({ username: 'admin', password: 'whatever' });
+
+      expect(res.status).toBe(429);
+      // Password never compared while locked
+      expect(bcrypt.compare).not.toHaveBeenCalled();
+      expect(auditService.logAuthEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'LOGIN_FAILED',
+          metadata: expect.objectContaining({ reason: 'locked_out' }),
+        })
+      );
+    });
+
+    it('records a failed login when the password is wrong', async () => {
+      (userModel.findByUsername as jest.Mock).mockResolvedValue({ ...baseUser });
+      (bcrypt.compare as jest.Mock).mockResolvedValue(false);
+
+      await request(app)
+        .post('/api/auth/login')
+        .send({ username: 'admin', password: 'wrongpassword' });
+
+      expect(userModel.recordFailedLogin).toHaveBeenCalledWith(7, 5, 300, 3600);
+    });
+
+    it('resets the failure counter on successful login', async () => {
+      (userModel.findByUsername as jest.Mock).mockResolvedValue({
+        ...baseUser,
+        failed_login_count: 3,
+      });
+      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+
+      const res = await request(app)
+        .post('/api/auth/login')
+        .send({ username: 'admin', password: 'goodpassword' });
+
+      expect(res.status).toBe(200);
+      expect(userModel.resetFailedLogins).toHaveBeenCalledWith(7);
     });
   });
 });

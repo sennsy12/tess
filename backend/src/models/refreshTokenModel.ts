@@ -31,6 +31,21 @@ export interface IssuedRefreshToken {
   expiresAt: Date;
 }
 
+/**
+ * Result of a rotate attempt:
+ * - `reused: false` — a valid token was consumed; successor issued.
+ * - `reused: true`  — the presented token had ALREADY been rotated/revoked.
+ *                     This is the signature of token theft or a replay: every
+ *                     live refresh token for the owning user has been revoked
+ *                     inside the same transaction. The controller must also
+ *                     bump token_version to kill outstanding access tokens.
+ * - `null`          — unknown/expired token; nothing happened.
+ */
+export type RotateResult =
+  | { reused: false; token: string; expiresAt: Date; userId: number }
+  | { reused: true; userId: number }
+  | null;
+
 export const refreshTokenModel = {
   /**
    * Issue a new refresh token for a user. Also opportunistically removes
@@ -105,14 +120,24 @@ export const refreshTokenModel = {
     });
   },
 
-  /** Revoke a single token (logout). Idempotent. */
-  revoke: async (raw: string): Promise<boolean> => {
+  /** Revoke a single token (logout). Idempotent.
+   * Returns the owning user's id/username for audit attribution. */
+  revoke: async (
+    raw: string
+  ): Promise<{ revoked: boolean; userId: number | null; username: string | null }> => {
     const result = await query(
-      `UPDATE refresh_tokens SET revoked_at = NOW()
-       WHERE token_hash = $1 AND revoked_at IS NULL`,
+      `UPDATE refresh_tokens rt SET revoked_at = NOW()
+       WHERE token_hash = $1 AND rt.revoked_at IS NULL
+       RETURNING rt.user_id,
+         (SELECT username FROM users WHERE id = rt.user_id) AS username`,
       [hashToken(raw)]
     );
-    return (result.rowCount ?? 0) > 0;
+    const row = result.rows[0];
+    return {
+      revoked: (result.rowCount ?? 0) > 0,
+      userId: row?.user_id ?? null,
+      username: row?.username ?? null,
+    };
   },
 
   /** Revoke every refresh token belonging to a user (password reset etc.). */

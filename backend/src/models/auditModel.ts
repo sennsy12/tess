@@ -10,13 +10,24 @@
 import { query } from '../db/index.js';
 import type { SqlParams } from '../db/index.js';
 
+/** All audit actions recorded in `audit_log` (column is VARCHAR(20), no CHECK constraint). */
+export type AuditAction =
+  | 'CREATE'
+  | 'UPDATE'
+  | 'DELETE'
+  | 'LOGIN'
+  | 'LOGIN_FAILED'
+  | 'LOGOUT'
+  | 'PASSWORD_CHANGE'
+  | 'TOKEN_REUSE';
+
 /** A single audit-log row as returned from the database. */
 export interface AuditLogEntry {
   id: number;
   timestamp: Date;
   user_id: number | null;
   username: string;
-  action: 'CREATE' | 'UPDATE' | 'DELETE';
+  action: AuditAction;
   entity_type: string;
   entity_id: string;
   entity_name: string | null;
@@ -25,11 +36,11 @@ export interface AuditLogEntry {
   ip_address: string | null;
 }
 
-/** Payload required to insert a new audit-log entry. */
+/** Input required to insert a new audit-log entry. */
 export interface CreateAuditLogInput {
   user_id?: number | null;
   username: string;
-  action: 'CREATE' | 'UPDATE' | 'DELETE';
+  action: AuditAction;
   entity_type: string;
   entity_id: string;
   entity_name?: string | null;

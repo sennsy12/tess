@@ -1,17 +1,17 @@
-import { auditModel, CreateAuditLogInput } from '../models/auditModel.js';
+import { auditModel, CreateAuditLogInput, AuditAction } from '../models/auditModel.js';
 import { createLogger } from '../lib/logger.js';
 import type { AuthRequest } from '../middleware/auth.js';
 
 const logger = createLogger('audit');
 
 interface AuditUser {
-  id?: number;
+  id?: number | null;
   username: string;
 }
 
 interface AuditLogParams {
   user: AuditUser;
-  action: 'CREATE' | 'UPDATE' | 'DELETE';
+  action: AuditAction;
   entityType: string;
   entityId: string | number;
   entityName?: string;
@@ -124,6 +124,30 @@ export const auditService = {
       oldData: params.oldData,
       newData: params.newData,
       metadata: params.metadata,
+    });
+  },
+
+  /**
+   * Log an authentication event (login/login-failed/logout/etc.) from a
+   * context that is NOT necessarily authenticated — login attempts have no
+   * `req.user`, so caller supplies the identity explicitly. For unknown
+   * users `userId` is null and `username` is whatever was presented.
+   * Never throws — audit failures must not break the auth flow.
+   */
+  logAuthEvent: async (params: {
+    action: 'LOGIN' | 'LOGIN_FAILED' | 'LOGOUT' | 'PASSWORD_CHANGE' | 'TOKEN_REUSE';
+    username: string;
+    userId?: number | null;
+    ipAddress?: string | null;
+    metadata?: Record<string, any> | null;
+  }): Promise<void> => {
+    return auditService.log({
+      user: { id: params.userId ?? null, username: params.username },
+      ipAddress: params.ipAddress ?? undefined,
+      action: params.action,
+      entityType: 'auth',
+      entityId: params.username,
+      metadata: params.metadata ?? null,
     });
   },
 };

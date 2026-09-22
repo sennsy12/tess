@@ -5,12 +5,57 @@ import {
   refreshTokenModel,
   REFRESH_TOKEN_TTL_MS,
 } from '../models/refreshTokenModel.js';
-import { ValidationError, UnauthorizedError, ForbiddenError, ServiceUnavailableError } from '../middleware/errorHandler.js';
+import { ValidationError, UnauthorizedError, ForbiddenError, ServiceUnavailableError, TooManyRequestsError } from '../middleware/errorHandler.js';
 import { jwtPayloadSchema, invalidateTokenVersionCache, type AuthRequest } from '../middleware/auth.js';
 import { getJwtSecret, JWT_ALGORITHMS } from '../lib/jwt.js';
 import { getEntraConfig } from '../lib/entra.js';
 import { verifyEntraIdToken, EntraVerificationError } from '../lib/entraVerify.js';
 import { hashPassword, verifyPassword } from '../lib/password.js';
+import { auditService } from '../services/auditService.js';
+import { getEnv } from '../lib/env.js';
+
+/**
+ * Per-account brute-force protection (progressive lockout).
+ *
+ * Counters live on the user row so the policy holds across IPs — the
+ * IP-based authLimiter cannot stop distributed guessing. Lock state is
+ * checked BEFORE the password compare; a locked account also burns the
+ * dummy-hash compare so its timing profile matches a normal failure.
+ */
+function lockSecondsRemaining(lockedUntil: string | null | undefined): number {
+  if (!lockedUntil) return 0;
+  const ms = new Date(lockedUntil).getTime() - Date.now();
+  return ms > 0 ? Math.ceil(ms / 1000) : 0;
+}
+
+async function assertNotLocked(
+  user: { username: string; id: number; locked_until?: string | null },
+  method: string
+): Promise<void> {
+  const seconds = lockSecondsRemaining(user.locked_until);
+  if (seconds > 0) {
+    await auditService.logAuthEvent({
+      action: 'LOGIN_FAILED',
+      username: user.username,
+      userId: user.id,
+      metadata: { method, reason: 'locked_out', retryAfterSeconds: seconds },
+    });
+    const minutes = Math.max(1, Math.ceil(seconds / 60));
+    throw new TooManyRequestsError(
+      `For mange mislykkede innloggingsforsøk. Prøv igjen om ca. ${minutes} min.`
+    );
+  }
+}
+
+async function recordLoginFailure(userId: number): Promise<void> {
+  const env = getEnv();
+  await userModel.recordFailedLogin(
+    userId,
+    env.AUTH_MAX_FAILED_ATTEMPTS,
+    env.AUTH_LOCKOUT_BASE_SECONDS,
+    env.AUTH_LOCKOUT_MAX_SECONDS
+  );
+}
 
 /** Access tokens are short-lived; refresh tokens extend the session. */
 const ACCESS_TOKEN_EXPIRES_IN = '1h';
@@ -86,16 +131,40 @@ export const authController = {
     if (!user) {
       // Burn the same bcrypt time as a real check to prevent user enumeration
       await verifyPasswordOrDummy(password, null);
+      await auditService.logAuthEvent({
+        action: 'LOGIN_FAILED',
+        username,
+        ipAddress: req.ip,
+        metadata: { method: 'password', reason: 'unknown_user' },
+      });
       throw new UnauthorizedError('Invalid credentials');
     }
+
+    await assertNotLocked(user, 'password');
 
     const isValidPassword = await verifyPassword(password, user.password_hash);
 
     if (!isValidPassword) {
+      await recordLoginFailure(user.id);
+      await auditService.logAuthEvent({
+        action: 'LOGIN_FAILED',
+        username: user.username,
+        userId: user.id,
+        ipAddress: req.ip,
+        metadata: { method: 'password', reason: 'bad_password' },
+      });
       throw new UnauthorizedError('Invalid credentials');
     }
 
+    await userModel.resetFailedLogins(user.id);
     const { token, refreshToken } = await issueTokenPair(user);
+    await auditService.logAuthEvent({
+      action: 'LOGIN',
+      username: user.username,
+      userId: user.id,
+      ipAddress: req.ip,
+      metadata: { method: 'password' },
+    });
     res.json({ token, refreshToken, user: publicUserFromRecord(user) });
   },
 
@@ -111,16 +180,40 @@ export const authController = {
     if (!user) {
       // Burn the same bcrypt time as a real check to prevent kundenr enumeration
       await verifyPasswordOrDummy(password, null);
+      await auditService.logAuthEvent({
+        action: 'LOGIN_FAILED',
+        username: kundenr,
+        ipAddress: req.ip,
+        metadata: { method: 'kunde', reason: 'unknown_kundenr' },
+      });
       throw new UnauthorizedError('Invalid credentials');
     }
+
+    await assertNotLocked(user, 'kunde');
 
     const isValidPassword = await verifyPassword(password, user.password_hash);
 
     if (!isValidPassword) {
+      await recordLoginFailure(user.id);
+      await auditService.logAuthEvent({
+        action: 'LOGIN_FAILED',
+        username: user.username,
+        userId: user.id,
+        ipAddress: req.ip,
+        metadata: { method: 'kunde', reason: 'bad_password' },
+      });
       throw new UnauthorizedError('Invalid credentials');
     }
 
+    await userModel.resetFailedLogins(user.id);
     const { token, refreshToken } = await issueTokenPair(user);
+    await auditService.logAuthEvent({
+      action: 'LOGIN',
+      username: user.username,
+      userId: user.id,
+      ipAddress: req.ip,
+      metadata: { method: 'kunde' },
+    });
     res.json({ token, refreshToken, user: publicUserFromRecord(user) });
   },
 
@@ -165,7 +258,16 @@ export const authController = {
   logout: async (req: Request, res: Response) => {
     const { refreshToken } = req.body as { refreshToken?: string };
     if (refreshToken) {
-      await refreshTokenModel.revoke(refreshToken);
+      const { revoked, userId, username } = await refreshTokenModel.revoke(refreshToken);
+      if (revoked) {
+        await auditService.logAuthEvent({
+          action: 'LOGOUT',
+          username: username ?? 'unknown',
+          userId,
+          ipAddress: req.ip,
+          metadata: { method: 'refresh-token' },
+        });
+      }
     }
     res.json({ success: true });
   },
@@ -193,6 +295,14 @@ export const authController = {
 
     const passwordHash = await hashPassword(newPassword);
     await userModel.update(userId, { passwordHash });
+
+    await auditService.logAuthEvent({
+      action: 'PASSWORD_CHANGE',
+      username: user.username,
+      userId,
+      ipAddress: req.ip,
+      metadata: { method: 'self' },
+    });
 
     // Invalidate every existing session for this user:
     // - bump token_version → all previously issued access tokens fail the
@@ -273,6 +383,12 @@ export const authController = {
       ({ oid } = await verifyEntraIdToken(idToken));
     } catch (err) {
       if (err instanceof EntraVerificationError) {
+        await auditService.logAuthEvent({
+          action: 'LOGIN_FAILED',
+          username: 'unknown',
+          ipAddress: req.ip,
+          metadata: { method: 'entra', reason: 'invalid_id_token' },
+        });
         throw new UnauthorizedError('Invalid Microsoft sign-in token');
       }
       throw err;
@@ -282,10 +398,23 @@ export const authController = {
     if (!user) {
       // No JIT provisioning: unknown Microsoft accounts must be linked by
       // an admin first. 403 (not 401) so clients can show "contact admin".
+      await auditService.logAuthEvent({
+        action: 'LOGIN_FAILED',
+        username: 'unknown',
+        ipAddress: req.ip,
+        metadata: { method: 'entra', reason: 'unlinked_oid' },
+      });
       throw new ForbiddenError('Microsoft account is not linked to a user. Contact an administrator.');
     }
 
     const { token, refreshToken } = await issueTokenPair(user);
+    await auditService.logAuthEvent({
+      action: 'LOGIN',
+      username: user.username,
+      userId: user.id,
+      ipAddress: req.ip,
+      metadata: { method: 'entra' },
+    });
     res.json({ token, refreshToken, user: publicUserFromRecord(user) });
   },
 };

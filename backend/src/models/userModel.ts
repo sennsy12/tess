@@ -19,6 +19,9 @@ export interface User {
   role: string;
   kundenr?: string;
   token_version?: number;
+  failed_login_count?: number;
+  locked_until?: string | null;
+  last_failed_login_at?: string | null;
   created_at?: string;
 }
 
@@ -44,7 +47,7 @@ export const userModel = {
    */
   findByUsername: async (username: string): Promise<User | null> => {
     const result = await query(
-      'SELECT id, username, password_hash, role, kundenr, token_version FROM users WHERE username = $1',
+      'SELECT id, username, password_hash, role, kundenr, token_version, failed_login_count, locked_until, last_failed_login_at FROM users WHERE username = $1',
       [username]
     );
     return result.rows[0] || null;
@@ -58,7 +61,7 @@ export const userModel = {
    */
   findByKundenr: async (kundenr: string): Promise<User | null> => {
     const result = await query(
-      'SELECT id, username, password_hash, role, kundenr, token_version FROM users WHERE kundenr = $1',
+      'SELECT id, username, password_hash, role, kundenr, token_version, failed_login_count, locked_until, last_failed_login_at FROM users WHERE kundenr = $1',
       [kundenr]
     );
     return result.rows[0] || null;
@@ -72,10 +75,66 @@ export const userModel = {
    */
   findByEntraOid: async (entraOid: string): Promise<User | null> => {
     const result = await query(
-      'SELECT id, username, password_hash, role, kundenr, token_version FROM users WHERE entra_oid = $1',
+      'SELECT id, username, password_hash, role, kundenr, token_version, failed_login_count, locked_until, last_failed_login_at FROM users WHERE entra_oid = $1',
       [entraOid]
     );
     return result.rows[0] || null;
+  },
+
+  // ── Per-account lockout (progressive backoff) ───────────────────────
+  //
+  // Counters are tracked server-side on the user row so the policy holds
+  // across IPs (the IP-based rate limiter alone cannot stop distributed
+  // guessing). All writes are single atomic UPDATEs — no read-modify races.
+
+  /**
+   * Atomically increment the consecutive-failed-login counter and apply the
+   * progressive lockout when the threshold is crossed. Backoff doubles per
+   * full window of failures: 1×, 2×, 4×, 8× base — capped at max.
+   *
+   * @param maxAttempts  - Failed attempts per window before locking
+   * @param baseSeconds  - First lockout duration
+   * @param maxSeconds   - Upper bound for the lockout duration
+   * @returns New consecutive failure count and lock expiry (null = not locked)
+   */
+  recordFailedLogin: async (
+    id: number,
+    maxAttempts: number,
+    baseSeconds: number,
+    maxSeconds: number
+  ): Promise<{ failedLoginCount: number; lockedUntil: Date | null }> => {
+    const result = await query(
+      `UPDATE users SET
+         failed_login_count = failed_login_count + 1,
+         last_failed_login_at = NOW(),
+         locked_until = CASE
+           WHEN failed_login_count + 1 < $2 THEN NULL
+           ELSE now() +
+             LEAST(
+               make_interval(secs => $3 * pow(2, floor((failed_login_count + 1 - $2) / $2))::int),
+               make_interval(secs => $4)
+             )
+         END
+       WHERE id = $1
+       RETURNING failed_login_count, locked_until`,
+      [id, maxAttempts, baseSeconds, maxSeconds]
+    );
+    const row = result.rows[0] as
+      | { failed_login_count: number; locked_until: string | null }
+      | undefined;
+    return {
+      failedLoginCount: row?.failed_login_count ?? 0,
+      lockedUntil: row?.locked_until ? new Date(row.locked_until) : null,
+    };
+  },
+
+  /** Reset the failure counter and clear any lockout (called on success). */
+  resetFailedLogins: async (id: number): Promise<void> => {
+    await query(
+      `UPDATE users SET failed_login_count = 0, locked_until = NULL, last_failed_login_at = NULL
+       WHERE id = $1 AND (failed_login_count > 0 OR locked_until IS NOT NULL)`,
+      [id]
+    );
   },
 
   /**
