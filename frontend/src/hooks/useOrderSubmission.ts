@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { ordersApi } from '../lib/api';
+import { ordersApi } from '../lib/api/orders';
 import { kundeKeys } from '../lib/queryKeys';
 import { useCart } from '../context/useCart';
 import { getApiError } from '../lib/apiErrors';

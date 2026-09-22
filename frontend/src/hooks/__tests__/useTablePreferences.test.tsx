@@ -7,9 +7,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import { useTablePreferences, PREF_SAVE_DEBOUNCE_MS } from '../useTablePreferences';
-import { tablePreferencesApi } from '../../lib/api';
+import { tablePreferencesApi } from '../../lib/api/tablePreferences';
 
-vi.mock('../../lib/api', () => ({
+vi.mock('../../lib/api/tablePreferences', () => ({
   tablePreferencesApi: {
     get: vi.fn(),
     save: vi.fn(),

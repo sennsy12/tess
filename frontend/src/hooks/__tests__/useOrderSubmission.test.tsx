@@ -27,7 +27,7 @@ vi.mock('react-hot-toast', () => ({
   default: { success: toastSuccess, error: toastError },
 }));
 
-vi.mock('../../lib/api', () => ({
+vi.mock('../../lib/api/orders', () => ({
   ordersApi: { create: createMock },
 }));
 

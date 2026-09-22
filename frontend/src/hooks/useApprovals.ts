@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { ordersApi } from '../lib/api';
+import { ordersApi } from '../lib/api/orders';
 import { approvalsKeys } from '../lib/queryKeys';
 
 const APPROVAL_COUNT_REFRESH_MS = 60_000;

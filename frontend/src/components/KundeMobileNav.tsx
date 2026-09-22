@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion, MotionConfig } from 'framer-motion';
 import { MoreHorizontal, X } from 'lucide-react';
 import {
   analyseNavItems,
@@ -95,6 +95,7 @@ function MobileBottomBar({ items, allPaths, overflowItems = [], ariaLabel }: Bot
   const showMore = overflowItems.length > 0;
 
   return (
+    <MotionConfig reducedMotion="user">
     <>
       <nav
         className="lg:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-dark-800 bg-dark-900/95 backdrop-blur-md safe-area-pb"
@@ -193,6 +194,7 @@ function MobileBottomBar({ items, allPaths, overflowItems = [], ariaLabel }: Bot
         </AnimatePresence>
       )}
     </>
+    </MotionConfig>
   );
 }
 

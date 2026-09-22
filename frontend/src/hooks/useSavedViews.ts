@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/useAuth';
-import { reportsApi } from '../lib/api';
+import { reportsApi } from '../lib/api/reports';
 import { reportKeys } from '../lib/queryKeys';
 import type { SaveViewOptions, SavedViewRecord } from '../types/workspace';
 

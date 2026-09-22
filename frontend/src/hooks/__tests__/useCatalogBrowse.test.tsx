@@ -9,8 +9,11 @@ const { getAllMock, getGroupsMock } = vi.hoisted(() => ({
   getGroupsMock: vi.fn(),
 }));
 
-vi.mock('../../lib/api', () => ({
+vi.mock('../../lib/api/catalog', () => ({
   catalogApi: { getAll: getAllMock },
+}));
+
+vi.mock('../../lib/api/products', () => ({
   productsApi: { getGroups: getGroupsMock },
 }));
 

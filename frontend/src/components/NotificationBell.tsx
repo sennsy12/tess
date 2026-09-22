@@ -6,7 +6,7 @@ import {
   useMarkAllNotificationsRead,
   useMarkNotificationsRead,
   useNotifications,
-  useUnreadNotificationCount,
+  useUnreadBadgeCount,
 } from '../hooks/useNotifications';
 import { useAuth } from '../context/useAuth';
 import {
@@ -72,7 +72,9 @@ export function NotificationBell() {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
-  const { data: count = 0 } = useUnreadNotificationCount();
+  // Badge count derived from the list cache (exact when untruncated) —
+  // no separate unread-count request in the common case.
+  const count = useUnreadBadgeCount(15);
   const { data: notifications = [], isLoading } = useNotifications(15);
   const markRead = useMarkNotificationsRead();
   const markAllRead = useMarkAllNotificationsRead();

@@ -6,12 +6,11 @@ import { PasswordInput } from '../components/PasswordInput';
 import { Spinner } from '../components/Spinner';
 import { supportMailto } from '../lib/appConfig';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
-import { authApi } from '../lib/api';
-import {
-  loginWithMicrosoft,
-  isPopupCancelled,
-  type EntraPublicConfig,
-} from '../lib/auth/msalClient';
+import { authApi } from '../lib/api/auth';
+// Type-only: erased at compile time so the entry/Login chunk never pulls
+// @azure/msal-browser. The runtime functions are dynamic-imported inside
+// the Microsoft button click handler (see handleMicrosoftLogin).
+import type { EntraPublicConfig } from '../lib/auth/msalClient';
 
 type LoginMode = 'standard' | 'kunde';
 
@@ -89,13 +88,16 @@ export function Login() {
     if (!entraConfig || isMicrosoftLoading) return;
     setError('');
     setIsMicrosoftLoading(true);
+    // MSAL is ~280 KB — load it only when the user actually clicks
+    // "Logg inn med Microsoft", never for the majority who use password login.
+    const msal = await import('../lib/auth/msalClient');
     try {
-      const idToken = await loginWithMicrosoft(entraConfig);
+      const idToken = await msal.loginWithMicrosoft(entraConfig);
       const entraUser = await loginEntra(idToken);
       navigateByRole(navigate, entraUser.role);
     } catch (err: any) {
       // Popup aborted by the user — stay silent, keep the form as-is.
-      if (isPopupCancelled(err)) {
+      if (msal.isPopupCancelled(err)) {
         setIsMicrosoftLoading(false);
         return;
       }

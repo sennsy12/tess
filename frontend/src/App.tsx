@@ -1,7 +1,6 @@
 import { Suspense, lazy } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom'
 import { QueryCache, QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { MotionConfig } from 'framer-motion'
 import { Toaster } from 'react-hot-toast'
 import { toasterConfig } from './lib/toastConfig'
 
@@ -163,9 +162,7 @@ function App() {
       <BrowserRouter>
         <AuthProvider>
           <CartProvider>
-          <MotionConfig reducedMotion="user">
           <AppRoutes />
-          </MotionConfig>
           </CartProvider>
         </AuthProvider>
       </BrowserRouter>

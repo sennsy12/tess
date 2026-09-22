@@ -16,7 +16,7 @@ const authHolder: { user: { id: number; username: string; role: 'admin' | 'kunde
   user: { id: 1, username: 'admin', role: 'admin' },
 };
 
-vi.mock('../../lib/api', () => ({
+vi.mock('../../lib/api/reports', () => ({
   reportsApi: {
     getAll: vi.fn(),
     save: vi.fn(),
@@ -28,7 +28,7 @@ vi.mock('../../context/useAuth', () => ({
   useAuth: () => authHolder,
 }));
 
-import { reportsApi } from '../../lib/api';
+import { reportsApi } from '../../lib/api/reports';
 
 const mockGetAll = reportsApi.getAll as ReturnType<typeof vi.fn>;
 const mockSave = reportsApi.save as ReturnType<typeof vi.fn>;

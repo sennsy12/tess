@@ -6,12 +6,19 @@ import { QueryErrorBanner } from '../../components/QueryErrorBanner';
 import { QueryRefetchBar } from '../../components/QueryRefetchBar';
 import { SystemStatusStrip } from '../../components/status/SystemStatusStrip';
 import { aggregateSystemStatus } from '../../lib/aggregateSystemStatus';
-import { statusApi } from '../../lib/api';
+import { statusApi } from '../../lib/api/status';
 import { statusKeys } from '../../lib/queryKeys';
 import { ApiEndpointMetric, ApiMetricsData, RecentActivityData } from '../../types/status';
 
 /** Auto-refresh for alle statuskilder. Ferskhet > sparte requests på admin-side. */
 const STATUS_REFETCH_MS = 30_000;
+/**
+ * Sekundærkilder (tunge aggregater) poller hvert 60. sekund i stedet for 30.
+ * Kritiske kilder (system/health/import/extraction) beholder 30s-ferskhet,
+ * mens den samlede burst per intervall halveres omtrent. Ingen visuell
+ * endring — QueryRefetchBar/placeholderData oppfører seg som før.
+ */
+const STATUS_REFETCH_SLOW_MS = 60_000;
 /**
  * staleTime styrer IKKE intervallet – det gjør refetchInterval over.
  * 20s (< 30s) finnes kun for at bakgrunnsrefetch skal slå inn og vise
@@ -126,7 +133,7 @@ export function AdminStatus() {
   const apiMetricsQuery = useQuery<ApiMetricsData>({
     queryKey: statusKeys.apiMetrics(),
     queryFn: () => statusApi.getApiMetrics().then((res) => res.data),
-    refetchInterval: STATUS_REFETCH_MS,
+    refetchInterval: STATUS_REFETCH_SLOW_MS,
     refetchIntervalInBackground: false,
     staleTime: STATUS_STALE_MS,
     placeholderData: (prev) => prev,
@@ -135,7 +142,7 @@ export function AdminStatus() {
   const etlMetricsQuery = useQuery({
     queryKey: statusKeys.etlMetrics(),
     queryFn: () => statusApi.getEtlMetrics().then((res) => res.data),
-    refetchInterval: STATUS_REFETCH_MS,
+    refetchInterval: STATUS_REFETCH_SLOW_MS,
     refetchIntervalInBackground: false,
     staleTime: STATUS_STALE_MS,
     placeholderData: (prev) => prev,
@@ -144,7 +151,7 @@ export function AdminStatus() {
   const recentActivityQuery = useQuery<RecentActivityData>({
     queryKey: statusKeys.recentActivity(),
     queryFn: () => statusApi.getRecentActivity().then((res) => res.data),
-    refetchInterval: STATUS_REFETCH_MS,
+    refetchInterval: STATUS_REFETCH_SLOW_MS,
     refetchIntervalInBackground: false,
     staleTime: STATUS_STALE_MS,
     placeholderData: (prev) => prev,

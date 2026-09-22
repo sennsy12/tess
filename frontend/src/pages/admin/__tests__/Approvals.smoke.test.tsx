@@ -12,10 +12,24 @@ import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AdminApprovals } from '../Approvals';
 
+// Shared hoisted fns so the barrel mock (page) and the direct-module mock
+// (useApprovalCount hook) observe the same calls.
+const { mockGetAllFn, mockUpdateStatusFn } = vi.hoisted(() => ({
+  mockGetAllFn: vi.fn(),
+  mockUpdateStatusFn: vi.fn(),
+}));
+
 vi.mock('../../../lib/api', () => ({
   ordersApi: {
-    getAll: vi.fn(),
-    updateStatus: vi.fn(),
+    getAll: mockGetAllFn,
+    updateStatus: mockUpdateStatusFn,
+  },
+}));
+
+vi.mock('../../../lib/api/orders', () => ({
+  ordersApi: {
+    getAll: mockGetAllFn,
+    updateStatus: mockUpdateStatusFn,
   },
 }));
 

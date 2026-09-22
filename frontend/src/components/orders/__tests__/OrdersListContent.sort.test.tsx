@@ -14,8 +14,11 @@ import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { OrdersListContent } from '../OrdersListContent';
 
-vi.mock('../../../lib/api', () => ({
+vi.mock('../../../lib/api/orders', () => ({
   ordersApi: { getAll: vi.fn() },
+}));
+
+vi.mock('../../../lib/api/suggestions', () => ({
   suggestionsApi: { search: vi.fn() },
 }));
 
@@ -45,7 +48,7 @@ vi.mock('../../../hooks/useSavedViews', () => ({
   }),
 }));
 
-import { ordersApi } from '../../../lib/api';
+import { ordersApi } from '../../../lib/api/orders';
 
 const mockGetAll = ordersApi.getAll as ReturnType<typeof vi.fn>;
 

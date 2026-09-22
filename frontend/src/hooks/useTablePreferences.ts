@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../context/useAuth';
-import { tablePreferencesApi } from '../lib/api';
+import { tablePreferencesApi } from '../lib/api/tablePreferences';
 import {
   sanitizeColumnLabels,
   type TablePreferences,

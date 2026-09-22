@@ -1,7 +1,7 @@
 import { useState, useEffect, ReactNode, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { authApi } from '../lib/api';
+import { authApi } from '../lib/api/auth';
 import {
   AUTH_TOKEN_KEY,
   clearAuthToken,
@@ -91,6 +91,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (isMounted) {
           setUser(storedUser);
         }
+      }
+
+      // Fast boot: a valid-shaped stored session renders the shell
+      // immediately instead of gating on the network waterfall below.
+      // Server revalidation still runs in the background and hard failure
+      // clears the session via the same logout() path as before.
+      if (storedToken && storedUser && isMounted) {
+        setIsLoading(false);
       }
 
       if (storedToken) {

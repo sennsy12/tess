@@ -3,7 +3,10 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { ClipboardList, Search } from 'lucide-react';
 import { useAuth } from '../context/useAuth';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
-import { pricingApi, ordersApi, productsApi, usersApi } from '../lib/api';
+import { pricingApi } from '../lib/api/pricing';
+import { ordersApi } from '../lib/api/orders';
+import { productsApi } from '../lib/api/products';
+import { usersApi } from '../lib/api/users';
 import { ModalShell } from './ModalShell';
 
 type SearchResult = {

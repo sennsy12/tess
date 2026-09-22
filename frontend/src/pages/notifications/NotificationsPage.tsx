@@ -10,7 +10,7 @@ import {
   useMarkAllNotificationsRead,
   useMarkNotificationsRead,
   useNotificationsPage,
-  useUnreadNotificationCount,
+  useUnreadBadgeCount,
 } from '../../hooks/useNotifications';
 import { useAuth } from '../../context/useAuth';
 import {
@@ -56,7 +56,7 @@ export function NotificationsPage() {
     unreadOnly: readFilter === 'uleste',
     type: typeFilter,
   });
-  const { data: unreadCount = 0 } = useUnreadNotificationCount();
+  const unreadCount = useUnreadBadgeCount();
   const markRead = useMarkNotificationsRead();
   const markAllRead = useMarkAllNotificationsRead();
 

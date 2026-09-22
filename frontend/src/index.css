@@ -33,7 +33,9 @@ body {
   background-image:
     radial-gradient(ellipse 80% 50% at 20% -10%, rgba(99, 102, 241, 0.07) 0%, transparent 60%),
     radial-gradient(ellipse 60% 40% at 90% 0%, rgba(201, 169, 98, 0.04) 0%, transparent 55%);
-  background-attachment: fixed;
+  /* NOTE: no `background-attachment: fixed` — it forces a full-page repaint
+   * layer behind all scrolling content. Gradients sit at the top; `scroll`
+   * is visually identical here and far cheaper to composite. */
 }
 
 ::selection {

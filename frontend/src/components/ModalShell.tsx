@@ -1,5 +1,5 @@
 import { useEffect, useRef, type ReactNode } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion, MotionConfig } from 'framer-motion';
 import { useDialogFocusTrap } from '../hooks/useDialogFocusTrap';
 import { dialogBackdropVariants, dialogPanelVariants } from './motion';
 
@@ -61,6 +61,7 @@ export function ModalShell({
   }, [open, dismissable, onClose]);
 
   return (
+    <MotionConfig reducedMotion="user">
     <AnimatePresence>
       {open && (
         <div
@@ -99,5 +100,6 @@ export function ModalShell({
         </div>
       )}
     </AnimatePresence>
+    </MotionConfig>
   );
 }

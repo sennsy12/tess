@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion, MotionConfig } from 'framer-motion';
 import { MessageCircle, Square, X, Trash2 } from 'lucide-react';
 import { assistantApi } from '../../lib/api/assistant';
 import { queryKeys } from '../../lib/queryKeys';
@@ -53,6 +53,7 @@ export function AssistantChat({ elevatedBottom = false }: AssistantChatProps) {
   }
 
   return (
+    <MotionConfig reducedMotion="user">
     <>
       <button
         type="button"
@@ -148,5 +149,6 @@ export function AssistantChat({ elevatedBottom = false }: AssistantChatProps) {
         )}
       </AnimatePresence>
     </>
+    </MotionConfig>
   );
 }

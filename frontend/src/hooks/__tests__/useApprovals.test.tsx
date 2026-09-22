@@ -11,13 +11,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { usePendingApprovalCount } from '../useApprovals';
 
-vi.mock('../../lib/api', () => ({
+vi.mock('../../lib/api/orders', () => ({
   ordersApi: {
     getAll: vi.fn(),
   },
 }));
 
-import { ordersApi } from '../../lib/api';
+import { ordersApi } from '../../lib/api/orders';
 
 const mockGetAll = ordersApi.getAll as ReturnType<typeof vi.fn>;
 

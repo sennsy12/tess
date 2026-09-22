@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
-import { pricingApi, productsApi } from '../../lib/api';
+import { pricingApi } from '../../lib/api/pricing';
+import { productsApi } from '../../lib/api/products';
 import { pricingKeys, productKeys } from '../../lib/queryKeys';
 import type { CustomerGroup, CustomerWithGroup, PriceList, PriceRule } from '../../types/pricing';
 

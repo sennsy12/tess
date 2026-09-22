@@ -2,7 +2,7 @@ import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { ChevronDown, ClipboardList, Plus, SearchX, Trash2 } from 'lucide-react';
 import { Spinner } from '../Spinner';
-import { catalogApi } from '../../lib/api';
+import { catalogApi } from '../../lib/api/catalog';
 import type { CatalogProduct } from '../../lib/api/catalog';
 import { parseOrderPadInput } from '../../lib/orderPad';
 import { formatMoneyNok } from '../../lib/formatters';

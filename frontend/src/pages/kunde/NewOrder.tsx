@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion, MotionConfig } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { PackageOpen, Search, ShoppingCart } from 'lucide-react';
 import { Layout } from '../../components/Layout';
@@ -42,6 +42,7 @@ export function NewOrder() {
   const cartPanel = <CartPanel onCheckout={handleCheckout} />;
 
   return (
+    <MotionConfig reducedMotion="user">
     <Layout title="Ny bestilling">
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-6 items-start">
         {/* Catalog */}
@@ -176,5 +177,6 @@ export function NewOrder() {
         onKunderefChange={submission.onKunderefChange}
       />
     </Layout>
+    </MotionConfig>
   );
 }

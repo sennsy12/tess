@@ -48,6 +48,10 @@ jobs:
         run: npx vitest run
       - name: Build
         run: npm run build
+      - name: Bundle budget (perf guardrails)
+        # Fails when heavy deps rejoin the entry critical path or chunks
+        # exceed raw-KB budgets. See frontend/scripts/check-bundle-budget.mjs.
+        run: npm run perf:budget
       - name: Build production image
         run: docker build -f Dockerfile.prod -t tess-frontend-prod:ci .
       - name: Upload dist artifact

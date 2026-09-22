@@ -18,7 +18,9 @@ import { clearAuthToken } from '../../lib/auth/tokenStore';
 
 // ── Mocks ────────────────────────────────────────────────────────────
 
-vi.mock('../../lib/api', () => ({
+// NOTE: AuthContext imports the direct module ('../lib/api/auth'), so the
+// mock must target that exact path — mocking the barrel would not intercept.
+vi.mock('../../lib/api/auth', () => ({
   authApi: {
     login: vi.fn(),
     loginKunde: vi.fn(),
@@ -29,7 +31,7 @@ vi.mock('../../lib/api', () => ({
   },
 }));
 
-import { authApi } from '../../lib/api';
+import { authApi } from '../../lib/api/auth';
 
 const mockLogin = authApi.login as ReturnType<typeof vi.fn>;
 const mockLoginKunde = authApi.loginKunde as ReturnType<typeof vi.fn>;
@@ -97,6 +99,10 @@ describe('AuthContext', () => {
     const storedUser = { id: 1, username: 'admin', role: 'admin' };
     sessionStorage.setItem('token', 'stored-jwt');
     sessionStorage.setItem('user', JSON.stringify(storedUser));
+    // A stored session revalidates in the background: verify must confirm
+    // the user, otherwise AuthProvider correctly treats the session as
+    // invalid and logs out (clearing the restored state).
+    mockVerify.mockResolvedValue({ data: { user: storedUser } });
 
     renderWithProviders();
 
@@ -169,6 +175,8 @@ describe('AuthContext', () => {
     sessionStorage.setItem('token', 'stored-jwt');
     sessionStorage.setItem('refreshToken', 'stored-refresh');
     sessionStorage.setItem('user', JSON.stringify(storedUser));
+    // Keep the background revalidation from logging out before the click.
+    mockVerify.mockResolvedValue({ data: { user: storedUser } });
 
     renderWithProviders();
     const user = userEvent.setup();

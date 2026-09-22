@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { catalogApi, productsApi } from '../lib/api';
+import { catalogApi } from '../lib/api/catalog';
+import { productsApi } from '../lib/api/products';
 import { catalogKeys, kundeKeys } from '../lib/queryKeys';
 import { useDebouncedValue } from './useDebouncedValue';
 

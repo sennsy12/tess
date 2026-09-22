@@ -5,7 +5,7 @@ import { ArrowRight, UserCircle } from 'lucide-react';
 import { Layout } from '../components/Layout';
 import { PasswordInput } from '../components/PasswordInput';
 import { useAuth } from '../context/useAuth';
-import { authApi } from '../lib/api';
+import { authApi } from '../lib/api/auth';
 
 export function Settings() {
   const { user } = useAuth();

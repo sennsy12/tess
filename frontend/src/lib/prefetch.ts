@@ -1,5 +1,13 @@
 import type { QueryClient } from '@tanstack/react-query';
-import { ordersApi, pricingApi, productsApi, statisticsApi, statusApi, usersApi, auditApi } from './api';
+// Direct module imports (not the lib/api barrel) so this Layout-reachable
+// file does not pull all 19 API clients into the shared graph.
+import { ordersApi } from './api/orders';
+import { pricingApi } from './api/pricing';
+import { productsApi } from './api/products';
+import { statisticsApi } from './api/statistics';
+import { statusApi } from './api/status';
+import { usersApi } from './api/users';
+import { auditApi } from './api/audit';
 import {
   orderKeys,
   productKeys,
@@ -37,8 +45,68 @@ const DEFAULT_STATS_PARAMS = {
 
 const DEFAULT_PRODUCT_SORT = { sortKey: 'varenavn' as const, sortDirection: 'asc' as const };
 
+/**
+ * Route JS chunk loaders, mirroring the React.lazy() map in App.tsx.
+ *
+ * Warming the chunk on nav hover/focus makes the click feel instant — the
+ * data prefetch below already covers the API side. Entries are static
+ * imports so Vite keeps emitting one chunk per route; failures are
+ * swallowed (prefetch must never break navigation).
+ */
+const ROUTE_CHUNK_LOADERS: Array<{ match: (path: string) => boolean; load: () => Promise<unknown> }> = [
+  { match: (p) => p === '/login', load: () => import('../pages/Login') },
+  { match: (p) => p === '/hjelp', load: () => import('../pages/Help') },
+  { match: (p) => p.endsWith('/settings'), load: () => import('../pages/Settings') },
+  { match: (p) => p === '/kunde', load: () => import('../pages/kunde/Dashboard') },
+  { match: (p) => p === '/kunde/order/new', load: () => import('../pages/kunde/NewOrder') },
+  {
+    match: (p) => p.startsWith('/kunde/orders'),
+    load: () => Promise.all([import('../pages/kunde/Orders'), import('../pages/kunde/OrderDetail')]),
+  },
+  { match: (p) => p === '/kunde/konto', load: () => import('../pages/kunde/Account') },
+  { match: (p) => p === '/kunde/pricing', load: () => import('../pages/kunde/Pricing') },
+  { match: (p) => p === '/kunde/analytics', load: () => import('../pages/kunde/AdvancedAnalytics') },
+  { match: (p) => p === '/kunde/statistics', load: () => import('../pages/kunde/Statistics') },
+  { match: (p) => p === '/kunde/varsler', load: () => import('../pages/kunde/Notifications') },
+  { match: (p) => p === '/analyse', load: () => import('../pages/analyse/Dashboard') },
+  { match: (p) => p === '/analyse/statistics', load: () => import('../pages/analyse/Statistics') },
+  { match: (p) => p === '/admin', load: () => import('../pages/admin/Dashboard') },
+  { match: (p) => p === '/admin/approvals', load: () => import('../pages/admin/Approvals') },
+  { match: (p) => p === '/admin/orderlines', load: () => import('../pages/admin/OrderLines') },
+  { match: (p) => p === '/admin/status', load: () => import('../pages/admin/Status') },
+  { match: (p) => p === '/admin/etl', load: () => import('../pages/admin/ETL') },
+  { match: (p) => p === '/admin/pricing', load: () => import('../pages/admin/pricing') },
+  { match: (p) => p === '/admin/statistics', load: () => import('../pages/admin/Statistics') },
+  {
+    match: (p) => p.startsWith('/admin/orders'),
+    load: () => Promise.all([import('../pages/admin/Orders'), import('../pages/admin/OrderDetail')]),
+  },
+  { match: (p) => p === '/admin/analytics', load: () => import('../pages/admin/AdvancedAnalytics') },
+  { match: (p) => p === '/admin/users', load: () => import('../pages/admin/Users') },
+  { match: (p) => p === '/admin/customers', load: () => import('../pages/admin/Customers') },
+  { match: (p) => p === '/admin/products', load: () => import('../pages/admin/Products') },
+  { match: (p) => p === '/admin/audit', load: () => import('../pages/admin/Audit') },
+  { match: (p) => p === '/admin/varsler', load: () => import('../pages/admin/Notifications') },
+];
+
+/** Warm the target route's JS chunk (see ROUTE_CHUNK_LOADERS). Never throws. */
+export function prefetchRouteChunk(path: string) {
+  try {
+    for (const { match, load } of ROUTE_CHUNK_LOADERS) {
+      if (match(path)) {
+        load().catch(() => undefined);
+        return;
+      }
+    }
+  } catch {
+    // Intentionally ignored — prefetch is best-effort.
+  }
+}
+
 /** Prefetch data for heavy admin routes on nav hover. */
 export function prefetchRoute(queryClient: QueryClient, path: string) {
+  // Chunk first: it parallelizes with the data queries below.
+  prefetchRouteChunk(path);
   const { sortKey, sortDirection } = defaultTableSort();
 
   if (path === '/admin/orders' || path.startsWith('/admin/orders')) {

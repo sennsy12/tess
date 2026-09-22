@@ -10,7 +10,9 @@ import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AdminStatus } from '../Status';
 
-vi.mock('../../../lib/api', () => ({
+// NOTE: AdminStatus imports the direct module ('../../lib/api/status'), so
+// the mock must target that exact path — the barrel mock would not intercept.
+vi.mock('../../../lib/api/status', () => ({
   statusApi: {
     getStatus: vi.fn(),
     getImportStatus: vi.fn(),
@@ -26,7 +28,7 @@ vi.mock('../../../components/Layout', () => ({
   Layout: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 
-import { statusApi } from '../../../lib/api';
+import { statusApi } from '../../../lib/api/status';
 
 const mockedApi = statusApi as unknown as Record<string, ReturnType<typeof vi.fn>>;
 

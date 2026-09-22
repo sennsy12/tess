@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { pricingApi } from '../../lib/api';
+import { pricingApi } from '../../lib/api/pricing';
 import { getApiError } from '../../lib/apiErrors';
 import { pricingKeys, kundeKeys } from '../../lib/queryKeys';
 import { parseNonNegativeNumber } from '../../lib/formatters';

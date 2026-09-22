@@ -8,15 +8,39 @@ export function useNotifications(limit = 20) {
     queryKey: [...NOTIFICATIONS_QUERY_KEY, limit],
     queryFn: () => notificationsApi.list({ limit, page: 1 }).then((res) => res.data.data ?? []),
     refetchInterval: 30_000,
+    // Polling a hidden tab burns battery/data for zero visible benefit.
+    refetchIntervalInBackground: false,
   });
 }
 
-export function useUnreadNotificationCount() {
+export function useUnreadNotificationCount(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: [...NOTIFICATIONS_QUERY_KEY, 'unread-count'],
     queryFn: () => notificationsApi.unreadCount().then((res) => res.data.count),
     refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
+    enabled: options?.enabled,
   });
+}
+
+/**
+ * Exact unread badge count without an extra request in the common case.
+ *
+ * Reuses the already-polled `useNotifications(limit)` cache: when the list
+ * is shorter than the limit it cannot be truncated, so the unread count
+ * derived from it is exact and the dedicated count endpoint is skipped
+ * entirely. Only when the list is full (possible truncation) does the
+ * server count query fire. Mark-read mutations invalidate the shared key,
+ * so both sources stay consistent.
+ */
+export function useUnreadBadgeCount(limit = 15): number {
+  const { data: notifications = [] } = useNotifications(limit);
+  const truncated = notifications.length >= limit;
+  const { data: serverCount = 0 } = useUnreadNotificationCount({ enabled: truncated });
+  if (!truncated) {
+    return notifications.filter((n) => !n.read_at).length;
+  }
+  return serverCount;
 }
 
 export function useMarkNotificationsRead() {
@@ -58,5 +82,6 @@ export function useNotificationsPage(filters: NotificationsPageFilters) {
         .then((res) => res.data),
     placeholderData: (prev) => prev,
     refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
   });
 }

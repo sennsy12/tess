@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "test": "vitest",
     "lint": "eslint src",
-    "lint:fix": "eslint src --fix"
+    "lint:fix": "eslint src --fix",
+    "perf:budget": "node scripts/check-bundle-budget.mjs"
   },
   "dependencies": {
     "@azure/msal-browser": "^4.30.0",

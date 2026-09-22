@@ -14,7 +14,9 @@ export function Bone({ className = '' }: { className?: string }) {
 }
 
 export function Skeleton({ className = '', variant = 'rectangular', ...props }: SkeletonProps) {
-  const baseClasses = 'shimmer bg-dark-800/50 rounded-lg backdrop-blur-sm border border-dark-700/20';
+  // NOTE: no backdrop-blur here — skeletons replace content (nothing beneath
+  // to blur), and per-frame blur of the backdrop is pure compositing cost.
+  const baseClasses = 'shimmer bg-dark-800/50 rounded-lg border border-dark-700/20';
   
   const variantClasses = {
     rectangular: 'w-full h-full',

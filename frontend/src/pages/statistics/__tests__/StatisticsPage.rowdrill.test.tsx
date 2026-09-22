@@ -26,6 +26,23 @@ vi.mock('../../../context/useAuth', () => ({
   useAuth: () => ({ user: { id: 1, username: 'admin', role: 'admin' } }),
 }));
 
+// StatisticsPage also mounts useSavedViews (direct reports module) and
+// StatsFilters → usePricingProductGroups (direct products module). Stub both
+// so the test never touches the network.
+vi.mock('../../../lib/api/reports', () => ({
+  reportsApi: {
+    getAll: vi.fn().mockResolvedValue({ data: [] }),
+    save: vi.fn(),
+    delete: vi.fn(),
+  },
+}));
+
+vi.mock('../../../lib/api/products', () => ({
+  productsApi: {
+    getGroups: vi.fn().mockResolvedValue({ data: [] }),
+  },
+}));
+
 vi.mock('../../../components/Layout', () => ({
   Layout: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
