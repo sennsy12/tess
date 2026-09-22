@@ -55,7 +55,7 @@ jobs:
       - name: Build production image
         run: docker build -f Dockerfile.prod -t tess-frontend-prod:ci .
       - name: Upload dist artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: frontend-dist
           path: frontend/dist
